@@ -193,6 +193,7 @@ export const klanten = pgTable(
     naam: text("naam").notNull(),
     naamGenormaliseerd: text("naam_genormaliseerd").notNull(),
     soort: klantSoort("soort").notNull().default("aannemer"),
+    aliassen: text("aliassen").array().notNull().default([]),
     kvk: text("kvk"),
     factuurEmail: text("factuur_email"),
     factuurEisen: text("factuur_eisen"),

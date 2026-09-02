@@ -6,14 +6,15 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 export const metadata = { title: "Inloggen" };
 
 export default async function LoginPage({ searchParams }: PageProps<"/login">) {
-  const session = await auth();
   const params = await searchParams;
   const callbackUrl = typeof params.callbackUrl === "string" ? params.callbackUrl : "/";
   const error = typeof params.error === "string" ? params.error : undefined;
 
-  if (session?.user || (process.env.AUTH_DEV_BYPASS_EMAIL && process.env.NODE_ENV !== "production")) {
+  if (process.env.AUTH_DEV_BYPASS_EMAIL && process.env.NODE_ENV !== "production") {
     redirect(callbackUrl);
   }
+  const session = await auth();
+  if (session?.user) redirect(callbackUrl);
 
   return (
     <main className="flex flex-1 items-center justify-center p-6">

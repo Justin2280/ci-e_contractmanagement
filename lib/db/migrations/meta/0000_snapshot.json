@@ -1,5 +1,5 @@
 {
-  "id": "43793b9f-4d94-4ef9-9d93-c7a8c7ac5258",
+  "id": "a7011559-782f-4212-a5af-0a1613c2150f",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -1630,6 +1630,13 @@
           "primaryKey": false,
           "notNull": true,
           "default": "'aannemer'"
+        },
+        "aliassen": {
+          "name": "aliassen",
+          "type": "text[]",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'{}'"
         },
         "kvk": {
           "name": "kvk",

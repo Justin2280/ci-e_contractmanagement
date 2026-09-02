@@ -4,7 +4,6 @@ import type { NeonDatabase } from "drizzle-orm/neon-serverless";
 export type Db = NeonDatabase<typeof schema>;
 
 declare global {
-  // eslint-disable-next-line no-var
   var __contractDb: Db | undefined;
 }
 

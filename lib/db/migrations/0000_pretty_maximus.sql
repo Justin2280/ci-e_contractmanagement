@@ -216,6 +216,7 @@ CREATE TABLE "klanten" (
 	"naam" text NOT NULL,
 	"naam_genormaliseerd" text NOT NULL,
 	"soort" "klant_soort" DEFAULT 'aannemer' NOT NULL,
+	"aliassen" text[] DEFAULT '{}' NOT NULL,
 	"kvk" text,
 	"factuur_email" text,
 	"factuur_eisen" text,
