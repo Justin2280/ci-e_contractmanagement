@@ -1,0 +1,2284 @@
+{
+  "id": "43793b9f-4d94-4ef9-9d93-c7a8c7ac5258",
+  "prevId": "00000000-0000-0000-0000-000000000000",
+  "version": "7",
+  "dialect": "postgresql",
+  "tables": {
+    "public.acties": {
+      "name": "acties",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "soort": {
+          "name": "soort",
+          "type": "actie_soort",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "titel": {
+          "name": "titel",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "omschrijving": {
+          "name": "omschrijving",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "inzet_id": {
+          "name": "inzet_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "contract_id": {
+          "name": "contract_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "medewerker_id": {
+          "name": "medewerker_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "email_in_id": {
+          "name": "email_in_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "vervaldatum": {
+          "name": "vervaldatum",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "status": {
+          "name": "status",
+          "type": "actie_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'open'"
+        },
+        "toegewezen_user_id": {
+          "name": "toegewezen_user_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "dedupe_key": {
+          "name": "dedupe_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "afgerond_op": {
+          "name": "afgerond_op",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "acties_status_idx": {
+          "name": "acties_status_idx",
+          "columns": [
+            {
+              "expression": "status",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "vervaldatum",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "acties_inzet_id_inzetten_id_fk": {
+          "name": "acties_inzet_id_inzetten_id_fk",
+          "tableFrom": "acties",
+          "tableTo": "inzetten",
+          "columnsFrom": [
+            "inzet_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "acties_contract_id_contracten_id_fk": {
+          "name": "acties_contract_id_contracten_id_fk",
+          "tableFrom": "acties",
+          "tableTo": "contracten",
+          "columnsFrom": [
+            "contract_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "acties_medewerker_id_medewerkers_id_fk": {
+          "name": "acties_medewerker_id_medewerkers_id_fk",
+          "tableFrom": "acties",
+          "tableTo": "medewerkers",
+          "columnsFrom": [
+            "medewerker_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "acties_email_in_id_emails_in_id_fk": {
+          "name": "acties_email_in_id_emails_in_id_fk",
+          "tableFrom": "acties",
+          "tableTo": "emails_in",
+          "columnsFrom": [
+            "email_in_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "acties_toegewezen_user_id_users_id_fk": {
+          "name": "acties_toegewezen_user_id_users_id_fk",
+          "tableFrom": "acties",
+          "tableTo": "users",
+          "columnsFrom": [
+            "toegewezen_user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "acties_dedupe_key_unique": {
+          "name": "acties_dedupe_key_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "dedupe_key"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.audit_log": {
+      "name": "audit_log",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "actie": {
+          "name": "actie",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "entiteit": {
+          "name": "entiteit",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "entiteit_id": {
+          "name": "entiteit_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "details": {
+          "name": "details",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "audit_log_user_id_users_id_fk": {
+          "name": "audit_log_user_id_users_id_fk",
+          "tableFrom": "audit_log",
+          "tableTo": "users",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.bijlagen": {
+      "name": "bijlagen",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "email_in_id": {
+          "name": "email_in_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "graph_attachment_id": {
+          "name": "graph_attachment_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "naam": {
+          "name": "naam",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "mime": {
+          "name": "mime",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "grootte": {
+          "name": "grootte",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "blob_pathname": {
+          "name": "blob_pathname",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "blob_url": {
+          "name": "blob_url",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "is_contract": {
+          "name": "is_contract",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "bijlagen_email_in_id_emails_in_id_fk": {
+          "name": "bijlagen_email_in_id_emails_in_id_fk",
+          "tableFrom": "bijlagen",
+          "tableTo": "emails_in",
+          "columnsFrom": [
+            "email_in_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.contactpersonen": {
+      "name": "contactpersonen",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "klant_id": {
+          "name": "klant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "naam": {
+          "name": "naam",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "email": {
+          "name": "email",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "telefoon": {
+          "name": "telefoon",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "rol": {
+          "name": "rol",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "contactpersonen_klant_id_klanten_id_fk": {
+          "name": "contactpersonen_klant_id_klanten_id_fk",
+          "tableFrom": "contactpersonen",
+          "tableTo": "klanten",
+          "columnsFrom": [
+            "klant_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.contracten": {
+      "name": "contracten",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "nummer": {
+          "name": "nummer",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "titel": {
+          "name": "titel",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "soort": {
+          "name": "soort",
+          "type": "contract_soort",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'overig'"
+        },
+        "klant_id": {
+          "name": "klant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "project_id": {
+          "name": "project_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "parent_contract_id": {
+          "name": "parent_contract_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "startdatum": {
+          "name": "startdatum",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "einddatum": {
+          "name": "einddatum",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "einddatum_type": {
+          "name": "einddatum_type",
+          "type": "einddatum_type",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'vast'"
+        },
+        "opzegtermijn_dagen": {
+          "name": "opzegtermijn_dagen",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "opzegtermijn_toelichting": {
+          "name": "opzegtermijn_toelichting",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "verlenging_afspraak": {
+          "name": "verlenging_afspraak",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "intermediair": {
+          "name": "intermediair",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "eindklant": {
+          "name": "eindklant",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "indexatie": {
+          "name": "indexatie",
+          "type": "indexatie_soort",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'onbekend'"
+        },
+        "indexatie_moment": {
+          "name": "indexatie_moment",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "indexatie_toelichting": {
+          "name": "indexatie_toelichting",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "betalingstermijn_dagen": {
+          "name": "betalingstermijn_dagen",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "facturatie_frequentie": {
+          "name": "facturatie_frequentie",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "factuur_eisen": {
+          "name": "factuur_eisen",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "getekend_op": {
+          "name": "getekend_op",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "status": {
+          "name": "status",
+          "type": "contract_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'actief'"
+        },
+        "review_status": {
+          "name": "review_status",
+          "type": "review_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'goedgekeurd'"
+        },
+        "bron_email_id": {
+          "name": "bron_email_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "pdf_bijlage_id": {
+          "name": "pdf_bijlage_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "extractie_json": {
+          "name": "extractie_json",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "samenvatting": {
+          "name": "samenvatting",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "notities": {
+          "name": "notities",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "contracten_nummer_idx": {
+          "name": "contracten_nummer_idx",
+          "columns": [
+            {
+              "expression": "nummer",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "contracten_klant_id_klanten_id_fk": {
+          "name": "contracten_klant_id_klanten_id_fk",
+          "tableFrom": "contracten",
+          "tableTo": "klanten",
+          "columnsFrom": [
+            "klant_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "contracten_project_id_projecten_id_fk": {
+          "name": "contracten_project_id_projecten_id_fk",
+          "tableFrom": "contracten",
+          "tableTo": "projecten",
+          "columnsFrom": [
+            "project_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "contracten_bron_email_id_emails_in_id_fk": {
+          "name": "contracten_bron_email_id_emails_in_id_fk",
+          "tableFrom": "contracten",
+          "tableTo": "emails_in",
+          "columnsFrom": [
+            "bron_email_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "contracten_pdf_bijlage_id_bijlagen_id_fk": {
+          "name": "contracten_pdf_bijlage_id_bijlagen_id_fk",
+          "tableFrom": "contracten",
+          "tableTo": "bijlagen",
+          "columnsFrom": [
+            "pdf_bijlage_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.delta_links": {
+      "name": "delta_links",
+      "schema": "",
+      "columns": {
+        "resource": {
+          "name": "resource",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "delta_link": {
+          "name": "delta_link",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.emails_in": {
+      "name": "emails_in",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "graph_message_id": {
+          "name": "graph_message_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "internet_message_id": {
+          "name": "internet_message_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "van_email": {
+          "name": "van_email",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "van_naam": {
+          "name": "van_naam",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "aan": {
+          "name": "aan",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "onderwerp": {
+          "name": "onderwerp",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "ontvangen_op": {
+          "name": "ontvangen_op",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "body_text": {
+          "name": "body_text",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "classificatie": {
+          "name": "classificatie",
+          "type": "mail_classificatie",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "classificatie_toelichting": {
+          "name": "classificatie_toelichting",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "verwerkstatus": {
+          "name": "verwerkstatus",
+          "type": "verwerk_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'nieuw'"
+        },
+        "fout": {
+          "name": "fout",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "extractie_json": {
+          "name": "extractie_json",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "emails_in_graph_message_id_unique": {
+          "name": "emails_in_graph_message_id_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "graph_message_id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.emails_uit": {
+      "name": "emails_uit",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "actie_id": {
+          "name": "actie_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "inzet_id": {
+          "name": "inzet_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "aan": {
+          "name": "aan",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "cc": {
+          "name": "cc",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "onderwerp": {
+          "name": "onderwerp",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "body": {
+          "name": "body",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "email_uit_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'concept'"
+        },
+        "outlook_draft_id": {
+          "name": "outlook_draft_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "outlook_mailbox": {
+          "name": "outlook_mailbox",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "aangemaakt_door_user_id": {
+          "name": "aangemaakt_door_user_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "verstuurd_op": {
+          "name": "verstuurd_op",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "definitieve_body": {
+          "name": "definitieve_body",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "emails_uit_actie_id_acties_id_fk": {
+          "name": "emails_uit_actie_id_acties_id_fk",
+          "tableFrom": "emails_uit",
+          "tableTo": "acties",
+          "columnsFrom": [
+            "actie_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "emails_uit_inzet_id_inzetten_id_fk": {
+          "name": "emails_uit_inzet_id_inzetten_id_fk",
+          "tableFrom": "emails_uit",
+          "tableTo": "inzetten",
+          "columnsFrom": [
+            "inzet_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "emails_uit_aangemaakt_door_user_id_users_id_fk": {
+          "name": "emails_uit_aangemaakt_door_user_id_users_id_fk",
+          "tableFrom": "emails_uit",
+          "tableTo": "users",
+          "columnsFrom": [
+            "aangemaakt_door_user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.facturatie_periodes": {
+      "name": "facturatie_periodes",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "jaar": {
+          "name": "jaar",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "nummer": {
+          "name": "nummer",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "startdatum": {
+          "name": "startdatum",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "einddatum": {
+          "name": "einddatum",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "weken": {
+          "name": "weken",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "status": {
+          "name": "status",
+          "type": "periode_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'open'"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "facturatie_periodes_jaar_nummer_idx": {
+          "name": "facturatie_periodes_jaar_nummer_idx",
+          "columns": [
+            {
+              "expression": "jaar",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "nummer",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.facturatie_regels": {
+      "name": "facturatie_regels",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "periode_id": {
+          "name": "periode_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "inzet_id": {
+          "name": "inzet_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "urenbon_ontvangen": {
+          "name": "urenbon_ontvangen",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "uren_bon": {
+          "name": "uren_bon",
+          "type": "numeric(7, 2)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "uren_excel": {
+          "name": "uren_excel",
+          "type": "numeric(7, 2)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "waar": {
+          "name": "waar",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "ontvangstbon_nodig": {
+          "name": "ontvangstbon_nodig",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "gefactureerd": {
+          "name": "gefactureerd",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "opmerking": {
+          "name": "opmerking",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "facturatie_regels_periode_inzet_idx": {
+          "name": "facturatie_regels_periode_inzet_idx",
+          "columns": [
+            {
+              "expression": "periode_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "inzet_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "facturatie_regels_periode_id_facturatie_periodes_id_fk": {
+          "name": "facturatie_regels_periode_id_facturatie_periodes_id_fk",
+          "tableFrom": "facturatie_regels",
+          "tableTo": "facturatie_periodes",
+          "columnsFrom": [
+            "periode_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "facturatie_regels_inzet_id_inzetten_id_fk": {
+          "name": "facturatie_regels_inzet_id_inzetten_id_fk",
+          "tableFrom": "facturatie_regels",
+          "tableTo": "inzetten",
+          "columnsFrom": [
+            "inzet_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.graph_subscriptions": {
+      "name": "graph_subscriptions",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "subscription_id": {
+          "name": "subscription_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "resource": {
+          "name": "resource",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "expiration": {
+          "name": "expiration",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "client_state": {
+          "name": "client_state",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "graph_subscriptions_subscription_id_unique": {
+          "name": "graph_subscriptions_subscription_id_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "subscription_id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.instellingen": {
+      "name": "instellingen",
+      "schema": "",
+      "columns": {
+        "key": {
+          "name": "key",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "value": {
+          "name": "value",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.inzetten": {
+      "name": "inzetten",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "medewerker_id": {
+          "name": "medewerker_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "contract_id": {
+          "name": "contract_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "contractnummer_tekst": {
+          "name": "contractnummer_tekst",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "klant_id": {
+          "name": "klant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "project_id": {
+          "name": "project_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "functie": {
+          "name": "functie",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "tarief": {
+          "name": "tarief",
+          "type": "numeric(8, 2)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "tarief_geldig_vanaf": {
+          "name": "tarief_geldig_vanaf",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "startdatum": {
+          "name": "startdatum",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "einddatum": {
+          "name": "einddatum",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "einddatum_type": {
+          "name": "einddatum_type",
+          "type": "einddatum_type",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'vast'"
+        },
+        "inzet_omvang": {
+          "name": "inzet_omvang",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "status": {
+          "name": "status",
+          "type": "inzet_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'actief'"
+        },
+        "actiehouder_user_id": {
+          "name": "actiehouder_user_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "contactpersoon_id": {
+          "name": "contactpersoon_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "leidinggevende": {
+          "name": "leidinggevende",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "notities": {
+          "name": "notities",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "inzetten_medewerker_idx": {
+          "name": "inzetten_medewerker_idx",
+          "columns": [
+            {
+              "expression": "medewerker_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "inzetten_contract_idx": {
+          "name": "inzetten_contract_idx",
+          "columns": [
+            {
+              "expression": "contract_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "inzetten_medewerker_id_medewerkers_id_fk": {
+          "name": "inzetten_medewerker_id_medewerkers_id_fk",
+          "tableFrom": "inzetten",
+          "tableTo": "medewerkers",
+          "columnsFrom": [
+            "medewerker_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "inzetten_contract_id_contracten_id_fk": {
+          "name": "inzetten_contract_id_contracten_id_fk",
+          "tableFrom": "inzetten",
+          "tableTo": "contracten",
+          "columnsFrom": [
+            "contract_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "inzetten_klant_id_klanten_id_fk": {
+          "name": "inzetten_klant_id_klanten_id_fk",
+          "tableFrom": "inzetten",
+          "tableTo": "klanten",
+          "columnsFrom": [
+            "klant_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "inzetten_project_id_projecten_id_fk": {
+          "name": "inzetten_project_id_projecten_id_fk",
+          "tableFrom": "inzetten",
+          "tableTo": "projecten",
+          "columnsFrom": [
+            "project_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "inzetten_actiehouder_user_id_users_id_fk": {
+          "name": "inzetten_actiehouder_user_id_users_id_fk",
+          "tableFrom": "inzetten",
+          "tableTo": "users",
+          "columnsFrom": [
+            "actiehouder_user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "inzetten_contactpersoon_id_contactpersonen_id_fk": {
+          "name": "inzetten_contactpersoon_id_contactpersonen_id_fk",
+          "tableFrom": "inzetten",
+          "tableTo": "contactpersonen",
+          "columnsFrom": [
+            "contactpersoon_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.klanten": {
+      "name": "klanten",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "naam": {
+          "name": "naam",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "naam_genormaliseerd": {
+          "name": "naam_genormaliseerd",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "soort": {
+          "name": "soort",
+          "type": "klant_soort",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'aannemer'"
+        },
+        "kvk": {
+          "name": "kvk",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "factuur_email": {
+          "name": "factuur_email",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "factuur_eisen": {
+          "name": "factuur_eisen",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "portal": {
+          "name": "portal",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "notities": {
+          "name": "notities",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "klanten_naam_norm_idx": {
+          "name": "klanten_naam_norm_idx",
+          "columns": [
+            {
+              "expression": "naam_genormaliseerd",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.medewerkers": {
+      "name": "medewerkers",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "naam": {
+          "name": "naam",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "naam_genormaliseerd": {
+          "name": "naam_genormaliseerd",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "email": {
+          "name": "email",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "functie": {
+          "name": "functie",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "actief": {
+          "name": "actief",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "notities": {
+          "name": "notities",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "medewerkers_naam_norm_idx": {
+          "name": "medewerkers_naam_norm_idx",
+          "columns": [
+            {
+              "expression": "naam_genormaliseerd",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.projecten": {
+      "name": "projecten",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "klant_id": {
+          "name": "klant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "naam": {
+          "name": "naam",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "code": {
+          "name": "code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "locatie": {
+          "name": "locatie",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "projecten_klant_id_klanten_id_fk": {
+          "name": "projecten_klant_id_klanten_id_fk",
+          "tableFrom": "projecten",
+          "tableTo": "klanten",
+          "columnsFrom": [
+            "klant_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.stijl_voorbeelden": {
+      "name": "stijl_voorbeelden",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "titel": {
+          "name": "titel",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "tekst": {
+          "name": "tekst",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "soort": {
+          "name": "soort",
+          "type": "stijl_soort",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'algemeen'"
+        },
+        "bron": {
+          "name": "bron",
+          "type": "stijl_bron",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'handmatig'"
+        },
+        "actief": {
+          "name": "actief",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.tarieven": {
+      "name": "tarieven",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "inzet_id": {
+          "name": "inzet_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "contract_id": {
+          "name": "contract_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "functie": {
+          "name": "functie",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "bedrag": {
+          "name": "bedrag",
+          "type": "numeric(8, 2)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "geldig_vanaf": {
+          "name": "geldig_vanaf",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "reden": {
+          "name": "reden",
+          "type": "tarief_reden",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'initieel'"
+        },
+        "bron": {
+          "name": "bron",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "tarieven_inzet_id_inzetten_id_fk": {
+          "name": "tarieven_inzet_id_inzetten_id_fk",
+          "tableFrom": "tarieven",
+          "tableTo": "inzetten",
+          "columnsFrom": [
+            "inzet_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "tarieven_contract_id_contracten_id_fk": {
+          "name": "tarieven_contract_id_contracten_id_fk",
+          "tableFrom": "tarieven",
+          "tableTo": "contracten",
+          "columnsFrom": [
+            "contract_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.users": {
+      "name": "users",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "email": {
+          "name": "email",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "naam": {
+          "name": "naam",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "role": {
+          "name": "role",
+          "type": "user_role",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'gebruiker'"
+        },
+        "entra_oid": {
+          "name": "entra_oid",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "mailbox_upn": {
+          "name": "mailbox_upn",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "actief": {
+          "name": "actief",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "laatst_ingelogd": {
+          "name": "laatst_ingelogd",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "users_email_unique": {
+          "name": "users_email_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "email"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    }
+  },
+  "enums": {
+    "public.actie_soort": {
+      "name": "actie_soort",
+      "schema": "public",
+      "values": [
+        "verlenging_uitvragen",
+        "einddatum_controleren",
+        "indexatie_aanvragen",
+        "contract_opvragen",
+        "opzegtermijn_let_op",
+        "urenbon_opvragen",
+        "review_extractie",
+        "handmatig"
+      ]
+    },
+    "public.actie_status": {
+      "name": "actie_status",
+      "schema": "public",
+      "values": [
+        "open",
+        "conceptmail_klaar",
+        "verstuurd",
+        "afgerond",
+        "genegeerd"
+      ]
+    },
+    "public.contract_soort": {
+      "name": "contract_soort",
+      "schema": "public",
+      "values": [
+        "raamovereenkomst",
+        "nadere_overeenkomst",
+        "overeenkomst_van_opdracht",
+        "inhuur",
+        "tarievenbrief",
+        "verlenging",
+        "overig"
+      ]
+    },
+    "public.contract_status": {
+      "name": "contract_status",
+      "schema": "public",
+      "values": [
+        "concept",
+        "actief",
+        "verlopen",
+        "beeindigd"
+      ]
+    },
+    "public.einddatum_type": {
+      "name": "einddatum_type",
+      "schema": "public",
+      "values": [
+        "vast",
+        "ntb",
+        "onbepaald",
+        "einde_opdracht"
+      ]
+    },
+    "public.email_uit_status": {
+      "name": "email_uit_status",
+      "schema": "public",
+      "values": [
+        "concept",
+        "in_outlook",
+        "verstuurd"
+      ]
+    },
+    "public.indexatie_soort": {
+      "name": "indexatie_soort",
+      "schema": "public",
+      "values": [
+        "onbekend",
+        "geen",
+        "vast",
+        "jaarlijks_cbs",
+        "jaarlijks_overleg"
+      ]
+    },
+    "public.inzet_status": {
+      "name": "inzet_status",
+      "schema": "public",
+      "values": [
+        "actief",
+        "verlengen",
+        "in_contact",
+        "contract_wachten",
+        "beeindigd"
+      ]
+    },
+    "public.klant_soort": {
+      "name": "klant_soort",
+      "schema": "public",
+      "values": [
+        "aannemer",
+        "bouwcombinatie",
+        "ingenieursbureau",
+        "detacheerder",
+        "overig"
+      ]
+    },
+    "public.mail_classificatie": {
+      "name": "mail_classificatie",
+      "schema": "public",
+      "values": [
+        "contract",
+        "verlenging_of_tarievenbrief",
+        "opzegging",
+        "overig"
+      ]
+    },
+    "public.periode_status": {
+      "name": "periode_status",
+      "schema": "public",
+      "values": [
+        "open",
+        "afgerond"
+      ]
+    },
+    "public.review_status": {
+      "name": "review_status",
+      "schema": "public",
+      "values": [
+        "te_beoordelen",
+        "goedgekeurd",
+        "afgewezen"
+      ]
+    },
+    "public.stijl_bron": {
+      "name": "stijl_bron",
+      "schema": "public",
+      "values": [
+        "handmatig",
+        "sent_items",
+        "bewerkt_concept"
+      ]
+    },
+    "public.stijl_soort": {
+      "name": "stijl_soort",
+      "schema": "public",
+      "values": [
+        "algemeen",
+        "verlenging",
+        "indexatie",
+        "contract_opvragen"
+      ]
+    },
+    "public.tarief_reden": {
+      "name": "tarief_reden",
+      "schema": "public",
+      "values": [
+        "initieel",
+        "indexatie",
+        "verlenging",
+        "handmatig"
+      ]
+    },
+    "public.user_role": {
+      "name": "user_role",
+      "schema": "public",
+      "values": [
+        "admin",
+        "gebruiker"
+      ]
+    },
+    "public.verwerk_status": {
+      "name": "verwerk_status",
+      "schema": "public",
+      "values": [
+        "nieuw",
+        "verwerken",
+        "te_beoordelen",
+        "verwerkt",
+        "genegeerd",
+        "fout"
+      ]
+    }
+  },
+  "schemas": {},
+  "sequences": {},
+  "roles": {},
+  "policies": {},
+  "views": {},
+  "_meta": {
+    "columns": {},
+    "schemas": {},
+    "tables": {}
+  }
+}
