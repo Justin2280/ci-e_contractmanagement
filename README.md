@@ -1,36 +1,61 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Contractbeheer · CI-Engineers
 
-## Getting Started
+Webapp die het Excel-overzicht (`FactureerOverzicht_<jaar>.xlsx`) vervangt en het contractbeheer automatiseert:
 
-First, run the development server:
+- **Intake per e-mail** — stuur een contract door naar de gedeelde mailbox (`contracten@…`). De app haalt de mail en PDF's op via Microsoft Graph, laat Claude de gegevens uitlezen (contractnummer, partijen, medewerkers, tarieven, looptijd, opzegtermijn, indexatie, factuureisen) en zet het resultaat klaar ter beoordeling.
+- **Overzicht** — inzetten (wie zit waar, tegen welk tarief, tot wanneer), medewerkers, klanten met contactpersonen en factuureisen, contractdossiers met tariefhistorie.
+- **Bewaking** — een dagelijkse regels-engine maakt acties aan: verlenging uitvragen, indexatie aanvragen, contract opvragen, kwartaalcheck bij inzet zonder einddatum, urenbonnen opvragen.
+- **Conceptmails** — per actie genereert Claude een mail in jouw schrijfstijl (instructies + voorbeeldmails). Je bewerkt hem, zet hem als concept in je eigen Outlook of verstuurt hem direct.
+- **Herinneringen** — wekelijkse digest (en dagelijks bij acties over tijd) per actiehouder vanuit de gedeelde mailbox.
+- **Facturatie** — de 4-wekelijkse checklist (urenbon binnen, waar factureren, gefactureerd) per periode.
+
+## Stack
+
+Next.js 16 (App Router) · TypeScript · Tailwind 4 + shadcn/ui · Drizzle ORM + Neon Postgres · Auth.js (Microsoft Entra ID) · Microsoft Graph (app-only) · Anthropic SDK (Claude Opus 5, structured outputs) · Vercel Blob (privé) · Vercel Cron.
+
+## Lokaal draaien
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
+pnpm install
+cp .env.example .env.local        # vul minimaal DATABASE_URL, AUTH_SECRET en AUTH_DEV_BYPASS_EMAIL in
+pnpm db:migrate                   # DATABASE_URL=pglite://./.pglite werkt zonder Postgres-server
+pnpm import:excel fixtures/FactureerOverzicht_2026.xlsx   # optioneel, IMPORT_ACTIEHOUDERS="Justin=j.deweert@ci-engineers.com"
+pnpm seed:demo                    # optioneel: demo-mail met extractie in de Inbox
 pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+`AUTH_DEV_BYPASS_EMAIL` slaat de Microsoft-login over (alleen buiten productie). Zonder `GRAPH_*` en `ANTHROPIC_API_KEY` werkt alles behalve mailbox-sync, extractie en versturen; die knoppen staan dan uit.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+Handige scripts: `pnpm typecheck`, `pnpm lint`, `pnpm test` (Vitest, in-memory Postgres via PGlite), `pnpm db:generate` (nieuwe migratie na schemawijziging), `pnpm db:studio`.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Uitrollen
 
-## Learn More
+Zie [SETUP.md](./SETUP.md) voor de Azure/Exchange-configuratie (app-registratie, mailbox-scoping, gedeelde mailbox), Vercel (Neon, Blob, Cron, env vars) en de eerste keer inloggen.
 
-To learn more about Next.js, take a look at the following resources:
+## Hoe het werkt
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```
+mail -> Graph webhook/delta -> emails_in + bijlagen (Blob)
+     -> Claude: classificatie -> extractie (structured output, Zod)
+     -> Inbox: beoordelen, koppelen aan klant/medewerker/contract -> goedkeuren
+     -> contracten / inzetten / tarieven / contactpersonen
+dagelijks (Vercel Cron /api/cron/daily):
+     mailbox-sync + subscription verlengen -> regels-engine -> acties -> herinneringsmails
+actie -> Claude conceptmail (stijlprofiel) -> bewerken -> Outlook-concept of versturen
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Belangrijke mappen:
 
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+| Pad | Inhoud |
+|---|---|
+| `lib/db/schema.ts` | Datamodel (Drizzle) en migraties in `lib/db/migrations` |
+| `lib/graph/` | Graph-client, mail (delta, bijlagen, drafts, sendMail), subscriptions |
+| `lib/intake/` | Ingest van berichten, delta-sync, verwerkingspijplijn |
+| `lib/llm/` | Claude-client, Zod-schema's, prompts, extractie en conceptmails |
+| `lib/review/` | Koppelvoorstel (matching) en goedkeurtransactie |
+| `lib/rules/` | Pure regels-engine (`engine.ts`) en dagelijkse run |
+| `lib/excel/` | Parser en importer van het oude Excel-overzicht |
+| `lib/facturatie/`, `lib/periods.ts` | 4-wekelijkse periodes |
+| `app/(app)/…` | Pagina's: dashboard, inzetten, medewerkers, klanten, contracten, inbox, acties, facturatie, instellingen |
+| `app/api/graph/notifications` | Graph-webhook (validatie, clientState, lifecycle) |
+| `app/api/cron/daily` | Dagelijkse taak (beveiligd met `CRON_SECRET`) |
