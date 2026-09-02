@@ -40,6 +40,7 @@ export async function updateStijl(_prev: ActionState, formData: FormData): Promi
     stijlInstructies: String(formData.get("stijlInstructies") ?? ""),
     handtekening: String(formData.get("handtekening") ?? ""),
     afzenderNaam: String(formData.get("afzenderNaam") ?? "CI-Engineers"),
+    standaardCc: String(formData.get("standaardCc") ?? "").trim(),
   });
   rev();
   return { ok: true, message: "Opgeslagen" };

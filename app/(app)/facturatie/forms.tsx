@@ -10,7 +10,7 @@ export function AanvullenButton() {
   return (
     <form action={action} className="flex items-center gap-2">
       <Button type="submit" variant="outline" disabled={pending}>
-        {pending ? "Bezig…" : "Regels aanvullen"}
+        {pending ? "Bezig…" : "Periodes aanvullen"}
       </Button>
       {state ? <span className="text-xs text-muted-foreground">{state.message}</span> : null}
     </form>

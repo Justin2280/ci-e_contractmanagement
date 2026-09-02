@@ -108,6 +108,7 @@ export default async function ActieMailPage({ params }: PageProps<"/acties/[id]/
               actieId={actie.id}
               graph={graphConfigured()}
               mailbox={user?.mailboxUpn ?? user?.email ?? ""}
+              sharedMailbox={process.env.GRAPH_SHARED_MAILBOX ?? "contracten@…"}
               suggesties={contacten.filter((c) => c.email).map((c) => ({ naam: c.naam, email: c.email! }))}
             />
           ) : (

@@ -89,7 +89,7 @@ export default async function PeriodePage({ params }: PageProps<"/facturatie/[id
             {regels.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={10} className="py-6 text-center text-muted-foreground">
-                  Nog geen regels. Klik op ‘Regels aanvullen’ op de overzichtspagina.
+                  Nog geen regels. Klik op ‘Periodes aanvullen’ op de overzichtspagina.
                 </TableCell>
               </TableRow>
             ) : null}

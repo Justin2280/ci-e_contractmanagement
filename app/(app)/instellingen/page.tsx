@@ -46,7 +46,9 @@ export default async function InstellingenPage() {
             <div>
               <div className="font-medium">Microsoft Graph</div>
               <div className="text-muted-foreground">
-                {graphConfigured() ? `Geconfigureerd · gedeelde mailbox ${process.env.GRAPH_SHARED_MAILBOX}` : "Niet geconfigureerd (GRAPH_TENANT_ID / GRAPH_CLIENT_ID / GRAPH_CLIENT_SECRET)"}
+                {graphConfigured()
+                  ? `Geconfigureerd · gedeelde mailbox ${process.env.GRAPH_SHARED_MAILBOX} (alleen inlezen van contracten en interne herinneringen; externe mails via de mailbox van de gebruiker)`
+                  : "Niet geconfigureerd (GRAPH_TENANT_ID / GRAPH_CLIENT_ID / GRAPH_CLIENT_SECRET)"}
               </div>
               {subs.map((s) => (
                 <div key={s.id} className="text-xs text-muted-foreground">

@@ -64,6 +64,7 @@ export async function generateConcept(_prev: ActionState, formData: FormData): P
       actieId,
       inzetId: actie.inzetId,
       aan: ontvanger?.email ?? "",
+      cc: settings.standaardCc || null,
       onderwerp: draft.onderwerp,
       body: draft.body,
       status: "concept",
