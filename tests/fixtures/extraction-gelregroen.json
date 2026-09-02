@@ -1,0 +1,44 @@
+{
+  "contractnummer": "041802483-010594",
+  "parentContractnummer": null,
+  "soort": "overeenkomst_van_opdracht",
+  "titel": "Inzet constructeur hulpconstructies ViA15",
+  "opdrachtgever": { "naam": "GelreGroen Construction V.O.F.", "kvk": "77546504", "adres": "Westervoortsedijk 73, 6827 AV Arnhem" },
+  "intermediair": null,
+  "eindklant": "Rijkswaterstaat",
+  "project": { "naam": "A12/A15 Ressen – Oudbroeken (ViA15)", "code": null, "locatie": "Haalderen / Arnhem" },
+  "personen": [
+    {
+      "naam": "Walter Terpstra",
+      "functie": "constructeur hulpconstructies",
+      "tarief": 127.5,
+      "tariefGeldigVanaf": "2026-03-10",
+      "startdatum": "2026-03-10",
+      "einddatum": "2026-09-30",
+      "einddatumType": "vast",
+      "inzetOmvang": "ca. 40 uur per week, waarvan ca. 20 uur op locatie"
+    }
+  ],
+  "tarieven": [],
+  "startdatum": "2026-03-10",
+  "einddatum": "2026-09-30",
+  "einddatumType": "vast",
+  "opzegtermijn": { "dagen": null, "toelichting": "Tussentijdse opzegging niet mogelijk behoudens ernstig tekortschieten; opdrachtgever mag beëindigen zonder opzegtermijn (DNR-afwijking)" },
+  "verlengingAfspraak": "Verlenging geschiedt in overleg tussen opdrachtnemer en opdrachtgever",
+  "indexatie": { "soort": "vast", "moment": null, "toelichting": "Prijzen vast tot en met einde werkzaamheden voor geheel 2026; indexering n.v.t." },
+  "betalingstermijnDagen": 30,
+  "facturatie": { "frequentie": "maandelijks", "eisen": "Referentie 041802483-010594 vermelden; door budgethouder afgegeven ontvangstbon bijvoegen; factuur en bijlagen als één pdf, 300 dpi", "email": "facturen@gelregroen.nl" },
+  "contactpersonen": [
+    { "naam": "Gert Visser", "email": null, "telefoon": null, "rol": "ontwerpmanager", "organisatie": "GelreGroen" },
+    { "naam": "Hylke van Lieshout", "email": null, "telefoon": null, "rol": "Operationeel projectdirecteur EPCM", "organisatie": "GelreGroen" }
+  ],
+  "getekendOp": "2026-03-13",
+  "samenvatting": "Overeenkomst van opdracht tussen GelreGroen Construction V.O.F. en CI-Engineers voor de inzet van Walter Terpstra als constructeur hulpconstructies op het project ViA15, ca. 40 uur per week tot en met Q3 2026 tegen € 127,50 per uur (vast, geen indexatie). Maandelijkse facturatie met ontvangstbon, betalingstermijn 30 dagen.",
+  "onzekerheden": ["Startdatum is niet expliciet genoemd; datum van de overeenkomst gebruikt", "Geen e-mailadressen van contactpersonen in het document"],
+  "bronverwijzingen": [
+    { "veld": "contractnummer", "pagina": 1, "citaat": "DOC ID 041802483-010594" },
+    { "veld": "tarief", "pagina": 6, "citaat": "Werkzaamheden constructeur hulpconstructies € 127,50 uur" },
+    { "veld": "einddatum", "pagina": 6, "citaat": "Duur: tot en met Q3 2026" },
+    { "veld": "indexatie", "pagina": 6, "citaat": "Indexering: Niet van toepassing" }
+  ]
+}
