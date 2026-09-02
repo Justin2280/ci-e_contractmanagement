@@ -12,6 +12,8 @@ export const SettingsSchema = z.object({
   stijlInstructies: z.string().default(""),
   afzenderNaam: z.string().default("CI-Engineers"),
   handtekening: z.string().default(""),
+  /** Standaard cc-adres(sen) bij externe conceptmails, bv. directie@ci-engineers.com */
+  standaardCc: z.string().default(""),
 });
 export type Settings = z.infer<typeof SettingsSchema>;
 

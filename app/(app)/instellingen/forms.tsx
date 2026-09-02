@@ -76,6 +76,9 @@ export function StijlForm({ settings }: { settings: Settings }) {
         <F label="Handtekening (wordt onderaan gebruikt)">
           <Textarea name="handtekening" rows={3} defaultValue={settings.handtekening} placeholder={"Met vriendelijke groet,\nJustin de Weert\nCI-Engineers B.V. · 06 …"} />
         </F>
+        <F label="Standaard cc bij externe mails (optioneel)">
+          <Input name="standaardCc" defaultValue={settings.standaardCc} placeholder="directie@ci-engineers.com" />
+        </F>
       </div>
       <div className="flex items-center gap-2">
         <Button type="submit" disabled={pending}>
@@ -193,7 +196,7 @@ export function UserForm({ user, canEdit }: { user: { id: string; naam: string |
       <F label="E-mail (login)">
         <Input name="email" defaultValue={user.email} disabled={!canEdit} />
       </F>
-      <F label="Mailbox voor concepten">
+      <F label="Eigen mailbox (concepten & versturen)">
         <Input name="mailboxUpn" defaultValue={user.mailboxUpn ?? ""} disabled={!canEdit} />
       </F>
       <F label="Rol">

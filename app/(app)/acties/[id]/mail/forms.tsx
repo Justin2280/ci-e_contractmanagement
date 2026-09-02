@@ -30,19 +30,21 @@ export function ConceptForm({
   actieId,
   graph,
   mailbox,
+  sharedMailbox,
   suggesties,
 }: {
   mail: { id: string; aan: string; cc: string | null; onderwerp: string; body: string; status: string; outlookMailbox: string | null };
   actieId: string;
   graph: boolean;
   mailbox: string;
+  sharedMailbox: string;
   suggesties: Array<{ naam: string; email: string }>;
 }) {
   const [state, action, pending] = useActionState<ActionState, FormData>(saveConcept, null);
   const [aan, setAan] = useState(mail.aan);
   const sent = mail.status === "verstuurd";
   return (
-    <Card>
+    <Card className="self-start">
       <CardHeader>
         <CardTitle>
           Conceptmail{" "}
@@ -92,13 +94,16 @@ export function ConceptForm({
                   Opslaan
                 </Button>
                 <Button type="submit" name="mode" value="outlook" variant="outline" disabled={pending || !graph} title={graph ? `Concept in Outlook van ${mailbox}` : "Graph niet geconfigureerd"}>
-                  In Outlook zetten
+                  Als concept in mijn Outlook
                 </Button>
                 <Button type="submit" name="mode" value="send" disabled={pending || !graph} title={graph ? `Versturen vanuit ${mailbox}` : "Graph niet geconfigureerd"}>
-                  Verstuur nu
+                  Verstuur vanuit {mailbox || "mijn mailbox"}
                 </Button>
                 {state ? <span className={state.ok ? "text-sm text-emerald-700" : "text-sm text-destructive"}>{state.message}</span> : null}
               </div>
+              <p className="text-xs text-muted-foreground">
+                Externe mails gaan altijd vanuit jouw eigen mailbox. De gedeelde mailbox {sharedMailbox} leest alleen contracten in en stuurt interne herinneringen.
+              </p>
             </>
           ) : null}
         </form>
