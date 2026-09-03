@@ -77,7 +77,7 @@ Test-ApplicationAccessPolicy -Identity "contracten@ci-engineers.com" -AppId "<cl
    | `ANTHROPIC_API_KEY` | Anthropic Console → API keys |
    | `CRON_SECRET` | willekeurige string; Vercel stuurt hem mee bij cron-aanroepen |
 
-5. Deploy. Draai daarna eenmalig de migraties: lokaal met `DATABASE_URL=<neon-url> pnpm db:migrate`, of voeg `pnpm db:migrate &&` toe aan het build-commando in Vercel.
+5. Deploy. `DATABASE_URL` is alleen op runtime nodig (de build slaagt ook zonder), maar zonder die variabele faalt elke pagina bij de eerste databasequery. Draai daarna eenmalig de migraties: lokaal met `DATABASE_URL=<neon-url> pnpm db:migrate`, of voeg `pnpm db:migrate &&` toe aan het build-commando in Vercel.
 6. **Cron**: `vercel.json` bevat `/api/cron/daily` om 05:00 UTC. Op het Hobby-plan draait dat eenmaal per dag (met tot een uur speling); dat volstaat omdat de mailbox-sync ook via de webhook loopt.
 
 ## 5. Eerste keer

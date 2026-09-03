@@ -42,9 +42,29 @@ function createDb(): Db {
   return drizzle(pool, { schema });
 }
 
-export const db: Db = globalThis.__contractDb ?? createDb();
-if (process.env.NODE_ENV !== "production") {
-  globalThis.__contractDb = db;
+let instance: Db | undefined;
+
+function getDb(): Db {
+  if (globalThis.__contractDb) return globalThis.__contractDb;
+  instance ??= createDb();
+  if (process.env.NODE_ENV !== "production") {
+    globalThis.__contractDb = instance;
+  }
+  return instance;
 }
+
+/**
+ * Lazy proxy: de verbinding wordt pas opgezet bij het eerste gebruik, niet bij
+ * het importeren van deze module. Zo kan `next build` (dat alle routes laadt om
+ * paginadata te verzamelen) slagen zonder DATABASE_URL; ontbreekt de variabele
+ * op runtime, dan faalt de eerste query met een duidelijke melding.
+ */
+export const db: Db = new Proxy({} as Db, {
+  get(_target, prop) {
+    const real = getDb();
+    const value = Reflect.get(real, prop, real) as unknown;
+    return typeof value === "function" ? (value as (...args: unknown[]) => unknown).bind(real) : value;
+  },
+});
 
 export { schema };
