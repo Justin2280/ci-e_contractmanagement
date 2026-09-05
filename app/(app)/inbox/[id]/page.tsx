@@ -12,6 +12,7 @@ import { ReprocessButton } from "./reprocess-button";
 import { ReviewPanel } from "./review-panel";
 import { listKlanten, listMedewerkers, listContracten, listUsers } from "@/lib/queries/master";
 import { buildReviewProposal } from "@/lib/review/proposal";
+import { isStaleProcessing } from "@/lib/intake/process";
 
 export default async function InboxDetailPage({ params }: PageProps<"/inbox/[id]">) {
   const { id } = await params;
@@ -20,6 +21,7 @@ export default async function InboxDetailPage({ params }: PageProps<"/inbox/[id]
 
   const [klanten, medewerkers, contracten, users] = await Promise.all([listKlanten(), listMedewerkers(), listContracten(), listUsers()]);
   const proposal = email.extractieJson ? await buildReviewProposal(email, { klanten, medewerkers, contracten }) : null;
+  const staleProcessing = isStaleProcessing(email);
 
   return (
     <div className="space-y-6">
@@ -45,6 +47,12 @@ export default async function InboxDetailPage({ params }: PageProps<"/inbox/[id]
       {email.fout ? (
         <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-900">
           <strong>Fout bij verwerken:</strong> {email.fout}
+        </div>
+      ) : null}
+      {staleProcessing ? (
+        <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+          <strong>Dit duurt langer dan verwacht.</strong> De verwerking is waarschijnlijk afgebroken. Klik op ‘Opnieuw verwerken’;
+          een eventuele fout verschijnt dan hier.
         </div>
       ) : null}
 
@@ -107,8 +115,10 @@ export default async function InboxDetailPage({ params }: PageProps<"/inbox/[id]
                 <CardTitle>Extractie</CardTitle>
               </CardHeader>
               <CardContent className="text-sm text-muted-foreground">
-                {email.verwerkstatus === "nieuw" || email.verwerkstatus === "verwerken"
-                  ? "Deze mail wordt nog verwerkt."
+                {staleProcessing
+                  ? "De verwerking lijkt te zijn afgebroken. Klik op ‘Opnieuw verwerken’."
+                  : email.verwerkstatus === "nieuw" || email.verwerkstatus === "verwerken"
+                  ? "Deze mail wordt nog verwerkt (meestal één tot drie minuten)."
                   : email.verwerkstatus === "genegeerd"
                     ? "Deze mail is genegeerd (geen contract herkend)."
                     : "Geen extractieresultaat beschikbaar. Klik op ‘Opnieuw verwerken’."}
