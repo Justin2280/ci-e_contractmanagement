@@ -8,7 +8,9 @@ export function llmConfigured(): boolean {
 
 export function getAnthropic(): Anthropic {
   if (!llmConfigured()) throw new Error("ANTHROPIC_API_KEY ontbreekt");
-  client ??= new Anthropic({ timeout: 280_000, maxRetries: 2 });
+  // Per-aanroep limieten staan in lib/llm/pipeline.ts; samen blijven ze onder de
+  // maxDuration van 300 s van de Vercel-functies.
+  client ??= new Anthropic({ timeout: 240_000, maxRetries: 1 });
   return client;
 }
 

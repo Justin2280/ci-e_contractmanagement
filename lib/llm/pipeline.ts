@@ -44,6 +44,16 @@ async function buildContent(email: EmailWithBijlagen): Promise<ContentBlock[]> {
   return blocks;
 }
 
+/**
+ * Tijdslimieten per aanroep. Classificatie (effort low) is snel; extractie van
+ * een PDF met effort high kan enkele minuten duren. Worst case
+ * (2 × 45 s + 200 s) blijft onder de 300 s maxDuration van de Vercel-functie,
+ * zodat een time-out als nette fout op de mail belandt in plaats van een
+ * afgebroken functie zonder melding.
+ */
+const CLASSIFY_REQUEST_OPTIONS = { timeout: 45_000, maxRetries: 1 } as const;
+const EXTRACT_REQUEST_OPTIONS = { timeout: 200_000, maxRetries: 0 } as const;
+
 export async function classifyMail(email: EmailWithBijlagen, content?: ContentBlock[]): Promise<MailClassification> {
   const client = getAnthropic();
   const res = await client.beta.messages.parse({
@@ -53,7 +63,7 @@ export async function classifyMail(email: EmailWithBijlagen, content?: ContentBl
     system: prompt("classify"),
     output_config: { effort: "low", format: betaZodOutputFormat(MailClassificationSchema) },
     messages: [{ role: "user", content: content ?? (await buildContent(email)) }],
-  });
+  }, CLASSIFY_REQUEST_OPTIONS);
   if (res.stop_reason === "refusal") throw new Error("Model weigerde de classificatie");
   if (!res.parsed_output) throw new Error("Classificatie kon niet worden geparsed");
   return res.parsed_output;
@@ -68,7 +78,7 @@ export async function extractContract(email: EmailWithBijlagen, content?: Conten
     system: prompt("extract"),
     output_config: { effort: "high", format: betaZodOutputFormat(ContractExtractionSchema) },
     messages: [{ role: "user", content: content ?? (await buildContent(email)) }],
-  });
+  }, EXTRACT_REQUEST_OPTIONS);
   if (res.stop_reason === "refusal") throw new Error("Model weigerde de extractie");
   if (!res.parsed_output) throw new Error("Extractie kon niet worden geparsed");
   return res.parsed_output;

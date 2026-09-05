@@ -4,13 +4,15 @@ import { deltaLinks, emailsIn } from "@/lib/db/schema";
 import { inboxDelta } from "@/lib/graph/mail";
 import { inboxResource } from "@/lib/graph/subscriptions";
 import { ingestMessage } from "./ingest";
-import { processEmail } from "./process";
+import { markStaleProcessing, processEmail } from "./process";
 
 /**
  * Delta sync of the shared inbox: the source of truth. Webhooks only make
  * this faster. Safe to run repeatedly (idempotent per message).
  */
 export async function syncInbox(opts: { process?: boolean } = {}): Promise<{ nieuw: number; totaal: number }> {
+  // Vastgelopen verwerkingen (functie afgebroken) eerst zichtbaar maken als fout.
+  await markStaleProcessing();
   const resource = inboxResource();
   const stored = await db.query.deltaLinks.findFirst({ where: eq(deltaLinks.resource, resource) });
   const since = stored ? undefined : new Date(Date.now() - 14 * 86400 * 1000);
