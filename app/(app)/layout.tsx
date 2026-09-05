@@ -7,6 +7,10 @@ import { SidebarNav } from "@/components/app/sidebar-nav";
 import { signOut } from "@/auth";
 import { Button } from "@/components/ui/button";
 
+// Alle schermen onder (app) vereisen een sessie en databasegegevens; nooit prerenderen
+// tijdens `next build` (dat zou zonder DATABASE_URL falen of buildtijd-queries doen).
+export const dynamic = "force-dynamic";
+
 export default async function AppLayout({ children }: LayoutProps<"/">) {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
