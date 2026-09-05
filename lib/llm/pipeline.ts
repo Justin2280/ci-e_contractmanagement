@@ -5,7 +5,7 @@ import path from "node:path";
 import type { Bijlage, EmailIn } from "@/lib/db/schema";
 import { readFileBuffer } from "@/lib/storage/blob";
 import { getAnthropic, LLM_MODEL, llmConfigured } from "./client";
-import { ContractExtractionWireSchema, MailClassificationSchema, fromWire, type ContractExtraction, type MailClassification } from "./schemas";
+import { MailClassificationSchema, extractionJsonSchema, parseExtractionText, type ContractExtraction, type MailClassification } from "./schemas";
 
 function prompt(name: string): string {
   return fs.readFileSync(path.join(process.cwd(), "lib", "llm", "prompts", `${name}.md`), "utf8");
@@ -46,13 +46,15 @@ async function buildContent(email: EmailWithBijlagen): Promise<ContentBlock[]> {
 
 /**
  * Tijdslimieten per aanroep. Classificatie (effort low) is snel; extractie van
- * een PDF met effort high kan enkele minuten duren. Worst case
- * (2 × 45 s + 200 s) blijft onder de 300 s maxDuration van de Vercel-functie,
- * zodat een time-out als nette fout op de mail belandt in plaats van een
- * afgebroken functie zonder melding.
+ * een PDF met effort high kan enkele minuten duren. Eén verwerking
+ * (classificatie + extractie + eventuele reparatieronde) blijft daarmee
+ * praktisch onder de 300 s maxDuration van de Vercel-functie, zodat een
+ * time-out als nette fout op de mail belandt in plaats van een afgebroken
+ * functie zonder melding.
  */
 const CLASSIFY_REQUEST_OPTIONS = { timeout: 45_000, maxRetries: 1 } as const;
-const EXTRACT_REQUEST_OPTIONS = { timeout: 200_000, maxRetries: 0 } as const;
+const EXTRACT_REQUEST_OPTIONS = { timeout: 170_000, maxRetries: 0 } as const;
+const REPAIR_REQUEST_OPTIONS = { timeout: 70_000, maxRetries: 0 } as const;
 
 export async function classifyMail(email: EmailWithBijlagen, content?: ContentBlock[]): Promise<MailClassification> {
   const client = getAnthropic();
@@ -69,20 +71,74 @@ export async function classifyMail(email: EmailWithBijlagen, content?: ContentBl
   return res.parsed_output;
 }
 
+function textOf(res: Anthropic.Beta.Messages.BetaMessage): string {
+  return res.content
+    .filter((b): b is Anthropic.Beta.Messages.BetaTextBlock => b.type === "text")
+    .map((b) => b.text)
+    .join("");
+}
+
+/**
+ * Extractie zonder afgedwongen structured output: het schema van
+ * `ContractExtraction` is te groot voor de grammatica die de API daarvoor
+ * compileert ("compiled grammar is too large"). Het model krijgt het
+ * JSON-schema in de systeemprompt, antwoordt met JSON, en wij valideren.
+ * Voldoet het antwoord niet, dan volgt één reparatieronde met de foutmelding.
+ */
 export async function extractContract(email: EmailWithBijlagen, content?: ContentBlock[]): Promise<ContractExtraction> {
   const client = getAnthropic();
-  const res = await client.beta.messages.parse({
-    ...FALLBACK_PARAMS,
-    model: LLM_MODEL,
-    max_tokens: 16000,
-    system: prompt("extract"),
-    // Wire-schema: max 16 union-velden toegestaan door de API; fromWire() maakt er het canonieke type van.
-    output_config: { effort: "high", format: betaZodOutputFormat(ContractExtractionWireSchema) },
-    messages: [{ role: "user", content: content ?? (await buildContent(email)) }],
-  }, EXTRACT_REQUEST_OPTIONS);
-  if (res.stop_reason === "refusal") throw new Error("Model weigerde de extractie");
-  if (!res.parsed_output) throw new Error("Extractie kon niet worden geparsed");
-  return fromWire(res.parsed_output);
+  const userContent = content ?? (await buildContent(email));
+  const system = [
+    { type: "text" as const, text: prompt("extract") },
+    {
+      type: "text" as const,
+      text:
+        "## Uitvoerformaat\nAntwoord uitsluitend met één JSON-object, zonder uitleg en zonder code fences, dat exact dit JSON Schema volgt:\n" +
+        extractionJsonSchema(),
+      cache_control: { type: "ephemeral" as const },
+    },
+  ];
+
+  const first = await client.beta.messages.create(
+    {
+      ...FALLBACK_PARAMS,
+      model: LLM_MODEL,
+      max_tokens: 16000,
+      system,
+      output_config: { effort: "high" },
+      messages: [{ role: "user", content: userContent }],
+    },
+    EXTRACT_REQUEST_OPTIONS,
+  );
+  if (first.stop_reason === "refusal") throw new Error("Model weigerde de extractie");
+  if (first.stop_reason === "max_tokens") throw new Error("Extractie afgebroken: antwoord te lang (max_tokens)");
+  const firstText = textOf(first);
+  const parsed = parseExtractionText(firstText);
+  if (parsed.ok) return parsed.value;
+
+  // Eén reparatieronde: dezelfde context (PDF is gecachet) plus de validatiefout.
+  const repair = await client.beta.messages.create(
+    {
+      ...FALLBACK_PARAMS,
+      model: LLM_MODEL,
+      max_tokens: 16000,
+      system,
+      output_config: { effort: "low" },
+      messages: [
+        { role: "user", content: userContent },
+        { role: "assistant", content: [{ type: "text", text: firstText || "(leeg antwoord)" }] },
+        {
+          role: "user",
+          content: `Je antwoord kon niet worden verwerkt: ${parsed.error}. Geef nu uitsluitend het volledige, gecorrigeerde JSON-object volgens het schema.`,
+        },
+      ],
+    },
+    REPAIR_REQUEST_OPTIONS,
+  );
+  if (repair.stop_reason === "refusal") throw new Error("Model weigerde de extractie");
+  const second = parseExtractionText(textOf(repair));
+  if (!second.ok) throw new Error(`Extractie kon niet worden geparsed: ${second.error}`);
+  return second.value;
 }
 
 export interface PipelineOutcome {
