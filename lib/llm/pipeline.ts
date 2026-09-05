@@ -5,7 +5,7 @@ import path from "node:path";
 import type { Bijlage, EmailIn } from "@/lib/db/schema";
 import { readFileBuffer } from "@/lib/storage/blob";
 import { getAnthropic, LLM_MODEL, llmConfigured } from "./client";
-import { ContractExtractionSchema, MailClassificationSchema, type ContractExtraction, type MailClassification } from "./schemas";
+import { ContractExtractionWireSchema, MailClassificationSchema, fromWire, type ContractExtraction, type MailClassification } from "./schemas";
 
 function prompt(name: string): string {
   return fs.readFileSync(path.join(process.cwd(), "lib", "llm", "prompts", `${name}.md`), "utf8");
@@ -76,12 +76,13 @@ export async function extractContract(email: EmailWithBijlagen, content?: Conten
     model: LLM_MODEL,
     max_tokens: 16000,
     system: prompt("extract"),
-    output_config: { effort: "high", format: betaZodOutputFormat(ContractExtractionSchema) },
+    // Wire-schema: max 16 union-velden toegestaan door de API; fromWire() maakt er het canonieke type van.
+    output_config: { effort: "high", format: betaZodOutputFormat(ContractExtractionWireSchema) },
     messages: [{ role: "user", content: content ?? (await buildContent(email)) }],
   }, EXTRACT_REQUEST_OPTIONS);
   if (res.stop_reason === "refusal") throw new Error("Model weigerde de extractie");
   if (!res.parsed_output) throw new Error("Extractie kon niet worden geparsed");
-  return res.parsed_output;
+  return fromWire(res.parsed_output);
 }
 
 export interface PipelineOutcome {
