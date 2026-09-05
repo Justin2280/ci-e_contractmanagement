@@ -114,17 +114,18 @@ export const ContractExtractionSchema = z.object({
 export type ContractExtraction = z.infer<typeof ContractExtractionSchema>;
 
 // ---------------------------------------------------------------------------
-// Wire-schema voor structured outputs.
+// Lenient schema voor het antwoord van het model.
 //
-// De Anthropic API staat maximaal 16 velden met een union-type toe (elk
-// `.nullable()` wordt `type: [..., "null"]`). Het canonieke schema hierboven
-// heeft er ruim 40. Het model krijgt daarom dit schema zonder nullable
-// tekstvelden: "" betekent onbekend. Alleen getallen blijven nullable (4 stuks).
-// `fromWire()` zet het antwoord om naar het canonieke `ContractExtraction`.
+// De extractie gebruikt géén afgedwongen structured output meer: de API
+// compileert het JSON-schema dan tot een grammatica en die is voor dit schema
+// te groot ("compiled grammar is too large"). Het model krijgt het canonieke
+// schema in de prompt en antwoordt met JSON; dat parsen we met dit soepele
+// schema (tekst mag "" of null zijn, datums worden gecontroleerd) en zetten we
+// met `fromWire()` om naar het canonieke `ContractExtraction`.
 // ---------------------------------------------------------------------------
 
-const wireText = (desc: string) => z.string().describe(`${desc}. Leeg ("") als onbekend`);
-const wireDate = (desc = "Datum") => z.string().describe(`${desc} als YYYY-MM-DD, of leeg ("") als onbekend`);
+const wireText = (desc: string) => z.string().nullable().describe(`${desc}. Leeg of null als onbekend`);
+const wireDate = (desc = "Datum") => z.string().nullable().describe(`${desc} als YYYY-MM-DD, of null als onbekend`);
 
 export const ExtractedPersoonWireSchema = z.object({
   naam: z.string().describe("Volledige naam van de ingezette medewerker zoals in het document"),
@@ -163,27 +164,33 @@ export const ContractExtractionWireSchema = z.object({
   parentContractnummer: wireText("Nummer van de raam-/basisovereenkomst waar dit document onder valt, indien genoemd"),
   soort: ContractSoortSchema,
   titel: wireText("Korte titel, bv. 'Inzet coördinator site engineering N516'"),
-  opdrachtgever: z.object({
-    naam: wireText("Contractpartij/opdrachtgever (niet CI-Engineers)"),
-    kvk: wireText("KvK-nummer"),
-    adres: wireText("Adres"),
-  }),
+  opdrachtgever: z
+    .object({
+      naam: wireText("Contractpartij/opdrachtgever (niet CI-Engineers)"),
+      kvk: wireText("KvK-nummer"),
+      adres: wireText("Adres"),
+    })
+    .nullable(),
   intermediair: wireText("Tussenpartij zoals Magnit/Brainnet als het contract via een broker loopt"),
   eindklant: wireText("Uiteindelijke klant/principaal als die afwijkt van de opdrachtgever, bv. Haskoning, Rijkswaterstaat"),
-  project: z.object({
-    naam: wireText("Projectnaam"),
-    code: wireText("Projectcode"),
-    locatie: wireText("Locatie"),
-  }),
-  personen: z.array(ExtractedPersoonWireSchema).describe("Alle ingezette medewerkers van CI-Engineers met hun tarief en periode"),
-  tarieven: z.array(ExtractedTariefWireSchema).describe("Tarieventabel per functie (raamcontract/tarievenbrief); leeg als tarieven per persoon zijn"),
+  project: z
+    .object({
+      naam: wireText("Projectnaam"),
+      code: wireText("Projectcode"),
+      locatie: wireText("Locatie"),
+    })
+    .nullable(),
+  personen: z.array(ExtractedPersoonWireSchema).default([]).describe("Alle ingezette medewerkers van CI-Engineers met hun tarief en periode"),
+  tarieven: z.array(ExtractedTariefWireSchema).default([]).describe("Tarieventabel per functie (raamcontract/tarievenbrief); leeg als tarieven per persoon zijn"),
   startdatum: wireDate("Startdatum van het contract"),
   einddatum: wireDate("Einddatum van het contract"),
   einddatumType: EinddatumTypeSchema,
-  opzegtermijn: z.object({
-    dagen: z.number().int().nullable().describe("Opzegtermijn in dagen (1 maand = 30, 2 weken = 14); null als onbekend"),
-    toelichting: wireText("Bv. '1 maand door opdrachtgever, 3 maanden door dienstverlener'"),
-  }),
+  opzegtermijn: z
+    .object({
+      dagen: z.number().int().nullable().describe("Opzegtermijn in dagen (1 maand = 30, 2 weken = 14); null als onbekend"),
+      toelichting: wireText("Bv. '1 maand door opdrachtgever, 3 maanden door dienstverlener'"),
+    })
+    .nullable(),
   verlengingAfspraak: wireText("Hoe verlenging geregeld is, bv. 'in overleg', 'klant meldt 1 maand vooraf'"),
   indexatie: z.object({
     soort: IndexatieSoortSchema,
@@ -191,30 +198,32 @@ export const ContractExtractionWireSchema = z.object({
     toelichting: wireText("Indexformule/-bron, bv. 'CBS 7112, 2 kwartalen vertraagd, afronden op halve euro'"),
   }),
   betalingstermijnDagen: z.number().int().nullable().describe("Betalingstermijn in dagen; null als onbekend"),
-  facturatie: z.object({
-    frequentie: wireText("Bv. '4-wekelijks', 'maandelijks'"),
-    eisen: wireText("Ontvangstbon, referentie, portal, één pdf, etc."),
-    email: wireText("Factuur-e-mailadres"),
-  }),
-  contactpersonen: z.array(ExtractedContactpersoonWireSchema),
+  facturatie: z
+    .object({
+      frequentie: wireText("Bv. '4-wekelijks', 'maandelijks'"),
+      eisen: wireText("Ontvangstbon, referentie, portal, één pdf, etc."),
+      email: wireText("Factuur-e-mailadres"),
+    })
+    .nullable(),
+  contactpersonen: z.array(ExtractedContactpersoonWireSchema).default([]),
   getekendOp: wireDate("Datum van ondertekening"),
   samenvatting: z.string().describe("3-6 zinnen in het Nederlands: wat, wie, hoe lang, tarief, bijzonderheden"),
-  onzekerheden: z.array(z.string()).describe("Velden die niet zeker zijn of ontbreken, in het Nederlands"),
-  bronverwijzingen: z.array(BronverwijzingWireSchema),
+  onzekerheden: z.array(z.string()).default([]).describe("Velden die niet zeker zijn of ontbreken, in het Nederlands"),
+  bronverwijzingen: z.array(BronverwijzingWireSchema).default([]),
 });
 export type ContractExtractionWire = z.infer<typeof ContractExtractionWireSchema>;
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
-/** Zet het wire-antwoord van het model om naar het canonieke `ContractExtraction` ("" → null). */
+/** Zet het (soepel geparste) antwoord van het model om naar het canonieke `ContractExtraction` ("" → null, datums gecontroleerd). */
 export function fromWire(wire: ContractExtractionWire): ContractExtraction {
   const onzekerheden = [...wire.onzekerheden];
-  const text = (v: string): string | null => {
-    const t = v.trim();
+  const text = (v: string | null | undefined): string | null => {
+    const t = (v ?? "").trim();
     return t === "" ? null : t;
   };
-  const date = (veld: string, v: string): string | null => {
-    const t = v.trim();
+  const date = (veld: string, v: string | null | undefined): string | null => {
+    const t = (v ?? "").trim();
     if (t === "") return null;
     if (ISO_DATE.test(t)) return t;
     onzekerheden.push(`Datum niet herkend bij ${veld}: "${t}"`);
@@ -229,16 +238,16 @@ export function fromWire(wire: ContractExtractionWire): ContractExtraction {
     soort: wire.soort,
     titel: text(wire.titel),
     opdrachtgever: objOrNull({
-      naam: text(wire.opdrachtgever.naam),
-      kvk: text(wire.opdrachtgever.kvk),
-      adres: text(wire.opdrachtgever.adres),
+      naam: text(wire.opdrachtgever?.naam),
+      kvk: text(wire.opdrachtgever?.kvk),
+      adres: text(wire.opdrachtgever?.adres),
     }),
     intermediair: text(wire.intermediair),
     eindklant: text(wire.eindklant),
     project: objOrNull({
-      naam: text(wire.project.naam),
-      code: text(wire.project.code),
-      locatie: text(wire.project.locatie),
+      naam: text(wire.project?.naam),
+      code: text(wire.project?.code),
+      locatie: text(wire.project?.locatie),
     }),
     personen: wire.personen.map((p, i) => ({
       naam: p.naam,
@@ -259,7 +268,7 @@ export function fromWire(wire: ContractExtractionWire): ContractExtraction {
     startdatum: date("startdatum", wire.startdatum),
     einddatum: date("einddatum", wire.einddatum),
     einddatumType: wire.einddatumType,
-    opzegtermijn: objOrNull({ dagen: wire.opzegtermijn.dagen, toelichting: text(wire.opzegtermijn.toelichting) }),
+    opzegtermijn: objOrNull({ dagen: wire.opzegtermijn?.dagen ?? null, toelichting: text(wire.opzegtermijn?.toelichting) }),
     verlengingAfspraak: text(wire.verlengingAfspraak),
     indexatie: {
       soort: wire.indexatie.soort,
@@ -268,9 +277,9 @@ export function fromWire(wire: ContractExtractionWire): ContractExtraction {
     },
     betalingstermijnDagen: wire.betalingstermijnDagen,
     facturatie: objOrNull({
-      frequentie: text(wire.facturatie.frequentie),
-      eisen: text(wire.facturatie.eisen),
-      email: text(wire.facturatie.email),
+      frequentie: text(wire.facturatie?.frequentie),
+      eisen: text(wire.facturatie?.eisen),
+      email: text(wire.facturatie?.email),
     }),
     contactpersonen: wire.contactpersonen.map((c) => ({
       naam: c.naam,
@@ -292,3 +301,41 @@ export const DraftEmailSchema = z.object({
   body: z.string().describe("Platte tekst, Nederlandse e-mail inclusief aanhef en afsluiting"),
 });
 export type DraftEmail = z.infer<typeof DraftEmailSchema>;
+
+/** JSON-schema van het canonieke extractieschema, voor in de prompt. */
+export function extractionJsonSchema(): string {
+  return JSON.stringify(z.toJSONSchema(ContractExtractionSchema, { reused: "ref" }));
+}
+
+export type ParsedExtraction = { ok: true; value: ContractExtraction } | { ok: false; error: string };
+
+/**
+ * Parst het tekstantwoord van het model: haalt code fences en omliggende tekst
+ * weg, parst JSON, valideert soepel en normaliseert naar het canonieke type.
+ */
+export function parseExtractionText(text: string): ParsedExtraction {
+  let body = text.trim();
+  const fence = body.match(/```(?:json)?\s*([\s\S]*?)```/i);
+  if (fence) body = fence[1].trim();
+  const start = body.indexOf("{");
+  const end = body.lastIndexOf("}");
+  if (start === -1 || end === -1 || end <= start) return { ok: false, error: "Geen JSON-object gevonden in het antwoord" };
+  body = body.slice(start, end + 1);
+
+  let raw: unknown;
+  try {
+    raw = JSON.parse(body);
+  } catch (err) {
+    return { ok: false, error: `Ongeldige JSON: ${err instanceof Error ? err.message : String(err)}` };
+  }
+  const lenient = ContractExtractionWireSchema.safeParse(raw);
+  if (!lenient.success) {
+    const issues = lenient.error.issues.slice(0, 12).map((i) => `${i.path.join(".") || "(root)"}: ${i.message}`);
+    return { ok: false, error: `JSON voldoet niet aan het schema: ${issues.join("; ")}` };
+  }
+  try {
+    return { ok: true, value: fromWire(lenient.data) };
+  } catch (err) {
+    return { ok: false, error: `Normalisatie mislukt: ${err instanceof Error ? err.message : String(err)}` };
+  }
+}

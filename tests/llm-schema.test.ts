@@ -1,48 +1,30 @@
 import { describe, expect, it } from "vitest";
 import fs from "node:fs";
 import path from "node:path";
-import { z } from "zod";
-import { ContractExtractionSchema, ContractExtractionWireSchema, fromWire, type ContractExtractionWire } from "@/lib/llm/schemas";
+import { ContractExtractionSchema, extractionJsonSchema, fromWire, parseExtractionText, type ContractExtractionWire } from "@/lib/llm/schemas";
 
-/** Anthropic structured outputs: max. 16 parameters met een union-type (anyOf of type-array). */
-const MAX_UNION_PARAMS = 16;
-
-function countUnionParams(schema: unknown): number {
-  let n = 0;
-  const walk = (node: unknown) => {
-    if (!node || typeof node !== "object") return;
-    if (Array.isArray(node)) {
-      node.forEach(walk);
-      return;
-    }
-    const o = node as Record<string, unknown>;
-    if (Array.isArray(o.type) || Array.isArray(o.anyOf) || Array.isArray(o.oneOf)) n++;
-    for (const v of Object.values(o)) walk(v);
-  };
-  walk(schema);
-  return n;
-}
+const fixturePath = path.join(process.cwd(), "tests", "fixtures", "extraction-gelregroen.json");
 
 function emptyWire(): ContractExtractionWire {
   return {
     contractnummer: "",
-    parentContractnummer: "",
+    parentContractnummer: null,
     soort: "overig",
     titel: "",
     opdrachtgever: { naam: "", kvk: "", adres: "" },
     intermediair: "",
     eindklant: "",
-    project: { naam: "", code: "", locatie: "" },
+    project: null,
     personen: [],
     tarieven: [],
     startdatum: "",
-    einddatum: "",
+    einddatum: null,
     einddatumType: "ntb",
     opzegtermijn: { dagen: null, toelichting: "" },
     verlengingAfspraak: "",
-    indexatie: { soort: "onbekend", moment: "", toelichting: "" },
+    indexatie: { soort: "onbekend", moment: "", toelichting: null },
     betalingstermijnDagen: null,
-    facturatie: { frequentie: "", eisen: "", email: "" },
+    facturatie: null,
     contactpersonen: [],
     getekendOp: "",
     samenvatting: "Leeg document.",
@@ -51,22 +33,15 @@ function emptyWire(): ContractExtractionWire {
   };
 }
 
-describe("ContractExtractionWireSchema", () => {
-  it("stays within the API limit for union-typed parameters", () => {
-    const json = z.toJSONSchema(ContractExtractionWireSchema, { reused: "ref" });
-    const unions = countUnionParams(json);
-    expect(unions).toBeLessThanOrEqual(MAX_UNION_PARAMS);
-    expect(unions).toBe(4); // tarief, pagina, opzegtermijn.dagen, betalingstermijnDagen
-  });
-
-  it("documents why the canonical schema cannot be sent directly", () => {
-    const json = z.toJSONSchema(ContractExtractionSchema, { reused: "ref" });
-    expect(countUnionParams(json)).toBeGreaterThan(MAX_UNION_PARAMS);
+describe("extractionJsonSchema", () => {
+  it("is valid JSON with the top-level extraction fields", () => {
+    const schema = JSON.parse(extractionJsonSchema());
+    expect(Object.keys(schema.properties)).toEqual(expect.arrayContaining(["contractnummer", "personen", "indexatie", "samenvatting"]));
   });
 });
 
 describe("fromWire", () => {
-  it("maps empty strings and empty objects to null", () => {
+  it("maps empty strings, nulls and empty objects to null", () => {
     const out = fromWire(emptyWire());
     expect(ContractExtractionSchema.safeParse(out).success).toBe(true);
     expect(out.contractnummer).toBeNull();
@@ -81,7 +56,7 @@ describe("fromWire", () => {
   it("keeps filled values and flags unparseable dates", () => {
     const wire = emptyWire();
     wire.contractnummer = " ICM2125374 ";
-    wire.opdrachtgever = { naam: "Boskalis", kvk: "", adres: "" };
+    wire.opdrachtgever = { naam: "Boskalis", kvk: "", adres: null };
     wire.startdatum = "2026-01-05";
     wire.einddatum = "Q3 2026";
     wire.opzegtermijn = { dagen: 30, toelichting: "" };
@@ -92,7 +67,7 @@ describe("fromWire", () => {
         tarief: 127.5,
         tariefGeldigVanaf: "",
         startdatum: "2026-01-05",
-        einddatum: "",
+        einddatum: null,
         einddatumType: "einde_opdracht",
         inzetOmvang: "",
       },
@@ -106,9 +81,33 @@ describe("fromWire", () => {
     expect(out.opzegtermijn).toEqual({ dagen: 30, toelichting: null });
     expect(out.personen[0]).toMatchObject({ naam: "Walter Terpstra", tarief: 127.5, functie: "constructeur", inzetOmvang: null });
   });
+});
 
-  it("keeps the review fixture valid for the canonical schema", () => {
-    const fixture = JSON.parse(fs.readFileSync(path.join(process.cwd(), "tests", "fixtures", "extraction-gelregroen.json"), "utf8"));
-    expect(ContractExtractionSchema.safeParse(fixture).success).toBe(true);
+describe("parseExtractionText", () => {
+  const fixtureJson = fs.readFileSync(fixturePath, "utf8");
+
+  it("parses the fixture verbatim", () => {
+    const r = parseExtractionText(fixtureJson);
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.value).toEqual(JSON.parse(fixtureJson));
+  });
+
+  it("strips code fences and surrounding prose", () => {
+    const r = parseExtractionText(`Hier is het resultaat:\n\n\`\`\`json\n${fixtureJson}\n\`\`\`\nKlaar.`);
+    expect(r.ok).toBe(true);
+  });
+
+  it("fills missing arrays and reports schema violations", () => {
+    const minimal = { ...emptyWire(), onzekerheden: undefined, bronverwijzingen: undefined, contactpersonen: undefined };
+    const ok = parseExtractionText(JSON.stringify(minimal));
+    expect(ok.ok).toBe(true);
+    if (ok.ok) expect(ok.value.bronverwijzingen).toEqual([]);
+
+    const bad = parseExtractionText(JSON.stringify({ ...emptyWire(), soort: "iets-anders" }));
+    expect(bad.ok).toBe(false);
+    if (!bad.ok) expect(bad.error).toContain("soort");
+
+    const noJson = parseExtractionText("Sorry, ik kan dit document niet lezen.");
+    expect(noJson.ok).toBe(false);
   });
 });
