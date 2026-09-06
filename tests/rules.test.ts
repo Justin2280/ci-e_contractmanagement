@@ -33,6 +33,21 @@ describe("regels-engine", () => {
     expect(v.toegewezenUserId).toBe("u1");
   });
 
+  it("maakt bij een verstreken einddatum een einde-beoordeling in plaats van een verlengingsverzoek", () => {
+    const out = evalueerRegels({ ...base, today: "2026-10-15", inzetten: [inzet({ contract: { ...inzet().contract!, einddatum: "2026-09-30" } })] });
+    expect(out.filter((a) => a.soort === "verlenging_uitvragen")).toHaveLength(0);
+    const e = out.find((a) => a.soort === "einde_beoordelen")!;
+    expect(e.dedupeKey).toBe("einde_beoordelen:i1:2026-09-30");
+    expect(e.vervaldatum).toBe("2026-10-15");
+    expect(e.omschrijving).toContain("Ook het contract");
+  });
+
+  it("vraagt op de einddatum zelf nog verlenging uit en beoordeelt het einde pas daarna", () => {
+    const out = evalueerRegels({ ...base, today: "2026-09-30", inzetten: [inzet()] });
+    expect(out.some((a) => a.soort === "verlenging_uitvragen")).toBe(true);
+    expect(out.some((a) => a.soort === "einde_beoordelen")).toBe(false);
+  });
+
   it("doet niets als de einddatum ver weg is", () => {
     const out = evalueerRegels({ ...base, today: "2026-04-01", inzetten: [inzet()] });
     expect(out.filter((a) => a.soort === "verlenging_uitvragen")).toHaveLength(0);

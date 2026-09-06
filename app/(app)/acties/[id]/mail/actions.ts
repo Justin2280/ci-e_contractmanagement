@@ -28,7 +28,7 @@ export async function generateConcept(_prev: ActionState, formData: FormData): P
   try {
     const actie = await loadActieMetContext(actieId);
     const settings = await getSettings();
-    const soortKey = actie.soort === "verlenging_uitvragen" ? "verlenging" : actie.soort === "indexatie_aanvragen" ? "indexatie" : actie.soort === "contract_opvragen" ? "contract_opvragen" : "algemeen";
+    const soortKey = actie.soort === "verlenging_uitvragen" || actie.soort === "einde_beoordelen" ? "verlenging" : actie.soort === "indexatie_aanvragen" ? "indexatie" : actie.soort === "contract_opvragen" ? "contract_opvragen" : "algemeen";
     const voorbeelden = await db.query.stijlVoorbeelden.findMany({
       where: and(eq(stijlVoorbeelden.actief, true), inArray(stijlVoorbeelden.soort, [soortKey, "algemeen"] as ("algemeen" | "verlenging" | "indexatie" | "contract_opvragen")[])),
       orderBy: [desc(stijlVoorbeelden.createdAt)],

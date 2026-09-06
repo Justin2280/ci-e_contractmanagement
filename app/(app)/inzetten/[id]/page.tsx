@@ -10,6 +10,9 @@ import { listUsers } from "@/lib/queries/master";
 import { fmtDateShort, fmtMoney } from "@/lib/format";
 import { ACTIE_SOORT_LABELS } from "@/lib/labels";
 import { InzetForm } from "./inzet-form";
+import { EindeBesluitForm } from "@/components/app/einde-besluit-form";
+import { LOPENDE_STATUSSEN } from "@/lib/queries/inzetten";
+import { todayIso } from "@/lib/format";
 
 export default async function InzetDetailPage({ params }: PageProps<"/inzetten/[id]">) {
   const { id } = await params;
@@ -128,6 +131,20 @@ export default async function InzetDetailPage({ params }: PageProps<"/inzetten/[
               </Table>
             </CardContent>
           </Card>
+
+          {LOPENDE_STATUSSEN.includes(inzet.status) ? (
+            <Card className={inzet.einddatumType === "vast" && inzet.einddatum && inzet.einddatum < todayIso() ? "border-amber-300" : undefined}>
+              <CardHeader>
+                <CardTitle>Einde of verlenging vastleggen</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2 text-sm">
+                {inzet.einddatumType === "vast" && inzet.einddatum && inzet.einddatum < todayIso() ? (
+                  <p className="text-amber-800">De einddatum {fmtDateShort(inzet.einddatum)} is verstreken terwijl de inzet nog loopt.</p>
+                ) : null}
+                <EindeBesluitForm inzetId={inzet.id} einddatum={inzet.einddatumType === "vast" ? inzet.einddatum : null} />
+              </CardContent>
+            </Card>
+          ) : null}
 
           <Card>
             <CardHeader>

@@ -12,6 +12,7 @@ import { ACTIE_SOORT_LABELS } from "@/lib/labels";
 import { assignActie, setActieStatus } from "./actions";
 import { NieuweActieForm, RunRulesButton } from "./forms";
 import { cn } from "@/lib/utils";
+import { EindeBesluitForm } from "@/components/app/einde-besluit-form";
 
 export const metadata = { title: "Acties" };
 
@@ -53,7 +54,7 @@ export default async function ActiesPage({ searchParams }: PageProps<"/acties">)
         {rows.length === 0 ? <p className="text-sm text-muted-foreground">Geen acties.</p> : null}
         {rows.map((a) => {
           const late = a.vervaldatum && a.vervaldatum < today && ["open", "conceptmail_klaar"].includes(a.status);
-          const canMail = ["verlenging_uitvragen", "indexatie_aanvragen", "contract_opvragen", "einddatum_controleren"].includes(a.soort) && a.inzet;
+          const canMail = ["verlenging_uitvragen", "indexatie_aanvragen", "contract_opvragen", "einddatum_controleren", "einde_beoordelen"].includes(a.soort) && a.inzet;
           return (
             <Card key={a.id} id={a.id} className={cn(focus === a.id && "ring-2 ring-primary", late && "border-red-300")}>
               <CardContent className="flex flex-wrap items-start justify-between gap-4 py-4">
@@ -85,6 +86,11 @@ export default async function ActiesPage({ searchParams }: PageProps<"/acties">)
                       </Link>
                     ) : null}
                   </div>
+                  {a.soort === "einde_beoordelen" && a.inzet && ["open", "conceptmail_klaar"].includes(a.status) ? (
+                    <div className="mt-2 rounded-md border bg-muted/30 p-2">
+                      <EindeBesluitForm inzetId={a.inzet.id} einddatum={a.inzet.einddatum} actieId={a.id} compact />
+                    </div>
+                  ) : null}
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
                   <form action={assignActie} className="flex items-center gap-1">

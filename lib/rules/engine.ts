@@ -13,7 +13,8 @@ export type ActieSoort =
   | "einddatum_controleren"
   | "indexatie_aanvragen"
   | "contract_opvragen"
-  | "urenbon_opvragen";
+  | "urenbon_opvragen"
+  | "einde_beoordelen";
 
 export interface RegelInzet {
   id: string;
@@ -36,6 +37,8 @@ export interface RegelInzet {
     opzegtermijnDagen: number | null;
     reviewStatus: string;
     heeftDocument: boolean;
+    /** Einddatum van het (effectieve) contract, om te melden als ook het contract verlopen is. */
+    einddatum?: string | null;
   } | null;
 }
 
@@ -95,23 +98,40 @@ export function evalueerRegels(input: RegelInput): ActieVoorstel[] {
   const out: ActieVoorstel[] = [];
   const lopend = input.inzetten.filter((i) => LOPEND.has(i.status));
 
-  // 1. Verlenging uitvragen (vaste einddatum nadert of is verstreken terwijl de inzet nog loopt)
+  // 1. Verlenging uitvragen (vaste einddatum nadert; een verstreken einddatum valt onder regel 6)
   for (const i of lopend) {
     if (i.einddatumType !== "vast" || !i.einddatum) continue;
     const dagenTotEinde = daysBetween(today, i.einddatum);
-    if (dagenTotEinde > settings.verlengingDagenVooraf) continue;
+    if (dagenTotEinde > settings.verlengingDagenVooraf || dagenTotEinde < 0) continue;
     const opzeg = i.contract?.opzegtermijnDagen ?? 0;
     const uiterlijk = toIsoDate(addDays(parseISO(i.einddatum), -Math.max(opzeg, 14)));
     const wie = `${i.medewerkerNaam} bij ${i.klantNaam ?? "?"}${i.projectNaam ? ` (${i.projectNaam})` : ""}`;
     out.push({
       soort: "verlenging_uitvragen",
       titel: `Verlenging uitvragen: ${wie}`,
-      omschrijving:
-        dagenTotEinde < 0
-          ? `De einddatum ${i.einddatum} is verstreken maar de inzet staat nog op lopend. Verlengen of afsluiten.`
-          : `Inzet eindigt op ${i.einddatum} (over ${dagenTotEinde} dagen).${opzeg ? ` Opzegtermijn ${opzeg} dagen: uiterlijk ${uiterlijk} duidelijkheid.` : ""}`,
-      vervaldatum: laterOf(today, dagenTotEinde < 0 ? today : uiterlijk),
+      omschrijving: `Inzet eindigt op ${i.einddatum} (over ${dagenTotEinde} dagen).${opzeg ? ` Opzegtermijn ${opzeg} dagen: uiterlijk ${uiterlijk} duidelijkheid.` : ""}`,
+      vervaldatum: laterOf(today, uiterlijk),
       dedupeKey: `verlenging_uitvragen:${i.id}:${i.einddatum}`,
+      inzetId: i.id,
+      contractId: i.contractId ?? undefined,
+      medewerkerId: i.medewerkerId,
+      toegewezenUserId: i.actiehouderUserId,
+    });
+  }
+
+  // 6. Einde beoordelen: de vaste einddatum is verstreken maar de inzet staat nog op lopend.
+  // Er wordt nooit automatisch beëindigd; iemand beslist (beëindigen per einddatum / andere datum / verlengen).
+  for (const i of lopend) {
+    if (i.einddatumType !== "vast" || !i.einddatum) continue;
+    if (daysBetween(today, i.einddatum) >= 0) continue;
+    const wie = `${i.medewerkerNaam} bij ${i.klantNaam ?? "?"}${i.projectNaam ? ` (${i.projectNaam})` : ""}`;
+    const contractVerlopen = i.contract?.einddatum && i.contract.einddatum < today ? ` Ook het contract ${i.contract.nummer} liep af op ${i.contract.einddatum}.` : "";
+    out.push({
+      soort: "einde_beoordelen",
+      titel: `Einde beoordelen: ${wie}`,
+      omschrijving: `De inzet liep tot ${i.einddatum} en staat nog op lopend. Beëindigen per die datum, per een andere datum, of verlengen?${contractVerlopen}`,
+      vervaldatum: today,
+      dedupeKey: `einde_beoordelen:${i.id}:${i.einddatum}`,
       inzetId: i.id,
       contractId: i.contractId ?? undefined,
       medewerkerId: i.medewerkerId,

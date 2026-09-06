@@ -5,7 +5,9 @@ import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { auditLog, inzetten, inzetStatus, einddatumType, tarieven } from "@/lib/db/schema";
+import { redirect } from "next/navigation";
 import { requireUser } from "@/lib/auth/current-user";
+import { besluitEindeInzet, EindeBesluitSchema } from "@/lib/inzetten/einde";
 
 const optionalDate = z
   .string()
@@ -102,4 +104,31 @@ export async function updateInzet(_prev: ActionState, formData: FormData): Promi
   revalidatePath(`/inzetten/${data.id}`);
   revalidatePath("/");
   return { ok: true, message: "Opgeslagen" };
+}
+
+/** Besluit over het einde van een inzet (beëindigen/verlengen), optioneel gevolgd door een conceptmail. */
+export async function besluitEinde(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  const user = await requireUser();
+  const raw = {
+    inzetId: formData.get("inzetId"),
+    besluit: formData.get("besluit"),
+    datum: String(formData.get("datum") ?? "").trim() || null,
+    einddatumType: String(formData.get("einddatumType") ?? "").trim() || undefined,
+    mail: String(formData.get("mail") ?? "geen"),
+    actieId: String(formData.get("actieId") ?? "").trim() || null,
+  };
+  const parsed = EindeBesluitSchema.safeParse(raw);
+  if (!parsed.success) return { ok: false, message: parsed.error.issues.map((i) => i.message).join(" ") };
+  let result: Awaited<ReturnType<typeof besluitEindeInzet>>;
+  try {
+    result = await besluitEindeInzet(parsed.data, user.id);
+  } catch (err) {
+    return { ok: false, message: err instanceof Error ? err.message : String(err) };
+  }
+  revalidatePath("/inzetten");
+  revalidatePath(`/inzetten/${result.inzetId}`);
+  revalidatePath("/acties");
+  revalidatePath("/");
+  if (result.mailActieId) redirect(`/acties/${result.mailActieId}/mail?doel=${parsed.data.mail}`);
+  return { ok: true, message: "Besluit vastgelegd." };
 }

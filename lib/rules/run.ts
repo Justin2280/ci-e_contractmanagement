@@ -47,6 +47,7 @@ export async function runDailyRules(opts: { today?: string } = {}) {
             opzegtermijnDagen: c.opzegtermijnDagen,
             reviewStatus: c.reviewStatus,
             heeftDocument: Boolean(c.pdfBijlageId),
+            einddatum: c.einddatumType === "vast" ? c.einddatum : null,
           };
         })()
       : null,
@@ -88,7 +89,14 @@ export async function runDailyRules(opts: { today?: string } = {}) {
       gesloten++;
       continue;
     }
-    if (a.soort === "verlenging_uitvragen" && a.dedupeKey && a.inzet.einddatumType === "vast" && a.inzet.einddatum && !a.dedupeKey.endsWith(`:${a.inzet.einddatum}`)) {
+    // Verlenging- en einde-acties horen bij één einddatum: is die veranderd, dan is de actie achterhaald.
+    if ((a.soort === "verlenging_uitvragen" || a.soort === "einde_beoordelen") && a.dedupeKey && a.inzet.einddatumType === "vast" && a.inzet.einddatum && !a.dedupeKey.endsWith(`:${a.inzet.einddatum}`)) {
+      await db.update(acties).set({ status: "afgerond", afgerondOp: new Date() }).where(eq(acties.id, a.id));
+      gesloten++;
+      continue;
+    }
+    // Zodra de einddatum verstreken is, neemt "einde beoordelen" het over van "verlenging uitvragen".
+    if (a.soort === "verlenging_uitvragen" && a.inzet.einddatumType === "vast" && a.inzet.einddatum && a.inzet.einddatum < today) {
       await db.update(acties).set({ status: "afgerond", afgerondOp: new Date() }).where(eq(acties.id, a.id));
       gesloten++;
       continue;

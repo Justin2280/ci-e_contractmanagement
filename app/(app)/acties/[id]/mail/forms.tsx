@@ -9,12 +9,12 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { generateConcept, saveConcept } from "./actions";
 import type { ActionState } from "../../../inzetten/actions";
 
-export function GenerateForm({ actieId, enabled, hasDraft }: { actieId: string; enabled: boolean; hasDraft: boolean }) {
+export function GenerateForm({ actieId, enabled, hasDraft, defaultInstructie }: { actieId: string; enabled: boolean; hasDraft: boolean; defaultInstructie?: string }) {
   const [state, action, pending] = useActionState<ActionState, FormData>(generateConcept, null);
   return (
     <form action={action} className="space-y-2">
       <input type="hidden" name="actieId" value={actieId} />
-      <Textarea name="instructie" rows={2} placeholder="Optionele aanwijzing, bv. 'noem dat we ook een tweede constructeur kunnen leveren'" />
+      <Textarea name="instructie" rows={defaultInstructie ? 3 : 2} defaultValue={defaultInstructie} placeholder="Optionele aanwijzing, bv. 'noem dat we ook een tweede constructeur kunnen leveren'" />
       <div className="flex items-center gap-2">
         <Button type="submit" disabled={pending || !enabled} title={enabled ? "" : "ANTHROPIC_API_KEY ontbreekt"}>
           {pending ? "Schrijven…" : hasDraft ? "Nieuw concept genereren" : "Concept genereren"}
