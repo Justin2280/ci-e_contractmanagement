@@ -1,0 +1,46 @@
+{
+  "type": "planning_update",
+  "opdrachtgever": "Mobilis (Bouwcombinatie Nieuw-Zuid)",
+  "project": "OVT",
+  "regels": [
+    {
+      "naam": "Boris Prins",
+      "functie": "BIM 3D Modelleur",
+      "eindWeek": "2026-W44",
+      "einddatum": null,
+      "opmerking": "Conform afspraak met Eric Doorman"
+    },
+    {
+      "naam": "Jelle Schenk",
+      "functie": "BIM 3D Modelleur (hoofdmodelleur)",
+      "eindWeek": "2027-W12",
+      "einddatum": null,
+      "opmerking": null
+    },
+    {
+      "naam": "Klaes Van Dulst",
+      "functie": "Modelleur",
+      "eindWeek": "2027-W12",
+      "einddatum": null,
+      "opmerking": null
+    },
+    {
+      "naam": "Paul van Apeldoorn",
+      "functie": "Constructeur",
+      "eindWeek": "2027-W12",
+      "einddatum": null,
+      "opmerking": null
+    },
+    {
+      "naam": "Sander van Dalen",
+      "functie": "Constructeur",
+      "eindWeek": "2027-W12",
+      "einddatum": null,
+      "opmerking": null
+    }
+  ],
+  "samenvatting": "Han de Jong (Mobilis) geeft per medewerker van CI-Engineers op de OVT door tot welke week ze staan ingepland: Boris Prins tot week 44 van 2026 conform afspraak met Eric Doorman, de overige vier tot en met week 12 van 2027.",
+  "onzekerheden": [
+    "De tabel noemt geen tarieven of contractnummer; alleen de planning wordt bijgewerkt."
+  ]
+}

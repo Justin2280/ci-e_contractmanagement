@@ -37,8 +37,9 @@ export function ReviewPanel({ emailId, proposal, options, alreadyApproved }: { e
     bestaandContractId: proposal.bestaandContractId,
     nummer: e.contractnummer ?? "",
     titel: e.titel,
-    soort: e.soort,
+    soort: proposal.soortVoorstel ?? e.soort,
     parentContractId: proposal.parentContractId,
+    parentContractnummerTekst: proposal.parentContractnummer ?? null,
     startdatum: e.startdatum,
     einddatum: e.einddatum,
     einddatumType: e.einddatumType,
@@ -86,6 +87,8 @@ export function ReviewPanel({ emailId, proposal, options, alreadyApproved }: { e
       inzetOmvang: p.inzetOmvang,
       actiehouderUserId: options.users[0]?.id ?? null,
       overslaan: false,
+      uitDienst: false,
+      uitDienstOp: null,
     })),
   );
 
@@ -224,15 +227,30 @@ export function ReviewPanel({ emailId, proposal, options, alreadyApproved }: { e
               ))}
             </select>
           </F>
-          <F label="Valt onder (raam)contract">
+          <F label="Valt onder raam-/regiecontract">
             <select value={contract.parentContractId ?? ""} onChange={(ev) => setC({ parentContractId: str(ev.target.value) })} className="h-9 w-full rounded-md border bg-background px-2 text-sm">
-              <option value="">—</option>
-              {options.contracten.map((c) => (
+              <option value="">— (geen of nog niet bekend)</option>
+              {proposal.parentKandidaten.map((c) => (
                 <option key={c.id} value={c.id}>
-                  {c.label}
+                  ★ {c.label}
                 </option>
               ))}
+              {options.contracten
+                .filter((c) => !proposal.parentKandidaten.some((k) => k.id === c.id))
+                .map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.label}
+                  </option>
+                ))}
             </select>
+            {!contract.parentContractId ? (
+              <Input
+                className="mt-1"
+                value={contract.parentContractnummerTekst ?? ""}
+                onChange={(ev) => setC({ parentContractnummerTekst: str(ev.target.value) })}
+                placeholder="Nummer bovenliggend contract (wordt gekoppeld zodra het bekend is)"
+              />
+            ) : null}
           </F>
           <F label="Titel">
             <Input value={contract.titel ?? ""} onChange={(ev) => setC({ titel: str(ev.target.value) })} />
@@ -333,12 +351,33 @@ export function ReviewPanel({ emailId, proposal, options, alreadyApproved }: { e
             const set = (patch: Partial<PersoonState>) => setPersonen((list) => list.map((x, i) => (i === idx ? { ...x, ...patch } : x)));
             return (
               <div key={idx} className={`rounded-md border p-3 ${p.overslaan ? "opacity-50" : ""}`}>
-                <div className="mb-2 flex items-center justify-between">
+                <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
                   <div className="font-medium">{p.naam}</div>
-                  <label className="flex items-center gap-2 text-xs text-muted-foreground">
-                    <input type="checkbox" checked={p.overslaan} onChange={(ev) => set({ overslaan: ev.target.checked })} /> overslaan
-                  </label>
+                  <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+                    <label className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        checked={p.uitDienst ?? false}
+                        onChange={(ev) => set({ uitDienst: ev.target.checked, uitDienstOp: ev.target.checked ? (p.uitDienstOp ?? p.einddatum ?? contract.einddatum ?? null) : null })}
+                      />{" "}
+                      niet meer in dienst
+                    </label>
+                    {p.uitDienst ? (
+                      <Input type="date" className="h-7 w-36 text-xs" value={p.uitDienstOp ?? ""} onChange={(ev) => set({ uitDienstOp: str(ev.target.value) })} />
+                    ) : null}
+                    <label className="flex items-center gap-2">
+                      <input type="checkbox" checked={p.overslaan} onChange={(ev) => set({ overslaan: ev.target.checked })} /> overslaan
+                    </label>
+                  </div>
                 </div>
+                {p.uitDienst ? (
+                  <p className="mb-2 text-xs text-amber-800">
+                    Deze inzet wordt beëindigd per de uitdienstdatum; ook andere lopende inzetten van deze medewerker worden beëindigd en de medewerker wordt inactief.
+                  </p>
+                ) : null}
+                {voorstel.ambigu && !p.uitDienst ? (
+                  <p className="mb-2 text-xs text-amber-800">Deze medewerker heeft meerdere lopende inzetten bij deze klant. Kies hieronder welke bij dit document hoort.</p>
+                ) : null}
                 <div className="grid gap-3 md:grid-cols-3">
                   <F label="Medewerker">
                     <select value={p.medewerkerId ?? ""} onChange={(ev) => set({ medewerkerId: str(ev.target.value), bestaandeInzetId: null })} className="h-9 w-full rounded-md border bg-background px-2 text-sm">
@@ -360,7 +399,12 @@ export function ReviewPanel({ emailId, proposal, options, alreadyApproved }: { e
                   <F label="Bestaande inzet bijwerken?">
                     <select value={p.bestaandeInzetId ?? ""} onChange={(ev) => set({ bestaandeInzetId: str(ev.target.value) })} className="h-9 w-full rounded-md border bg-background px-2 text-sm">
                       <option value="">Nieuwe inzet aanmaken</option>
-                      {voorstel.bestaandeInzetId ? <option value={voorstel.bestaandeInzetId}>★ {voorstel.bestaandeInzetLabel}</option> : null}
+                      {(p.medewerkerId === voorstel.medewerkerId ? voorstel.bestaandeInzetten : []).map((i) => (
+                        <option key={i.id} value={i.id}>
+                          {i.id === voorstel.bestaandeInzetId ? "★ " : ""}
+                          {i.label}
+                        </option>
+                      ))}
                     </select>
                   </F>
                   <F label="Actiehouder">

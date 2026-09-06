@@ -6,11 +6,21 @@ import { InzetStatusBadge } from "@/components/app/status-badge";
 
 export const metadata = { title: "Medewerkers" };
 
-export default async function MedewerkersPage() {
-  const rows = await listMedewerkers();
+export default async function MedewerkersPage({ searchParams }: PageProps<"/medewerkers">) {
+  const params = await searchParams;
+  const toonUitDienst = params.toon === "uit_dienst";
+  const rows = await listMedewerkers({ inclusiefUitDienst: toonUitDienst });
   return (
     <div>
-      <PageHeader title="Medewerkers" description="Per medewerker de lopende inzetten." />
+      <PageHeader
+        title="Medewerkers"
+        description="Per medewerker de lopende inzetten."
+        actions={
+          <Link href={toonUitDienst ? "/medewerkers" : "/medewerkers?toon=uit_dienst"} className="text-sm underline">
+            {toonUitDienst ? "Verberg uit dienst" : "Toon ook uit dienst"}
+          </Link>
+        }
+      />
       <div className="rounded-lg border">
         <Table>
           <TableHeader>
@@ -28,6 +38,7 @@ export default async function MedewerkersPage() {
                   <Link href={`/medewerkers/${m.id}`} className="hover:underline">
                     {m.naam}
                   </Link>
+                  {!m.actief ? <span className="ml-2 rounded-md bg-slate-100 px-1.5 py-0.5 text-xs font-normal text-slate-700">uit dienst</span> : null}
                 </TableCell>
                 <TableCell>{m.functie ?? "—"}</TableCell>
                 <TableCell>

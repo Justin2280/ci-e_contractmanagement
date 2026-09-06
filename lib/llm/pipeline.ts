@@ -5,7 +5,15 @@ import path from "node:path";
 import type { Bijlage, EmailIn } from "@/lib/db/schema";
 import { readFileBuffer } from "@/lib/storage/blob";
 import { getAnthropic, LLM_MODEL, llmConfigured } from "./client";
-import { MailClassificationSchema, extractionJsonSchema, parseExtractionText, type ContractExtraction, type MailClassification } from "./schemas";
+import {
+  MailClassificationSchema,
+  PlanningUpdateSchema,
+  extractionJsonSchema,
+  parseExtractionText,
+  type ContractExtraction,
+  type MailClassification,
+  type PlanningExtraction,
+} from "./schemas";
 
 function prompt(name: string): string {
   return fs.readFileSync(path.join(process.cwd(), "lib", "llm", "prompts", `${name}.md`), "utf8");
@@ -55,6 +63,7 @@ async function buildContent(email: EmailWithBijlagen): Promise<ContentBlock[]> {
 const CLASSIFY_REQUEST_OPTIONS = { timeout: 45_000, maxRetries: 1 } as const;
 const EXTRACT_REQUEST_OPTIONS = { timeout: 170_000, maxRetries: 0 } as const;
 const REPAIR_REQUEST_OPTIONS = { timeout: 70_000, maxRetries: 0 } as const;
+const PLANNING_REQUEST_OPTIONS = { timeout: 90_000, maxRetries: 1 } as const;
 
 export async function classifyMail(email: EmailWithBijlagen, content?: ContentBlock[]): Promise<MailClassification> {
   const client = getAnthropic();
@@ -141,10 +150,29 @@ export async function extractContract(email: EmailWithBijlagen, content?: Conten
   return second.value;
 }
 
+/** Planning-update (namen + einde-weken): klein schema, dus hier wél afgedwongen structured output. */
+export async function extractPlanning(email: EmailWithBijlagen, content?: ContentBlock[]): Promise<PlanningExtraction> {
+  const client = getAnthropic();
+  const res = await client.beta.messages.parse(
+    {
+      ...FALLBACK_PARAMS,
+      model: LLM_MODEL,
+      max_tokens: 4000,
+      system: prompt("planning"),
+      output_config: { effort: "medium", format: betaZodOutputFormat(PlanningUpdateSchema) },
+      messages: [{ role: "user", content: content ?? (await buildContent(email)) }],
+    },
+    PLANNING_REQUEST_OPTIONS,
+  );
+  if (res.stop_reason === "refusal") throw new Error("Model weigerde de planning-extractie");
+  if (!res.parsed_output) throw new Error("Planning kon niet worden geparsed");
+  return { type: "planning_update", ...res.parsed_output };
+}
+
 export interface PipelineOutcome {
   classificatie: MailClassification["classificatie"];
   toelichting: string;
-  extractie: ContractExtraction | null;
+  extractie: ContractExtraction | PlanningExtraction | null;
 }
 
 /** Classification followed by extraction for contract-like mails. */
@@ -154,6 +182,10 @@ export async function classifyAndExtract(email: EmailWithBijlagen): Promise<Pipe
   const cls = await classifyMail(email, content);
   if (cls.classificatie === "overig") {
     return { classificatie: cls.classificatie, toelichting: cls.toelichting, extractie: null };
+  }
+  if (cls.classificatie === "planning_update") {
+    const planning = await extractPlanning(email, content);
+    return { classificatie: cls.classificatie, toelichting: cls.toelichting, extractie: planning };
   }
   const extractie = await extractContract(email, content);
   return { classificatie: cls.classificatie, toelichting: cls.toelichting, extractie };

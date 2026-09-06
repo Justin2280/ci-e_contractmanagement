@@ -38,6 +38,8 @@ export default async function DashboardPage() {
   const lopend = perStatus.filter((s) => LOPENDE_STATUSSEN.includes(s.status)).reduce((a, b) => a + b.n, 0);
   const overdue = openActies.filter((a) => a.vervaldatum && a.vervaldatum < today).length;
 
+  const eindeTeBeoordelen = openActies.filter((a) => a.soort === "einde_beoordelen").length;
+
   return (
     <div className="space-y-6">
       <PageHeader title="Dashboard" description={`Stand van zaken op ${fmtDateShort(today)}`} />
@@ -45,7 +47,12 @@ export default async function DashboardPage() {
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Stat label="Lopende inzetten" value={lopend} href="/inzetten" />
         <Stat label="Open acties" value={openActies.length} sub={overdue ? `${overdue} over tijd` : undefined} href="/acties" />
-        <Stat label="Loopt af binnen 90 dagen" value={verlopend.length} href="/inzetten" />
+        <Stat
+          label="Loopt af binnen 90 dagen"
+          value={verlopend.length}
+          sub={eindeTeBeoordelen ? `${eindeTeBeoordelen} einde te beoordelen` : undefined}
+          href={eindeTeBeoordelen ? "/acties" : "/inzetten"}
+        />
         <Stat label="Mails te beoordelen" value={teBeoordelen.length} sub={`${mailStats?.n ?? 0} mails totaal`} href="/inbox" />
       </div>
 

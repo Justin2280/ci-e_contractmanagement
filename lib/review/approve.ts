@@ -1,4 +1,4 @@
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, isNull, ne } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import {
@@ -16,7 +16,9 @@ import {
   projecten,
   tarieven,
 } from "@/lib/db/schema";
-import { normalizeCompanyName, normalizePersonName } from "@/lib/normalize";
+import { normalizeCompanyName, normalizeContractNumber, normalizePersonName } from "@/lib/normalize";
+import { findByNumber } from "@/lib/contracts/numbers";
+import { LOPENDE_STATUSSEN } from "@/lib/queries/inzetten";
 
 const optDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable();
 
@@ -28,6 +30,8 @@ export const ApprovePayloadSchema = z.object({
     titel: z.string().nullable(),
     soort: z.enum(contractSoort.enumValues),
     parentContractId: z.string().uuid().nullable(),
+    /** Nummer van het bovenliggende contract als dat nog niet in de database staat. */
+    parentContractnummerTekst: z.string().nullable().optional(),
     startdatum: optDate,
     einddatum: optDate,
     einddatumType: z.enum(einddatumType.enumValues),
@@ -70,6 +74,9 @@ export const ApprovePayloadSchema = z.object({
       inzetOmvang: z.string().nullable(),
       actiehouderUserId: z.string().uuid().nullable(),
       overslaan: z.boolean(),
+      /** Medewerker is niet meer in dienst: inzet(ten) beëindigen en medewerker inactief maken. */
+      uitDienst: z.boolean().optional(),
+      uitDienstOp: optDate.optional(),
     }),
   ),
 });
@@ -124,14 +131,19 @@ export async function approveExtraction(payload: ApprovePayload, userId: string)
       }
     }
 
-    // Contract
+    // Contract; het bovenliggende contract alsnog op nummer koppelen als het inmiddels bestaat.
+    const alleContracten = await tx.query.contracten.findMany({ columns: { id: true, nummer: true, parentContractId: true, parentContractnummerTekst: true } });
+    const parentTekst = p.contract.parentContractnummerTekst?.trim() || null;
+    const parentContractId =
+      p.contract.parentContractId ?? (parentTekst ? (findByNumber(parentTekst, alleContracten, p.contract.bestaandContractId ?? undefined)?.id ?? null) : null);
     const contractValues = {
       nummer: p.contract.nummer,
       titel: p.contract.titel,
       soort: p.contract.soort,
       klantId,
       projectId,
-      parentContractId: p.contract.parentContractId,
+      parentContractId,
+      parentContractnummerTekst: parentTekst,
       startdatum: p.contract.startdatum,
       einddatum: p.contract.einddatumType === "vast" ? p.contract.einddatum : null,
       einddatumType: p.contract.einddatumType,
@@ -167,6 +179,14 @@ export async function approveExtraction(payload: ApprovePayload, userId: string)
       const [c] = await tx.insert(contracten).values(contractValues).returning();
       contractId = c.id;
     }
+    // Wezen koppelen: contracten die op dit nummer wachtten als bovenliggend contract.
+    const eigenNorm = normalizeContractNumber(p.contract.nummer);
+    for (const c of alleContracten) {
+      if (c.id === contractId || c.parentContractId || !c.parentContractnummerTekst) continue;
+      if (normalizeContractNumber(c.parentContractnummerTekst) === eigenNorm) {
+        await tx.update(contracten).set({ parentContractId: contractId }).where(eq(contracten.id, c.id));
+      }
+    }
 
     for (const t of p.contractTarieven) {
       await tx.insert(tarieven).values({
@@ -181,6 +201,7 @@ export async function approveExtraction(payload: ApprovePayload, userId: string)
 
     // Personen -> medewerkers + inzetten
     const inzetIds: string[] = [];
+    const uitDienstInzetIds = new Set<string>();
     for (const persoon of p.personen) {
       if (persoon.overslaan) continue;
       let medewerkerId = persoon.medewerkerId;
@@ -193,6 +214,16 @@ export async function approveExtraction(payload: ApprovePayload, userId: string)
           medewerkerId = m.id;
         }
       }
+      const uitDienst = persoon.uitDienst === true;
+      const uitDienstOp = uitDienst ? (persoon.uitDienstOp ?? persoon.einddatum ?? p.contract.einddatum ?? today) : null;
+      // Geen duplicaat: bestaat er al een lopende inzet van deze medewerker op dit contract, werk die bij.
+      let bestaandeInzetId = persoon.bestaandeInzetId;
+      if (!bestaandeInzetId) {
+        const dup = await tx.query.inzetten.findFirst({
+          where: and(eq(inzetten.medewerkerId, medewerkerId), eq(inzetten.contractId, contractId), inArray(inzetten.status, LOPENDE_STATUSSEN)),
+        });
+        if (dup) bestaandeInzetId = dup.id;
+      }
       const tariefStr = persoon.tarief !== null ? persoon.tarief.toFixed(2) : null;
       const values = {
         medewerkerId,
@@ -204,29 +235,29 @@ export async function approveExtraction(payload: ApprovePayload, userId: string)
         tarief: tariefStr,
         tariefGeldigVanaf: tariefStr ? (persoon.tariefGeldigVanaf ?? persoon.startdatum ?? today) : null,
         startdatum: persoon.startdatum,
-        einddatum: persoon.einddatumType === "vast" ? persoon.einddatum : null,
-        einddatumType: persoon.einddatumType,
+        einddatum: uitDienst ? uitDienstOp : persoon.einddatumType === "vast" ? persoon.einddatum : null,
+        einddatumType: uitDienst ? ("vast" as const) : persoon.einddatumType,
         inzetOmvang: persoon.inzetOmvang,
         actiehouderUserId: persoon.actiehouderUserId,
-        status: "actief" as const,
+        status: uitDienst ? ("beeindigd" as const) : ("actief" as const),
       };
-      if (persoon.bestaandeInzetId) {
-        const current = await tx.query.inzetten.findFirst({ where: eq(inzetten.id, persoon.bestaandeInzetId) });
+      if (bestaandeInzetId) {
+        const current = await tx.query.inzetten.findFirst({ where: eq(inzetten.id, bestaandeInzetId) });
         const patch = Object.fromEntries(Object.entries(values).filter(([, v]) => v !== null && v !== undefined));
         // einddatumType may legitimately switch to a non-fixed type
         patch.einddatumType = values.einddatumType;
         if (values.einddatumType !== "vast") patch.einddatum = null;
-        await tx.update(inzetten).set(patch).where(eq(inzetten.id, persoon.bestaandeInzetId));
+        await tx.update(inzetten).set(patch).where(eq(inzetten.id, bestaandeInzetId));
         if (tariefStr && current?.tarief !== tariefStr) {
           await tx.insert(tarieven).values({
-            inzetId: persoon.bestaandeInzetId,
+            inzetId: bestaandeInzetId,
             bedrag: tariefStr,
             geldigVanaf: values.tariefGeldigVanaf ?? today,
             reden: p.contract.soort === "tarievenbrief" || p.contract.soort === "verlenging" ? "indexatie" : "verlenging",
             bron: `E-mail ${p.emailId}`,
           });
         }
-        inzetIds.push(persoon.bestaandeInzetId);
+        inzetIds.push(bestaandeInzetId);
       } else {
         const [i] = await tx.insert(inzetten).values(values).returning();
         if (tariefStr) {
@@ -234,16 +265,22 @@ export async function approveExtraction(payload: ApprovePayload, userId: string)
         }
         inzetIds.push(i.id);
       }
+      if (uitDienst && uitDienstOp) {
+        const eigenInzetId = inzetIds[inzetIds.length - 1];
+        const r = await zetMedewerkerUitDienst(tx, medewerkerId, uitDienstOp, { extraInzetIds: [eigenInzetId] });
+        for (const id of [...r.beeindigd, eigenInzetId]) uitDienstInzetIds.add(id);
+      }
     }
 
-    // Close acties that this document resolves
-    if (inzetIds.length) {
+    // Close acties that this document resolves (acties of uit-dienst-inzetten zijn al genegeerd)
+    const afgerondIds = inzetIds.filter((id) => !uitDienstInzetIds.has(id));
+    if (afgerondIds.length) {
       await tx
         .update(acties)
         .set({ status: "afgerond", afgerondOp: new Date() })
         .where(
           and(
-            inArray(acties.inzetId, inzetIds),
+            inArray(acties.inzetId, afgerondIds),
             inArray(acties.status, ["open", "conceptmail_klaar", "verstuurd"]),
             inArray(acties.soort, ["contract_opvragen", "verlenging_uitvragen", ...(p.contract.soort === "tarievenbrief" ? ["indexatie_aanvragen" as const] : [])]),
           ),
@@ -255,3 +292,43 @@ export async function approveExtraction(payload: ApprovePayload, userId: string)
     return { contractId, inzetIds };
   });
 }
+
+type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+/**
+ * Markeert een medewerker als uit dienst: actief = false, alle lopende inzetten
+ * beëindigd per de uitdienstdatum en hun open acties genegeerd.
+ */
+export async function zetMedewerkerUitDienst(
+  tx: Tx,
+  medewerkerId: string,
+  uitDienstOp: string,
+  opts: { extraInzetIds?: string[] } = {},
+): Promise<{ beeindigd: string[] }> {
+  await tx.update(medewerkers).set({ actief: false, uitDienstOp }).where(eq(medewerkers.id, medewerkerId));
+  const lopend = await tx.query.inzetten.findMany({
+    where: and(eq(inzetten.medewerkerId, medewerkerId), inArray(inzetten.status, LOPENDE_STATUSSEN)),
+  });
+  const ids = lopend.map((i) => i.id);
+  if (ids.length) {
+    await tx
+      .update(inzetten)
+      .set({ status: "beeindigd", einddatum: uitDienstOp, einddatumType: "vast" })
+      .where(inArray(inzetten.id, ids));
+  }
+  const actieIds = [...new Set([...ids, ...(opts.extraInzetIds ?? [])])];
+  if (actieIds.length) {
+    await tx
+      .update(acties)
+      .set({ status: "genegeerd", afgerondOp: new Date() })
+      .where(and(inArray(acties.inzetId, actieIds), inArray(acties.status, ["open", "conceptmail_klaar"])));
+  }
+  return { beeindigd: ids };
+}
+
+/** Maakt een uit-dienst-markering ongedaan (inzetten blijven zoals ze zijn). */
+export async function herstelMedewerkerInDienst(tx: Tx, medewerkerId: string): Promise<void> {
+  await tx.update(medewerkers).set({ actief: true, uitDienstOp: null }).where(and(eq(medewerkers.id, medewerkerId), ne(medewerkers.actief, true)));
+}
+
+void isNull;

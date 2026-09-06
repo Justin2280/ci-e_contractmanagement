@@ -1,5 +1,7 @@
 "use server";
 
+import { effectiveContract } from "@/lib/contracts/effective";
+
 import { revalidatePath } from "next/cache";
 import { and, desc, eq, inArray } from "drizzle-orm";
 import { z } from "zod";
@@ -26,13 +28,14 @@ export async function generateConcept(_prev: ActionState, formData: FormData): P
   try {
     const actie = await loadActieMetContext(actieId);
     const settings = await getSettings();
-    const soortKey = actie.soort === "verlenging_uitvragen" ? "verlenging" : actie.soort === "indexatie_aanvragen" ? "indexatie" : actie.soort === "contract_opvragen" ? "contract_opvragen" : "algemeen";
+    const soortKey = actie.soort === "verlenging_uitvragen" || actie.soort === "einde_beoordelen" ? "verlenging" : actie.soort === "indexatie_aanvragen" ? "indexatie" : actie.soort === "contract_opvragen" ? "contract_opvragen" : "algemeen";
     const voorbeelden = await db.query.stijlVoorbeelden.findMany({
       where: and(eq(stijlVoorbeelden.actief, true), inArray(stijlVoorbeelden.soort, [soortKey, "algemeen"] as ("algemeen" | "verlenging" | "indexatie" | "contract_opvragen")[])),
       orderBy: [desc(stijlVoorbeelden.createdAt)],
       limit: 8,
     });
-    const contract = actie.inzet?.contract ?? actie.contract ?? null;
+    const rawContract = actie.inzet?.contract ?? actie.contract ?? null;
+    const contract = rawContract ? effectiveContract(rawContract) : null;
     const medewerkers = actie.inzet ? [actie.inzet.medewerker.naam] : Array.from(new Set(actie.contract?.inzetten.map((i) => i.medewerker.naam) ?? []));
     const ontvanger = defaultRecipient(actie);
     const draft = await generateDraftEmail(

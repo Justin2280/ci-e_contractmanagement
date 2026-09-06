@@ -6,6 +6,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { getMedewerker } from "@/lib/queries/master";
 import { fmtDateShort, fmtMoney } from "@/lib/format";
 import { EINDDATUM_TYPE_LABELS } from "@/lib/labels";
+import { todayIso } from "@/lib/format";
+import { DienstForm } from "./dienst-form";
 
 export default async function MedewerkerPage({ params }: PageProps<"/medewerkers/[id]">) {
   const { id } = await params;
@@ -13,7 +15,11 @@ export default async function MedewerkerPage({ params }: PageProps<"/medewerkers
   if (!m) notFound();
   return (
     <div>
-      <PageHeader title={m.naam} description={[m.functie, m.email].filter(Boolean).join(" · ") || undefined} />
+      <PageHeader
+        title={m.naam}
+        description={[m.functie, m.email, m.actief ? null : `uit dienst${m.uitDienstOp ? ` per ${fmtDateShort(m.uitDienstOp)}` : ""}`].filter(Boolean).join(" · ") || undefined}
+        actions={<DienstForm id={m.id} actief={m.actief} uitDienstOp={m.uitDienstOp} today={todayIso()} />}
+      />
       <div className="rounded-lg border">
         <Table>
           <TableHeader>

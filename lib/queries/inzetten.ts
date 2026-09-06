@@ -61,7 +61,7 @@ export async function getInzet(id: string) {
       medewerker: true,
       klant: { with: { contactpersonen: true } },
       project: true,
-      contract: true,
+      contract: { with: { parent: true } },
       actiehouder: true,
       contactpersoon: true,
       tarieven: { orderBy: (t, { desc }) => [desc(t.geldigVanaf)] },

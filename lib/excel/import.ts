@@ -15,6 +15,7 @@ import {
 } from "@/lib/db/schema";
 import { normalizeCompanyName, normalizeContractNumber, normalizePersonName, normalizeText, personMatchKey, tokenOverlap } from "@/lib/normalize";
 import { periodesVoorJaar } from "@/lib/periods";
+import { findChildrenByPrefix, findParentByPrefix } from "@/lib/contracts/numbers";
 import type { ExcelInzetRow, ParsedFactureerOverzicht } from "./parse-factureeroverzicht";
 
 export interface ImportOptions {
@@ -109,16 +110,22 @@ async function ensureContract(tx: Tx, row: ExcelInzetRow, klantId: string | null
   const nummer = row.contractnummer?.trim();
   if (!nummer) return null;
   const norm = normalizeContractNumber(nummer);
-  const all = await tx.query.contracten.findMany({ where: eq(contracten.klantId, klantId ?? sql`NULL`) });
+  const alle = await tx.query.contracten.findMany();
   const existing =
-    all.find((c) => normalizeContractNumber(c.nummer) === norm) ??
-    (await tx.query.contracten.findMany()).find((c) => normalizeContractNumber(c.nummer) === norm);
+    alle.find((c) => c.klantId === (klantId ?? null) && normalizeContractNumber(c.nummer) === norm) ??
+    alle.find((c) => normalizeContractNumber(c.nummer) === norm);
   if (existing) {
     if (row.opzegtermijnDagen && !existing.opzegtermijnDagen) {
       await tx.update(contracten).set({ opzegtermijnDagen: row.opzegtermijnDagen }).where(eq(contracten.id, existing.id));
     }
+    if (!existing.parentContractId) {
+      const parent = findParentByPrefix(existing.nummer, alle, existing.id);
+      if (parent) await tx.update(contracten).set({ parentContractId: parent.id }).where(eq(contracten.id, existing.id));
+    }
     return existing;
   }
+  // Raam-/regiecontract afleiden uit het nummer: "… NOVK-006" onder "…", "21116-037Ca" onder "21116-037C".
+  const parent = findParentByPrefix(nummer, alle);
   const [created] = await tx
     .insert(contracten)
     .values({
@@ -126,6 +133,7 @@ async function ensureContract(tx: Tx, row: ExcelInzetRow, klantId: string | null
       soort: inferContractSoort(nummer),
       klantId,
       projectId: inferContractSoort(nummer) === "nadere_overeenkomst" || inferContractSoort(nummer) === "raamovereenkomst" ? null : projectId,
+      parentContractId: parent?.id ?? null,
       opzegtermijnDagen: row.opzegtermijnDagen,
       indexatie: "onbekend",
       status: "actief",
@@ -133,6 +141,10 @@ async function ensureContract(tx: Tx, row: ExcelInzetRow, klantId: string | null
       notities: "Aangemaakt via Excel-import; document nog niet gekoppeld.",
     })
     .returning();
+  // Eerder geïmporteerde kinderen die op dit contract wachtten alsnog koppelen.
+  for (const kind of findChildrenByPrefix(nummer, alle)) {
+    if (!kind.parentContractId) await tx.update(contracten).set({ parentContractId: created.id }).where(eq(contracten.id, kind.id));
+  }
   return created;
 }
 

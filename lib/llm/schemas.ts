@@ -6,7 +6,7 @@ import { z } from "zod";
  */
 
 export const MailClassificationSchema = z.object({
-  classificatie: z.enum(["contract", "verlenging_of_tarievenbrief", "opzegging", "overig"]),
+  classificatie: z.enum(["contract", "verlenging_of_tarievenbrief", "opzegging", "planning_update", "overig"]),
   toelichting: z.string().describe("Eén of twee zinnen in het Nederlands waarom deze classificatie."),
   vertrouwen: z.number().min(0).max(1),
 });
@@ -294,6 +294,36 @@ export function fromWire(wire: ContractExtractionWire): ContractExtraction {
     bronverwijzingen: wire.bronverwijzingen.map((b) => ({ veld: b.veld, pagina: b.pagina, citaat: text(b.citaat) })),
   };
   return ContractExtractionSchema.parse(canonical);
+}
+
+// ---------------------------------------------------------------------------
+// Planning-update: een mail zonder contract met per medewerker tot wanneer hij
+// staat ingepland (weeknummer of datum). Klein schema, structured output kan.
+// ---------------------------------------------------------------------------
+
+export const PlanningRegelSchema = z.object({
+  naam: z.string().describe("Naam van de medewerker van CI-Engineers zoals in de mail"),
+  functie: z.string().nullable().describe("Functie/rol als genoemd"),
+  eindWeek: z.string().nullable().describe("ISO-week tot en met wanneer de inzet gepland staat, als YYYY-Www (bv. 2027-W12); null als er geen week staat"),
+  einddatum: isoDate.nullable().describe("Einddatum als YYYY-MM-DD als er een datum in plaats van een week staat"),
+  opmerking: z.string().nullable().describe("Bv. 'conform afspraak met Eric Doorman'"),
+});
+
+export const PlanningUpdateSchema = z.object({
+  opdrachtgever: z.string().nullable().describe("Organisatie van de afzender/opdrachtgever"),
+  project: z.string().nullable().describe("Project of team, bv. 'OVT'"),
+  regels: z.array(PlanningRegelSchema),
+  samenvatting: z.string().describe("Eén of twee zinnen in het Nederlands"),
+  onzekerheden: z.array(z.string()),
+});
+export type PlanningUpdate = z.infer<typeof PlanningUpdateSchema>;
+
+/** Zo wordt een planning-update in `emails_in.extractie_json` opgeslagen. */
+export const PlanningExtractionSchema = PlanningUpdateSchema.extend({ type: z.literal("planning_update") });
+export type PlanningExtraction = z.infer<typeof PlanningExtractionSchema>;
+
+export function isPlanningExtraction(v: unknown): v is PlanningExtraction {
+  return typeof v === "object" && v !== null && (v as { type?: unknown }).type === "planning_update";
 }
 
 export const DraftEmailSchema = z.object({

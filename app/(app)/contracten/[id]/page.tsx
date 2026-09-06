@@ -21,6 +21,12 @@ export default async function ContractPage({ params }: PageProps<"/contracten/[i
   ]);
   if (!c) notFound();
 
+  // Inzetten op dit contract plus die op de onderliggende contracten (NOVK's, aanvullingen).
+  const alleInzetten = [
+    ...c.inzetten.map((i) => ({ ...i, contractNummer: c.nummer })),
+    ...c.children.flatMap((k) => k.inzetten.map((i) => ({ ...i, contractNummer: k.nummer }))),
+  ];
+
   const formData = {
     id: c.id,
     nummer: c.nummer,
@@ -101,6 +107,29 @@ export default async function ContractPage({ params }: PageProps<"/contracten/[i
                   <Link href={`/contracten/${c.parent.id}`} className="hover:underline">
                     {c.parent.nummer}
                   </Link>
+                  <span className="text-xs text-muted-foreground"> (indexatie en opzegtermijn worden daarvan overgenomen als ze hier ontbreken)</span>
+                </div>
+              ) : c.parentContractnummerTekst ? (
+                <div className="text-amber-800">
+                  Valt onder <span className="font-mono">{c.parentContractnummerTekst}</span>, dat nog niet in het systeem staat. Zodra dat contract wordt ingelezen, wordt de
+                  koppeling automatisch gelegd.
+                </div>
+              ) : null}
+              {c.children.length ? (
+                <div>
+                  <div className="text-muted-foreground">Onderliggende contracten:</div>
+                  <ul className="mt-1 space-y-1">
+                    {c.children.map((k) => (
+                      <li key={k.id}>
+                        <Link href={`/contracten/${k.id}`} className="font-mono text-xs hover:underline">
+                          {k.nummer}
+                        </Link>{" "}
+                        <span className="text-xs text-muted-foreground">
+                          {CONTRACT_SOORT_LABELS[k.soort]} · {k.inzetten.length} inzet(ten)
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
                 </div>
               ) : null}
             </CardContent>
@@ -126,13 +155,14 @@ export default async function ContractPage({ params }: PageProps<"/contracten/[i
 
       <Card>
         <CardHeader>
-          <CardTitle>Inzetten op dit contract</CardTitle>
+          <CardTitle>{c.children.length ? "Inzetten op dit contract en de onderliggende contracten" : "Inzetten op dit contract"}</CardTitle>
         </CardHeader>
         <CardContent>
           <Table>
             <TableHeader>
               <TableRow>
                 <TableHead>Medewerker</TableHead>
+                {c.children.length ? <TableHead>Contract</TableHead> : null}
                 <TableHead>Project</TableHead>
                 <TableHead className="text-right">Tarief</TableHead>
                 <TableHead>Start</TableHead>
@@ -141,13 +171,14 @@ export default async function ContractPage({ params }: PageProps<"/contracten/[i
               </TableRow>
             </TableHeader>
             <TableBody>
-              {c.inzetten.map((i) => (
+              {alleInzetten.map((i) => (
                 <TableRow key={i.id}>
                   <TableCell>
                     <Link href={`/inzetten/${i.id}`} className="font-medium hover:underline">
                       {i.medewerker.naam}
                     </Link>
                   </TableCell>
+                  {c.children.length ? <TableCell className="font-mono text-xs">{i.contractNummer}</TableCell> : null}
                   <TableCell>{i.project?.naam ?? "—"}</TableCell>
                   <TableCell className="text-right tabular-nums">{fmtMoney(i.tarief)}</TableCell>
                   <TableCell className="tabular-nums">{fmtDateShort(i.startdatum)}</TableCell>
@@ -157,9 +188,9 @@ export default async function ContractPage({ params }: PageProps<"/contracten/[i
                   </TableCell>
                 </TableRow>
               ))}
-              {c.inzetten.length === 0 ? (
+              {alleInzetten.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center text-muted-foreground">
+                  <TableCell colSpan={7} className="text-center text-muted-foreground">
                     Geen inzetten gekoppeld
                   </TableCell>
                 </TableRow>
