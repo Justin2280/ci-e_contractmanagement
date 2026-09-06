@@ -101,6 +101,16 @@ export default async function ContractPage({ params }: PageProps<"/contracten/[i
               ) : (
                 <p className="text-muted-foreground">Geen bron-e-mail (handmatig of Excel-import).</p>
               )}
+              {c.nummerAlternatieven.length ? (
+                <div>
+                  <span className="text-muted-foreground">Ook bekend als: </span>
+                  {c.nummerAlternatieven.map((n) => (
+                    <span key={n} className="mr-2 font-mono text-xs">
+                      {n}
+                    </span>
+                  ))}
+                </div>
+              ) : null}
               {c.parent ? (
                 <div>
                   <span className="text-muted-foreground">Valt onder: </span>

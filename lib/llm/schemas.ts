@@ -61,6 +61,10 @@ export const BronverwijzingSchema = z.object({
 
 export const ContractExtractionSchema = z.object({
   contractnummer: z.string().nullable().describe("Kenmerk/contractnummer, bv. 'VHB-RAM-2022-005 NOVK-006', 'ICM2125374', 'JOB161110'"),
+  contractnummerAlternatieven: z
+    .array(z.string())
+    .default([])
+    .describe("Andere kenmerken waaronder hetzelfde contract in het document wordt genoemd, bv. 'InfraNL-RAM-2022-005' naast 'VHB-RAM-2022-005'"),
   parentContractnummer: z.string().nullable().describe("Nummer van de raam-/basisovereenkomst waar dit document onder valt, indien genoemd"),
   soort: ContractSoortSchema,
   titel: z.string().nullable().describe("Korte titel, bv. 'Inzet coördinator site engineering N516'"),
@@ -161,6 +165,7 @@ export const BronverwijzingWireSchema = z.object({
 
 export const ContractExtractionWireSchema = z.object({
   contractnummer: wireText("Kenmerk/contractnummer, bv. 'VHB-RAM-2022-005 NOVK-006', 'ICM2125374', 'JOB161110'"),
+  contractnummerAlternatieven: z.array(z.string()).default([]).describe("Andere kenmerken van hetzelfde contract in het document"),
   parentContractnummer: wireText("Nummer van de raam-/basisovereenkomst waar dit document onder valt, indien genoemd"),
   soort: ContractSoortSchema,
   titel: wireText("Korte titel, bv. 'Inzet coördinator site engineering N516'"),
@@ -234,6 +239,7 @@ export function fromWire(wire: ContractExtractionWire): ContractExtraction {
 
   const canonical: ContractExtraction = {
     contractnummer: text(wire.contractnummer),
+    contractnummerAlternatieven: (wire.contractnummerAlternatieven ?? []).map((n) => n.trim()).filter((n) => n && n !== (wire.contractnummer ?? "").trim()),
     parentContractnummer: text(wire.parentContractnummer),
     soort: wire.soort,
     titel: text(wire.titel),

@@ -26,6 +26,8 @@ interface Options {
 }
 
 type PersoonState = ApprovePayload["personen"][number];
+type TariefState = ApprovePayload["contractTarieven"][number];
+type InzetTariefState = NonNullable<ApprovePayload["inzetTarieven"]>[number] & { label: string; huidigTarief: number | null; tariefIndex: number | null };
 
 export function ReviewPanel({ emailId, proposal, options, alreadyApproved }: { emailId: string; proposal: ReviewProposal; options: Options; alreadyApproved: boolean }) {
   const e = proposal.extractie;
@@ -57,7 +59,23 @@ export function ReviewPanel({ emailId, proposal, options, alreadyApproved }: { e
     getekendOp: e.getekendOp,
     samenvatting: e.samenvatting,
     pdfBijlageId: options.bijlagen[0]?.id ?? null,
+    contractnummerAlternatieven: e.contractnummerAlternatieven,
   });
+  const [alternatievenTekst, setAlternatievenTekst] = useState(e.contractnummerAlternatieven.join(", "));
+  const tariefGeldigVanafDefault = e.tarieven.find((t) => t.geldigVanaf)?.geldigVanaf ?? e.startdatum ?? null;
+  const [tarieven, setTarieven] = useState<TariefState[]>(e.tarieven.map((t) => ({ functie: t.functie, bedrag: t.bedrag, geldigVanaf: t.geldigVanaf })));
+  const [inzetTarieven, setInzetTarieven] = useState<InzetTariefState[]>(
+    proposal.inzetTariefVoorstellen.map((v) => ({
+      inzetId: v.inzetId,
+      label: v.label,
+      huidigTarief: v.huidigTarief,
+      tariefIndex: v.tariefIndex,
+      bedrag: v.nieuwTarief ?? v.huidigTarief ?? 0,
+      geldigVanaf: (v.tariefIndex !== null ? e.tarieven[v.tariefIndex]?.geldigVanaf : null) ?? tariefGeldigVanafDefault,
+      functie: v.tariefIndex !== null ? (e.tarieven[v.tariefIndex]?.functie ?? v.functie) : v.functie,
+      toepassen: v.tariefIndex !== null,
+    })),
+  );
   const [klant, setKlant] = useState<ApprovePayload["klant"]>({
     id: proposal.klantId,
     nieuweNaam: e.opdrachtgever?.naam ?? null,
@@ -102,11 +120,18 @@ export function ReviewPanel({ emailId, proposal, options, alreadyApproved }: { e
   function submit() {
     const payload: ApprovePayload = {
       emailId,
-      contract,
+      contract: {
+        ...contract,
+        contractnummerAlternatieven: alternatievenTekst
+          .split(/[,;\n]/)
+          .map((n) => n.trim())
+          .filter(Boolean),
+      },
       klant,
       project,
       contactpersonen: contacten.filter((c) => c.include).map((c) => ({ naam: c.naam, email: c.email, telefoon: c.telefoon, rol: c.rol })),
-      contractTarieven: e.tarieven.map((t) => ({ functie: t.functie, bedrag: t.bedrag, geldigVanaf: t.geldigVanaf })),
+      contractTarieven: tarieven.filter((t) => Number.isFinite(t.bedrag) && t.bedrag > 0),
+      inzetTarieven: inzetTarieven.map(({ inzetId, bedrag, geldigVanaf, functie, toepassen }) => ({ inzetId, bedrag, geldigVanaf, functie, toepassen })),
       personen,
     };
     startTransition(async () => {
@@ -121,6 +146,34 @@ export function ReviewPanel({ emailId, proposal, options, alreadyApproved }: { e
       {proposal.parseFout ? (
         <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
           De extractie week af van het verwachte formaat ({proposal.parseFout}). Controleer de velden extra goed.
+        </div>
+      ) : null}
+
+      {proposal.isTariefdocument ? (
+        <div className="rounded-md border border-sky-200 bg-sky-50 p-3 text-sm text-sky-900">
+          {proposal.raamcontractVoorstel ? (
+            <>
+              Dit is een tarievenbrief/verlenging voor raamcontract <span className="font-mono">{proposal.raamcontractVoorstel.nummer}</span>, dat nog niet in het systeem staat. Bij goedkeuren
+              wordt het als raamovereenkomst aangemaakt
+              {proposal.raamcontractVoorstel.kinderen.length ? (
+                <>
+                  {" "}
+                  en worden de onderliggende contracten eronder gehangen:{" "}
+                  {proposal.raamcontractVoorstel.kinderen.map((k) => (
+                    <span key={k.id} className="mr-1 font-mono text-xs">
+                      {k.nummer}
+                    </span>
+                  ))}
+                </>
+              ) : null}
+              . De personen-sectie is bij zo’n brief meestal leeg; de nieuwe tarieven kun je hieronder op de lopende inzetten toepassen.
+            </>
+          ) : (
+            <>
+              Dit is een tarievenbrief/verlenging voor een bestaand contract: soort en PDF van dat contract blijven staan, einddatum en indexatie worden bijgewerkt. De nieuwe
+              tarieven kun je hieronder op de lopende inzetten toepassen.
+            </>
+          )}
         </div>
       ) : null}
 
@@ -217,6 +270,12 @@ export function ReviewPanel({ emailId, proposal, options, alreadyApproved }: { e
           </F>
           <F label="Contractnummer">
             <Input value={contract.nummer} onChange={(ev) => setC({ nummer: ev.target.value })} />
+            <Input
+              className="mt-1"
+              value={alternatievenTekst}
+              onChange={(ev) => setAlternatievenTekst(ev.target.value)}
+              placeholder="Alternatieve kenmerken, komma-gescheiden (bv. InfraNL-RAM-2022-005)"
+            />
           </F>
           <F label="Soort">
             <select value={contract.soort} onChange={(ev) => setC({ soort: ev.target.value as ApprovePayload["contract"]["soort"] })} className="h-9 w-full rounded-md border bg-background px-2 text-sm">
@@ -324,21 +383,85 @@ export function ReviewPanel({ emailId, proposal, options, alreadyApproved }: { e
               <Textarea rows={2} value={contract.factuurEisen ?? ""} onChange={(ev) => setC({ factuurEisen: str(ev.target.value) })} />
             </F>
           </div>
-          {e.tarieven.length ? (
-            <div className="md:col-span-2 text-sm">
-              <div className="mb-1 text-xs text-muted-foreground">Tarieventabel (wordt als contracttarieven vastgelegd)</div>
-              <ul className="grid gap-1 sm:grid-cols-2">
-                {e.tarieven.map((t, i) => (
-                  <li key={i} className="flex justify-between rounded border px-2 py-1">
-                    <span>{t.functie ?? "Tarief"}</span>
-                    <span className="tabular-nums">€ {t.bedrag.toFixed(2)}</span>
-                  </li>
-                ))}
-              </ul>
+          <div className="md:col-span-2 text-sm">
+            <div className="mb-1 flex items-center justify-between">
+              <span className="text-xs text-muted-foreground">Tarieventabel per functie (wordt als contracttarieven vastgelegd; controleer bedragen uit een afbeelding)</span>
+              <Button type="button" variant="outline" size="sm" onClick={() => setTarieven((l) => [...l, { functie: null, bedrag: 0, geldigVanaf: tariefGeldigVanafDefault }])}>
+                Regel toevoegen
+              </Button>
             </div>
-          ) : null}
+            {tarieven.length ? (
+              <div className="space-y-1">
+                {tarieven.map((t, i) => {
+                  const set = (patch: Partial<TariefState>) => setTarieven((l) => l.map((x, j) => (j === i ? { ...x, ...patch } : x)));
+                  return (
+                    <div key={i} className="flex flex-wrap items-center gap-2 rounded border px-2 py-1">
+                      <Input className="h-8 min-w-40 flex-1" value={t.functie ?? ""} onChange={(ev) => set({ functie: str(ev.target.value) })} placeholder="functie" />
+                      <span className="text-muted-foreground">€</span>
+                      <Input className="h-8 w-24" value={t.bedrag || ""} onChange={(ev) => set({ bedrag: num(ev.target.value) ?? 0 })} placeholder="bedrag" />
+                      <Input type="date" className="h-8 w-40" value={t.geldigVanaf ?? ""} onChange={(ev) => set({ geldigVanaf: str(ev.target.value) })} />
+                      <Button type="button" variant="ghost" size="sm" onClick={() => setTarieven((l) => l.filter((_, j) => j !== i))}>
+                        ✕
+                      </Button>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <p className="text-xs text-muted-foreground">Geen tarieventabel in dit document.</p>
+            )}
+          </div>
         </CardContent>
       </Card>
+
+      {inzetTarieven.length ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>Tarieven toepassen op lopende inzetten ({inzetTarieven.filter((i) => i.toepassen).length}/{inzetTarieven.length})</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2 text-sm">
+            <p className="text-xs text-muted-foreground">
+              Lopende inzetten op dit contract en de onderliggende contracten. Het voorgestelde tarief is gekozen op functie of, als die ontbreekt, op het dichtstbijzijnde hogere
+              tarief. Aangevinkte inzetten krijgen het nieuwe tarief (met tariefhistorie); de openstaande indexatie-acties worden afgerond.
+            </p>
+            {inzetTarieven.map((it, i) => {
+              const set = (patch: Partial<InzetTariefState>) => setInzetTarieven((l) => l.map((x, j) => (j === i ? { ...x, ...patch } : x)));
+              return (
+                <div key={it.inzetId} className={`flex flex-wrap items-center gap-2 rounded border px-2 py-2 ${it.toepassen ? "" : "opacity-60"}`}>
+                  <label className="flex items-center gap-2">
+                    <input type="checkbox" checked={it.toepassen} onChange={(ev) => set({ toepassen: ev.target.checked })} />
+                  </label>
+                  <div className="min-w-56 flex-1">
+                    <div className="font-medium">{it.label}</div>
+                    <div className="text-xs text-muted-foreground">
+                      {it.functie ? `${it.functie} · ` : ""}huidig tarief: {it.huidigTarief !== null ? `€ ${it.huidigTarief.toFixed(2)}` : "onbekend"}
+                    </div>
+                  </div>
+                  <select
+                    value={it.tariefIndex ?? ""}
+                    onChange={(ev) => {
+                      const idx = ev.target.value === "" ? null : Number(ev.target.value);
+                      const t = idx !== null ? tarieven[idx] : null;
+                      set({ tariefIndex: idx, bedrag: t ? t.bedrag : it.bedrag, functie: t?.functie ?? it.functie, geldigVanaf: t?.geldigVanaf ?? it.geldigVanaf, toepassen: idx !== null ? true : it.toepassen });
+                    }}
+                    className="h-8 rounded-md border bg-background px-2 text-sm"
+                  >
+                    <option value="">Handmatig bedrag</option>
+                    {tarieven.map((t, idx) => (
+                      <option key={idx} value={idx}>
+                        {t.functie ?? "Tarief"} · € {t.bedrag.toFixed(2)}
+                      </option>
+                    ))}
+                  </select>
+                  <span className="text-muted-foreground">€</span>
+                  <Input className="h-8 w-24" value={it.bedrag || ""} onChange={(ev) => set({ bedrag: num(ev.target.value) ?? 0, tariefIndex: null })} />
+                  <Input type="date" className="h-8 w-40" value={it.geldigVanaf ?? ""} onChange={(ev) => set({ geldigVanaf: str(ev.target.value) })} />
+                </div>
+              );
+            })}
+          </CardContent>
+        </Card>
+      ) : null}
 
       <Card>
         <CardHeader>

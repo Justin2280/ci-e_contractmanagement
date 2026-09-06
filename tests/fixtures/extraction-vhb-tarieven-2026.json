@@ -1,0 +1,41 @@
+{
+  "contractnummer": "VHB-RAM-2022-005",
+  "contractnummerAlternatieven": ["InfraNL-RAM-2022-005"],
+  "parentContractnummer": null,
+  "soort": "tarievenbrief",
+  "titel": "Raamovereenkomst VHB-RAM-2022-005: verlenging 2026 en tarieven 2026",
+  "opdrachtgever": { "naam": "Van Hattum en Blankevoort B.V.", "kvk": null, "adres": "Woerden" },
+  "intermediair": null,
+  "eindklant": null,
+  "project": null,
+  "personen": [],
+  "tarieven": [
+    { "functie": "Junior constructeur", "bedrag": 84.5, "geldigVanaf": "2026-01-01", "toelichting": "tarief 2026" },
+    { "functie": "Constructeur", "bedrag": 96.5, "geldigVanaf": "2026-01-01", "toelichting": "tarief 2026" },
+    { "functie": "Senior constructeur / ontwerpleider", "bedrag": 119.0, "geldigVanaf": "2026-01-01", "toelichting": "tarief 2026" },
+    { "functie": "Modelleur", "bedrag": 96.5, "geldigVanaf": "2026-01-01", "toelichting": "tarief 2026" },
+    { "functie": "Senior modelleur", "bedrag": 108.0, "geldigVanaf": "2026-01-01", "toelichting": "tarief 2026" },
+    { "functie": "Werkvoorbereider", "bedrag": 92.0, "geldigVanaf": "2026-01-01", "toelichting": "tarief 2026" }
+  ],
+  "startdatum": "2026-01-01",
+  "einddatum": "2026-12-31",
+  "einddatumType": "vast",
+  "opzegtermijn": null,
+  "verlengingAfspraak": "Raamovereenkomst wordt verlengd tot en met 31 december 2026",
+  "indexatie": {
+    "soort": "jaarlijks_cbs",
+    "moment": "01-01",
+    "toelichting": "Jaarlijkse indexatie per 1 januari op basis van CBS-index 2021=100, categorie 7112 (ingenieurs en technisch ontwerp), twee kwartalen vertraagd; afronden op hele of halve euro's"
+  },
+  "betalingstermijnDagen": null,
+  "facturatie": null,
+  "contactpersonen": [{ "naam": "Nancy Hage", "email": "nhage@vhbinfra.nl", "telefoon": null, "rol": "inkoop", "organisatie": "Van Hattum en Blankevoort" }],
+  "getekendOp": "2026-02-17",
+  "samenvatting": "Brief van Van Hattum en Blankevoort (17-02-2026) waarmee raamovereenkomst VHB-RAM-2022-005 (ook aangeduid als InfraNL-RAM-2022-005) wordt verlengd tot en met 31-12-2026 en de uurtarieven per functie voor 2026 worden vastgesteld op basis van de CBS-indexatieclausule.",
+  "onzekerheden": ["Tarieventabel is uit een afbeelding gelezen; bedragen controleren", "Brief noemt geen ingangsdatum van de tarieven; 1 januari 2026 aangenomen"],
+  "bronverwijzingen": [
+    { "veld": "contractnummer", "pagina": 1, "citaat": "Ons kenmerk: VHB-RAM-2022-005 (InfraNL-RAM-2022-005)" },
+    { "veld": "einddatum", "pagina": 1, "citaat": "verlengd tot en met 31 december 2026" },
+    { "veld": "tarieven", "pagina": 1, "citaat": "Tarieven 2026 (tabel)" }
+  ]
+}

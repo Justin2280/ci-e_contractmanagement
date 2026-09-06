@@ -294,6 +294,8 @@ export const contracten = pgTable(
     }),
     /** Geëxtraheerd nummer van het bovenliggende contract zolang dat nog niet in de database staat. */
     parentContractnummerTekst: text("parent_contractnummer_tekst"),
+    /** Andere kenmerken waaronder dit contract bekend is (bv. "InfraNL-RAM-2022-005" naast "VHB-RAM-2022-005"). */
+    nummerAlternatieven: text("nummer_alternatieven").array().notNull().default([]),
     startdatum: date("startdatum"),
     einddatum: date("einddatum"),
     einddatumType: einddatumType("einddatum_type").notNull().default("vast"),
