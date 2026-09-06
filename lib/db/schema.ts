@@ -54,6 +54,14 @@ export const indexatieSoort = pgEnum("indexatie_soort", [
   "jaarlijks_overleg",
 ]);
 
+/**
+ * Hoe de indexatie in de praktijk verloopt:
+ * - vooraf: nieuw tarief per indexatiemoment, vooraf aanvragen/bevestigen (tarievenbrief).
+ * - achteraf_correctie: zodra de CBS-cijfers bekend zijn (najaar) wordt het percentage aangevraagd en
+ *   met terugwerkende kracht verrekend via een correctiebon/-factuur (Mobilis-praktijk).
+ */
+export const indexatieWijze = pgEnum("indexatie_wijze", ["vooraf", "achteraf_correctie"]);
+
 export const contractStatus = pgEnum("contract_status", [
   "concept",
   "actief",
@@ -92,6 +100,7 @@ export const actieSoort = pgEnum("actie_soort", [
   "review_extractie",
   "handmatig",
   "einde_beoordelen",
+  "indexatie_verwerken",
 ]);
 
 export const actieStatus = pgEnum("actie_status", [
@@ -307,6 +316,9 @@ export const contracten = pgTable(
     indexatie: indexatieSoort("indexatie").notNull().default("onbekend"),
     indexatieMoment: text("indexatie_moment"), // "MM-DD", default 01-01
     indexatieToelichting: text("indexatie_toelichting"),
+    indexatieWijze: indexatieWijze("indexatie_wijze").notNull().default("vooraf"),
+    /** "MM-DD" waarop de indexatie wordt aangevraagd; leeg = instelling (vooraf: weken vóór het moment, achteraf: instelling). */
+    indexatieAanvraagMoment: text("indexatie_aanvraag_moment"),
     betalingstermijnDagen: integer("betalingstermijn_dagen"),
     facturatieFrequentie: text("facturatie_frequentie"),
     factuurEisen: text("factuur_eisen"),
@@ -417,6 +429,9 @@ export const acties = pgTable(
     }),
     dedupeKey: text("dedupe_key").unique(),
     afgerondOp: timestamp("afgerond_op", { withTimezone: true }),
+    /** Na het versturen van een mail: datum waarop we zonder reactie een herinnering willen sturen. */
+    opvolgenOp: date("opvolgen_op"),
+    herinneringen: integer("herinneringen").notNull().default(0),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },

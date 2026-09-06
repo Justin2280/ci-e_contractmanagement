@@ -16,6 +16,11 @@ export const INDEXATIE_LABELS: Record<string, string> = {
   jaarlijks_overleg: "Jaarlijks in overleg",
 };
 
+export const INDEXATIE_WIJZE_LABELS: Record<string, string> = {
+  vooraf: "Vooraf (nieuw tarief per indexatiemoment)",
+  achteraf_correctie: "Achteraf (aanvragen zodra CBS-cijfers bekend zijn, verrekenen via correctie)",
+};
+
 export const EINDDATUM_TYPE_LABELS: Record<string, string> = {
   vast: "Vast",
   ntb: "N.t.b.",
@@ -33,6 +38,7 @@ export const ACTIE_SOORT_LABELS: Record<string, string> = {
   review_extractie: "Extractie beoordelen",
   handmatig: "Handmatig",
   einde_beoordelen: "Einde beoordelen",
+  indexatie_verwerken: "Indexatie verwerken (correctie)",
 };
 
 export const KLANT_SOORT_LABELS: Record<string, string> = {

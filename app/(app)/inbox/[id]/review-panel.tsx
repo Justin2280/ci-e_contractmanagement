@@ -10,7 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { CONTRACT_SOORT_LABELS, EINDDATUM_TYPE_LABELS, INDEXATIE_LABELS } from "@/lib/labels";
+import { CONTRACT_SOORT_LABELS, EINDDATUM_TYPE_LABELS, INDEXATIE_LABELS, INDEXATIE_WIJZE_LABELS } from "@/lib/labels";
 
 interface Option {
   id: string;
@@ -53,6 +53,8 @@ export function ReviewPanel({ emailId, proposal, options, alreadyApproved }: { e
     indexatie: e.indexatie.soort,
     indexatieMoment: e.indexatie.moment && /^\d{2}-\d{2}$/.test(e.indexatie.moment) ? e.indexatie.moment : e.indexatie.soort.startsWith("jaarlijks") ? "01-01" : null,
     indexatieToelichting: e.indexatie.toelichting,
+    indexatieWijze: "vooraf",
+    indexatieAanvraagMoment: null,
     betalingstermijnDagen: e.betalingstermijnDagen,
     facturatieFrequentie: e.facturatie?.frequentie ?? null,
     factuurEisen: [e.facturatie?.eisen, e.facturatie?.email ? `Facturen naar ${e.facturatie.email}` : null].filter(Boolean).join(" ") || null,
@@ -231,6 +233,14 @@ export function ReviewPanel({ emailId, proposal, options, alreadyApproved }: { e
                 ))}
             </select>
           </F>
+          {proposal.klantMatch === "gelijkenis" && klant.id === proposal.klantId ? (
+            <p className="text-xs text-amber-800 md:col-span-2">
+              Deze klant is gekozen op naamgelijkenis met “{e.opdrachtgever?.naam ?? "?"}”. Controleer of dat klopt; kies anders ‘Nieuwe klant aanmaken’ of een andere klant.
+            </p>
+          ) : null}
+          {!klant.id && proposal.klantKandidaten.length === 0 && e.opdrachtgever?.naam ? (
+            <p className="text-xs text-muted-foreground md:col-span-2">Geen bestaande klant lijkt op “{e.opdrachtgever.naam}”; er wordt een nieuwe klant aangemaakt.</p>
+          ) : null}
           {!klant.id ? (
             <F label="Naam nieuwe klant">
               <Input value={klant.nieuweNaam ?? ""} onChange={(ev) => setK({ nieuweNaam: str(ev.target.value) })} />
@@ -370,6 +380,22 @@ export function ReviewPanel({ emailId, proposal, options, alreadyApproved }: { e
             <div className="flex gap-2">
               <Input className="w-24" value={contract.indexatieMoment ?? ""} onChange={(ev) => setC({ indexatieMoment: str(ev.target.value) })} placeholder="01-01" />
               <Input value={contract.indexatieToelichting ?? ""} onChange={(ev) => setC({ indexatieToelichting: str(ev.target.value) })} />
+            </div>
+          </F>
+          <F label="Indexatiewijze en aanvraagmoment (MM-DD)">
+            <div className="flex gap-2">
+              <select
+                value={contract.indexatieWijze ?? "vooraf"}
+                onChange={(ev) => setC({ indexatieWijze: ev.target.value as "vooraf" | "achteraf_correctie" })}
+                className="h-9 w-full rounded-md border bg-background px-2 text-sm"
+              >
+                {Object.entries(INDEXATIE_WIJZE_LABELS).map(([k, v]) => (
+                  <option key={k} value={k}>
+                    {v}
+                  </option>
+                ))}
+              </select>
+              <Input className="w-24" value={contract.indexatieAanvraagMoment ?? ""} onChange={(ev) => setC({ indexatieAanvraagMoment: str(ev.target.value) })} placeholder="09-15" />
             </div>
           </F>
           <F label="Betalingstermijn (dagen) / facturatiefrequentie">

@@ -29,11 +29,20 @@ export interface RegelInzet {
   contractId: string | null;
   contractnummerTekst: string | null;
   actiehouderUserId: string | null;
+  tarief?: number | null;
   contract: {
     id: string;
     nummer: string;
     indexatie: string;
     indexatieMoment: string | null;
+    /** vooraf (default) of achteraf_correctie (Mobilis: aanvragen zodra CBS-cijfers bekend zijn, verrekenen via correctie). */
+    indexatieWijze?: "vooraf" | "achteraf_correctie" | null;
+    indexatieAanvraagMoment?: string | null;
+    indexatieToelichting?: string | null;
+    startdatum?: string | null;
+    /** Contract dat de indexatie-afspraak draagt (het raam-/regiecontract als die geërfd is); daar hoort de aanvraag bij. */
+    indexatieContractId?: string | null;
+    indexatieContractNummer?: string | null;
     opzegtermijnDagen: number | null;
     reviewStatus: string;
     heeftDocument: boolean;
@@ -163,18 +172,47 @@ export function evalueerRegels(input: RegelInput): ActieVoorstel[] {
   for (const i of lopend) {
     if (!i.contract) continue;
     if (!["jaarlijks_cbs", "jaarlijks_overleg"].includes(i.contract.indexatie)) continue;
-    perContract.set(i.contract.id, [...(perContract.get(i.contract.id) ?? []), i]);
+    const key = i.contract.indexatieContractId ?? i.contract.id;
+    perContract.set(key, [...(perContract.get(key) ?? []), i]);
   }
   for (const [contractId, list] of perContract) {
-    const c = list[0].contract!;
+    const c = { ...list[0].contract!, nummer: list[0].contract!.indexatieContractNummer ?? list[0].contract!.nummer };
+    const namen = Array.from(new Set(list.map((i) => i.medewerkerNaam))).join(", ");
+    const formule = c.indexatie === "jaarlijks_cbs" ? "indexformule" : "in overleg";
+    if ((c.indexatieWijze ?? "vooraf") === "achteraf_correctie") {
+      // Achteraf: het indexatiejaar is het lopende jaar; aanvragen zodra de CBS-cijfers bekend zijn
+      // (aanvraagmoment), met terugwerkende kracht vanaf het indexatiemoment (meestal 1 januari).
+      const jaar = Number(today.slice(0, 4));
+      const startJaar = c.startdatum ? Number(c.startdatum.slice(0, 4)) : null;
+      if (startJaar !== null && jaar <= startJaar) continue; // eerste jaar: tarief staat vast
+      const mmdd = /^\d{2}-\d{2}$/.test(c.indexatieAanvraagMoment ?? "") ? c.indexatieAanvraagMoment! : settings.indexatieAchterafAanvraagMoment;
+      const aanvraagdatum = `${jaar}-${mmdd}`;
+      if (daysBetween(today, aanvraagdatum) > 7) continue;
+      const momentMmdd = /^\d{2}-\d{2}$/.test(c.indexatieMoment ?? "") ? c.indexatieMoment! : "01-01";
+      const tarieven = list
+        .map((i) => `${i.medewerkerNaam}${i.tarief !== null && i.tarief !== undefined ? ` (€ ${i.tarief.toFixed(2)})` : ""}`)
+        .filter((v, idx, arr) => arr.indexOf(v) === idx)
+        .join(", ");
+      out.push({
+        soort: "indexatie_aanvragen",
+        titel: `Indexatie ${jaar} aanvragen: ${c.nummer} (${list[0].klantNaam ?? "?"}) — achteraf, correctie vanaf ${momentMmdd.slice(3)}-${momentMmdd.slice(0, 2)}`,
+        omschrijving: `De CBS-cijfers voor ${jaar} zijn nu beschikbaar. Bepaal het percentage (${c.indexatieToelichting ?? formule}), mail de klant met het percentage en de betrokken medewerkers en vraag om een indexatiebon. Daarna: correctiefactuur voor de weken vanaf het indexatiemoment (${momentMmdd}) tot nu en vanaf de volgende periode het nieuwe tarief. Betreft: ${tarieven}.`,
+        vervaldatum: laterOf(today, aanvraagdatum),
+        dedupeKey: `indexatie_aanvragen:${contractId}:${jaar}`,
+        inzetId: list[0].id,
+        contractId,
+        medewerkerId: list[0].medewerkerId,
+        toegewezenUserId: list[0].actiehouderUserId,
+      });
+      continue;
+    }
     const moment = volgendIndexatieMoment(today, c.indexatieMoment);
     const dagenTotMoment = daysBetween(today, moment);
     if (dagenTotMoment > settings.indexatieWekenVooraf * 7) continue;
-    const namen = Array.from(new Set(list.map((i) => i.medewerkerNaam))).join(", ");
     out.push({
       soort: "indexatie_aanvragen",
       titel: `Indexatie aanvragen: ${c.nummer} (${list[0].klantNaam ?? "?"})`,
-      omschrijving: `Tarieven worden per ${moment} geïndexeerd (${c.indexatie === "jaarlijks_cbs" ? "indexformule" : "in overleg"}). Betreft: ${namen}.`,
+      omschrijving: `Tarieven worden per ${moment} geïndexeerd (${formule}). Betreft: ${namen}.`,
       vervaldatum: laterOf(today, toIsoDate(addDays(parseISO(moment), -14))),
       dedupeKey: `indexatie_aanvragen:${contractId}:${moment.slice(0, 4)}`,
       inzetId: list[0].id,

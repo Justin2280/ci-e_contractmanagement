@@ -4,7 +4,8 @@ import { revalidatePath } from "next/cache";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/lib/db";
-import { auditLog, inzetten, inzetStatus, einddatumType, tarieven } from "@/lib/db/schema";
+import { auditLog, inzetten, inzetStatus, einddatumType, projecten, tarieven } from "@/lib/db/schema";
+import { and } from "drizzle-orm";
 import { redirect } from "next/navigation";
 import { requireUser } from "@/lib/auth/current-user";
 import { besluitEindeInzet, EindeBesluitSchema } from "@/lib/inzetten/einde";
@@ -46,6 +47,9 @@ const InzetUpdateSchema = z.object({
   leidinggevende: optionalText,
   contractnummerTekst: optionalText,
   notities: optionalText,
+  klantId: optionalUuid.optional(),
+  projectId: optionalUuid.optional(),
+  nieuwProject: optionalText.optional(),
 });
 
 export type ActionState = { ok: boolean; message?: string } | null;
@@ -63,9 +67,22 @@ export async function updateInzet(_prev: ActionState, formData: FormData): Promi
 
   const nieuwTarief = data.tarief === null ? null : data.tarief.toFixed(2);
   await db.transaction(async (tx) => {
+    const klantId = data.klantId === undefined ? current.klantId : data.klantId;
+    let projectId = data.projectId === undefined ? current.projectId : data.projectId;
+    if (data.nieuwProject && klantId) {
+      const bestaand = (await tx.query.projecten.findMany({ where: eq(projecten.klantId, klantId) })).find((p) => p.naam.toLowerCase() === data.nieuwProject!.toLowerCase());
+      projectId = bestaand?.id ?? (await tx.insert(projecten).values({ klantId, naam: data.nieuwProject }).returning())[0].id;
+    } else if (projectId && klantId) {
+      // Een project van een andere klant hoort niet bij deze inzet.
+      const p = await tx.query.projecten.findFirst({ where: and(eq(projecten.id, projectId), eq(projecten.klantId, klantId)) });
+      if (!p) projectId = null;
+    }
     await tx
       .update(inzetten)
       .set({
+        klantId,
+        projectId,
+        contactpersoonId: klantId === current.klantId ? data.contactpersoonId : null,
         status: data.status,
         startdatum: data.startdatum,
         einddatum: data.einddatumType === "vast" ? data.einddatum : null,
@@ -75,7 +92,6 @@ export async function updateInzet(_prev: ActionState, formData: FormData): Promi
         tarief: nieuwTarief,
         tariefGeldigVanaf: data.tariefGeldigVanaf ?? current.tariefGeldigVanaf,
         actiehouderUserId: data.actiehouderUserId,
-        contactpersoonId: data.contactpersoonId,
         leidinggevende: data.leidinggevende,
         contractnummerTekst: data.contractnummerTekst,
         notities: data.notities,
@@ -102,6 +118,7 @@ export async function updateInzet(_prev: ActionState, formData: FormData): Promi
 
   revalidatePath("/inzetten");
   revalidatePath(`/inzetten/${data.id}`);
+  revalidatePath("/medewerkers");
   revalidatePath("/");
   return { ok: true, message: "Opgeslagen" };
 }

@@ -29,6 +29,8 @@ export interface ExcelInzetRow {
   opmerking: string | null;
   inzetOmvang: string | null;
   acties: Array<"verlenging_uitvragen" | "indexatie_aanvragen" | "contract_opvragen">;
+  /** Notitie zegt dat de indexatie al is aangevraagd/gemaild: actie start als "verstuurd" met opvolging. */
+  indexatieGemaild: boolean;
   opzegtermijnDagen: number | null;
   waarschuwingen: string[];
 }
@@ -133,6 +135,7 @@ function classifyNotitie(notitie: string | null, statusCel: string | null, eindd
   }
   if (n.includes("mail gestuurd")) status = "in_contact";
   if (n.includes("indexatie")) acties.push("indexatie_aanvragen");
+  const indexatieGemaild = n.includes("indexatie") && /gemaild|mail gestuurd|verstuurd|aangevraagd/.test(n);
   if (n.includes("contract nog ontvangen") || n.includes("contract nog niet ontvangen")) {
     status = "contract_wachten";
     acties.push("contract_opvragen");
@@ -146,7 +149,7 @@ function classifyNotitie(notitie: string | null, statusCel: string | null, eindd
     inzetOmvang = notitie;
   }
   if (einddatum && einddatum < today && status === "actief" && !st) status = "beeindigd";
-  return { acties, status, inzetOmvang, opzegtermijnDagen };
+  return { acties, status, inzetOmvang, opzegtermijnDagen, indexatieGemaild };
 }
 
 export function parseFactureerOverzicht(buffer: Buffer | ArrayBuffer, opts: { today?: string } = {}): ParsedFactureerOverzicht {
@@ -201,6 +204,7 @@ export function parseFactureerOverzicht(buffer: Buffer | ArrayBuffer, opts: { to
       opmerking: str(row[17]),
       inzetOmvang: cls.inzetOmvang,
       acties: cls.acties,
+      indexatieGemaild: cls.indexatieGemaild,
       opzegtermijnDagen: cls.opzegtermijnDagen,
       waarschuwingen: rowWarnings,
     });

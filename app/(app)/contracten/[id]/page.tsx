@@ -10,6 +10,9 @@ import { db } from "@/lib/db";
 import { fmtDateShort, fmtMoney } from "@/lib/format";
 import { CONTRACT_SOORT_LABELS } from "@/lib/labels";
 import { ContractForm } from "./contract-form";
+import { IndexatieForm } from "@/components/app/indexatie-form";
+import { LOPENDE_STATUSSEN } from "@/lib/queries/inzetten";
+import { effectiveContract } from "@/lib/contracts/effective";
 
 export default async function ContractPage({ params }: PageProps<"/contracten/[id]">) {
   const { id } = await params;
@@ -36,6 +39,8 @@ export default async function ContractPage({ params }: PageProps<"/contracten/[i
     klantId: c.klantId,
     projectId: c.projectId,
     parentContractId: c.parentContractId,
+    indexatieWijze: c.indexatieWijze,
+    indexatieAanvraagMoment: c.indexatieAanvraagMoment,
     intermediair: c.intermediair,
     eindklant: c.eindklant,
     startdatum: c.startdatum,
@@ -160,6 +165,27 @@ export default async function ContractPage({ params }: PageProps<"/contracten/[i
               ))}
             </CardContent>
           </Card>
+          {["jaarlijks_cbs", "jaarlijks_overleg"].includes(effectiveContract(c).indexatie) ? (
+            <Card>
+              <CardHeader>
+                <CardTitle>Indexatie verwerken</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="mb-2 text-xs text-muted-foreground">
+                  {effectiveContract(c).indexatieWijze === "achteraf_correctie" ? "Indexatie achteraf: percentage toepassen op de lopende inzetten en een correctie-actie voor de facturatie aanmaken." : "Percentage toepassen op de lopende inzetten van dit contract en de onderliggende contracten."}
+                </p>
+                <IndexatieForm
+                  contractId={c.id}
+                  inzetten={alleInzetten
+                    .filter((i) => LOPENDE_STATUSSEN.includes(i.status))
+                    .map((i) => ({ id: i.id, label: `${i.medewerker.naam} · ${i.contractNummer}`, tarief: i.tarief !== null ? Number(i.tarief) : null }))}
+                  wijze={effectiveContract(c).indexatieWijze ?? "vooraf"}
+                  defaultIngangsdatum={`${new Date().getFullYear()}-${effectiveContract(c).indexatieMoment ?? "01-01"}`}
+                  compact
+                />
+              </CardContent>
+            </Card>
+          ) : null}
         </div>
       </div>
 

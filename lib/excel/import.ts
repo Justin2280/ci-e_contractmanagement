@@ -234,7 +234,9 @@ export async function importFactureerOverzicht(db: Db, parsed: ParsedFactureerOv
       inzetIdByRij.set(row.rij, inzetId);
 
       for (const soort of row.acties) {
-        const dedupeKey = `${soort}:${inzetId}:${today.slice(0, 4)}`;
+        // Indexatie hoort bij het contract (één actie per contract per jaar), net als in de regels-engine.
+        const dedupeKey = soort === "indexatie_aanvragen" && contract ? `${soort}:${contract.id}:${today.slice(0, 4)}` : `${soort}:${inzetId}:${today.slice(0, 4)}`;
+        const alGemaild = soort === "indexatie_aanvragen" && row.indexatieGemaild;
         const titel =
           soort === "verlenging_uitvragen"
             ? `Verlenging uitvragen: ${medewerker.naam} bij ${klant?.naam ?? "?"}`
@@ -253,6 +255,8 @@ export async function importFactureerOverzicht(db: Db, parsed: ParsedFactureerOv
             vervaldatum: today,
             toegewezenUserId: actiehouder?.id ?? null,
             dedupeKey,
+            status: alGemaild ? "verstuurd" : "open",
+            opvolgenOp: alGemaild ? today : null,
           })
           .onConflictDoNothing({ target: acties.dedupeKey })
           .returning();

@@ -7,6 +7,7 @@ import { db } from "@/lib/db";
 import { acties, actieSoort, auditLog } from "@/lib/db/schema";
 import { requireUser } from "@/lib/auth/current-user";
 import { runDailyRules } from "@/lib/rules/run";
+import { verwerkIndexatie } from "@/lib/indexatie/verwerk";
 import type { ActionState } from "../inzetten/actions";
 
 function revalidate() {
@@ -75,6 +76,37 @@ export async function runRulesNow(): Promise<ActionState> {
     const r = await runDailyRules();
     revalidate();
     return { ok: true, message: `${r.aangemaakt} nieuwe actie(s), ${r.gesloten} gesloten` };
+  } catch (err) {
+    return { ok: false, message: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+export async function verwerkIndexatieAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  const user = await requireUser();
+  const inzetIds = formData.getAll("inzetIds").map(String);
+  const str = (k: string) => {
+    const v = String(formData.get(k) ?? "").trim();
+    return v === "" ? null : v;
+  };
+  try {
+    const r = await verwerkIndexatie(
+      {
+        contractId: String(formData.get("contractId")),
+        actieId: str("actieId"),
+        percentage: Number(String(formData.get("percentage") ?? "").replace(",", ".")),
+        ingangsdatum: String(formData.get("ingangsdatum")),
+        afronding: (str("afronding") ?? "cent") as "cent" | "halve_euro" | "hele_euro",
+        inzetIds,
+        akkoordOp: str("akkoordOp"),
+        toelichting: str("toelichting"),
+      },
+      user.id,
+    );
+    revalidate();
+    revalidatePath("/inzetten");
+    revalidatePath(`/contracten/${r.contractId}`);
+    const n = r.resultaat.filter((x) => x.naar !== null).length;
+    return { ok: true, message: `${n} tarief(ven) geïndexeerd${r.correctieActieId ? "; correctie-actie voor de facturatie aangemaakt" : ""}` };
   } catch (err) {
     return { ok: false, message: err instanceof Error ? err.message : String(err) };
   }

@@ -3,6 +3,10 @@ import { z } from "zod";
 export const SettingsSchema = z.object({
   verlengingDagenVooraf: z.number().int().min(7).max(365).default(60),
   indexatieWekenVooraf: z.number().int().min(1).max(26).default(6),
+  /** "MM-DD" waarop bij indexatie achteraf (correctie) het percentage wordt aangevraagd; CBS-cijfers over Q2 zijn dan bekend. */
+  indexatieAchterafAanvraagMoment: z.string().regex(/^\d{2}-\d{2}$/).default("09-15"),
+  /** Dagen na het versturen van een mail waarna we zonder reactie een herinnering willen sturen. */
+  opvolgenNaDagen: z.number().int().min(1).max(90).default(14),
   contractOpvragenDagenNaStart: z.number().int().min(0).max(120).default(14),
   urenbonDagenNaPeriode: z.number().int().min(0).max(28).default(3),
   einddatumControleKwartaal: z.boolean().default(true),

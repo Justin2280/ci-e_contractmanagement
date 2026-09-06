@@ -3,7 +3,7 @@ import { inzetten, type Contract, type EmailIn, type Klant, type Medewerker } fr
 import { db } from "@/lib/db";
 import { ContractExtractionSchema, type ContractExtraction } from "@/lib/llm/schemas";
 import { findByNumber, findByNumberOrAlias, findChildrenByPrefix, findParentByPrefix } from "@/lib/contracts/numbers";
-import { normalizeCompanyName, personMatchKey, tokenOverlap } from "@/lib/normalize";
+import { companyTokens, levenshtein, normalizeCompanyName, personMatchKey, tokenOverlap } from "@/lib/normalize";
 import { LOPENDE_STATUSSEN } from "@/lib/queries/inzetten";
 
 export interface Kandidaat {
@@ -38,6 +38,8 @@ export interface ReviewProposal {
   parseFout: string | null;
   klantId: string | null;
   klantKandidaten: Kandidaat[];
+  /** Hoe de voorgeselecteerde klant is gevonden; "gelijkenis" verdient een controle door de gebruiker. */
+  klantMatch: KlantMatch;
   bestaandContractId: string | null;
   /** Voorgesteld bovenliggend contract (exact op nummer of via nummer-prefix). */
   parentContractId: string | null;
@@ -65,7 +67,7 @@ export interface InzetTariefVoorstel {
 }
 
 interface Context {
-  klanten: Array<Pick<Klant, "id" | "naam" | "aliassen">>;
+  klanten: Array<Pick<Klant, "id" | "naam" | "aliassen"> & Partial<Pick<Klant, "kvk">>>;
   medewerkers: Array<Pick<Medewerker, "id" | "naam"> & Partial<Pick<Medewerker, "actief">>>;
   contracten: Array<Pick<Contract, "id" | "nummer" | "klantId"> & Partial<Pick<Contract, "nummerAlternatieven" | "parentContractId">>>;
 }
@@ -102,20 +104,42 @@ export function kiesTarief(
   return bestIdx;
 }
 
-export function scoreKlant(naam: string | null | undefined, k: { naam: string; aliassen: string[] }): number {
+export type KlantMatch = "kvk" | "exact" | "gelijkenis" | "contract" | null;
+
+/**
+ * Score van een geëxtraheerde opdrachtgever tegen een bekende klant.
+ * 100 = KvK of (alias)naam exact; anders 2 per exact overeenkomende distinctieve token plus 1 per
+ * fuzzy token, maar alleen als er minstens één exacte distinctieve token is. Generieke woorden
+ * ("combinatie", "infra", …) tellen niet mee: "Bouwcombinatie Nieuw-Zuid" lijkt niet op
+ * "Combinatie Vught Verdiept".
+ */
+export function scoreKlant(naam: string | null | undefined, k: { naam: string; aliassen: string[]; kvk?: string | null }, kvk?: string | null): number {
+  const kvkA = String(kvk ?? "").replace(/\D/g, "");
+  const kvkB = String(k.kvk ?? "").replace(/\D/g, "");
+  if (kvkA && kvkB && kvkA.length >= 8 && kvkA === kvkB) return 100;
   if (!naam) return 0;
   const target = normalizeCompanyName(naam);
   const candidates = [k.naam, ...k.aliassen].map(normalizeCompanyName);
   if (candidates.includes(target)) return 100;
-  const overlap = Math.max(...candidates.map((c) => tokenOverlap(target, c) + tokenOverlap(c, target)));
+  const qt = companyTokens(naam);
+  let best = 0;
+  for (const c of candidates) {
+    const ct = companyTokens(c);
+    const exact = qt.filter((q) => ct.includes(q)).length;
+    if (!exact) continue;
+    const fuzzy =
+      qt.filter((q) => !ct.includes(q) && q.length >= 6 && ct.some((h) => h.includes(q) || q.includes(h) || levenshtein(q, h) <= 1)).length +
+      ct.filter((h) => !qt.includes(h) && h.length >= 6 && qt.some((q) => q.includes(h) || h.includes(q))).length;
+    best = Math.max(best, 2 * exact + fuzzy);
+  }
   // Also match abbreviations like "VHB" against "Van Hattum en Blankevoort"
-  const abbrev = target
-    .split(" ")
-    .filter((w) => !["en", "de", "van", "der"].includes(w))
-    .map((w) => w[0])
-    .join("");
-  const abbrevHit = candidates.some((c) => c.replace(/\s+/g, "") === abbrev && abbrev.length >= 3) ? 5 : 0;
-  return overlap + abbrevHit;
+  const woorden = target.split(" ").filter(Boolean);
+  const abbrevs = [
+    woorden.filter((w) => !["en", "de", "der"].includes(w)).map((w) => w[0]).join(""),
+    woorden.filter((w) => !["en", "de", "der", "van"].includes(w)).map((w) => w[0]).join(""),
+  ].filter((a) => a.length >= 3);
+  const abbrevHit = candidates.some((c) => abbrevs.includes(c.replace(/\s+/g, ""))) ? 5 : 0;
+  return best + abbrevHit;
 }
 
 export async function buildReviewProposal(email: EmailIn, ctx: Context): Promise<ReviewProposal> {
@@ -138,7 +162,7 @@ export async function buildReviewProposal(email: EmailIn, ctx: Context): Promise
   // Klant
   const klantNaam = extractie.opdrachtgever?.naam ?? extractie.intermediair ?? null;
   const klantKandidaten = ctx.klanten
-    .map((k) => ({ id: k.id, label: k.naam, score: scoreKlant(klantNaam, k) }))
+    .map((k) => ({ id: k.id, label: k.naam, score: scoreKlant(klantNaam, k, extractie.opdrachtgever?.kvk) }))
     .filter((k) => k.score > 0)
     .sort((a, b) => b.score - a.score)
     .slice(0, 5);
@@ -162,6 +186,15 @@ export async function buildReviewProposal(email: EmailIn, ctx: Context): Promise
   // Klant: op naam, anders die van het bestaande contract, anders die van de NOVK's onder het (nog aan te maken) raamcontract.
   const klantId =
     klantKandidaten[0]?.score >= 2 ? klantKandidaten[0].id : (bestaand?.klantId ?? raamKinderen.find((c) => c.klantId)?.klantId ?? null);
+  const klantMatch: KlantMatch = !klantId
+    ? null
+    : klantKandidaten[0]?.score >= 2
+      ? klantKandidaten[0].score >= 100
+        ? String(extractie.opdrachtgever?.kvk ?? "").replace(/\D/g, "").length >= 8 && ctx.klanten.find((k) => k.id === klantId)?.kvk
+          ? "kvk"
+          : "exact"
+        : "gelijkenis"
+      : "contract";
   if (klantId && !klantKandidaten.some((k) => k.id === klantId)) {
     const k = ctx.klanten.find((x) => x.id === klantId);
     if (k) klantKandidaten.unshift({ id: k.id, label: k.naam, score: 1 });
@@ -254,6 +287,7 @@ export async function buildReviewProposal(email: EmailIn, ctx: Context): Promise
     parseFout: parsed.success ? null : parsed.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; "),
     klantId,
     klantKandidaten,
+    klantMatch,
     bestaandContractId: bestaand?.id ?? null,
     parentContractId: parent?.id ?? null,
     parentKandidaten,

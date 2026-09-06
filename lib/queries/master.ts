@@ -28,6 +28,10 @@ export async function getMedewerker(id: string) {
   });
 }
 
+export async function listProjecten() {
+  return db.query.projecten.findMany({ orderBy: (p, { asc }) => [asc(p.naam)] });
+}
+
 export async function listKlanten() {
   const rows = await db.query.klanten.findMany({
     orderBy: [asc(klanten.naam)],

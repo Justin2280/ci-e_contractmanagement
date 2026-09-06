@@ -1,11 +1,12 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/lib/db";
-import { contracten, contractSoort, contractStatus, einddatumType, indexatieSoort } from "@/lib/db/schema";
+import { auditLog, contracten, contractSoort, contractStatus, einddatumType, indexatieSoort, indexatieWijze, projecten } from "@/lib/db/schema";
 import { requireUser } from "@/lib/auth/current-user";
+import { verhuisContractNaarKlant } from "@/lib/contracts/verhuis";
 import type { ActionState } from "../inzetten/actions";
 
 const opt = z
@@ -47,20 +48,44 @@ const ContractSchema = z.object({
   getekendOp: optDate,
   samenvatting: opt,
   notities: opt,
+  indexatieWijze: z.enum(indexatieWijze.enumValues).default("vooraf"),
+  indexatieAanvraagMoment: opt.pipe(z.string().regex(/^\d{2}-\d{2}$/).nullable()),
+  /** Bij een andere klant: inzetten en project van dit contract mee verhuizen. */
+  verhuisInzetten: z.string().optional(),
 });
 
 export async function updateContract(_prev: ActionState, formData: FormData): Promise<ActionState> {
-  await requireUser();
+  const user = await requireUser();
   const parsed = ContractSchema.safeParse(Object.fromEntries(formData.entries()));
   if (!parsed.success) {
     return { ok: false, message: parsed.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; ") };
   }
-  const d = parsed.data;
-  await db
-    .update(contracten)
-    .set({ ...d, einddatum: d.einddatumType === "vast" ? d.einddatum : null })
-    .where(eq(contracten.id, d.id));
+  const { verhuisInzetten, ...d } = parsed.data;
+  const current = await db.query.contracten.findFirst({ where: eq(contracten.id, d.id) });
+  if (!current) return { ok: false, message: "Contract niet gevonden" };
+  let verhuisd = 0;
+  await db.transaction(async (tx) => {
+    let projectId = d.projectId;
+    if (d.klantId && d.klantId !== current.klantId && verhuisInzetten === "on") {
+      verhuisd = await verhuisContractNaarKlant(tx, current, d.klantId);
+      // Het project hangt na de verhuizing onder de nieuwe klant (of is gekopieerd); kies de juiste id.
+      if (current.projectId && projectId === current.projectId) {
+        const p = await tx.query.projecten.findFirst({ where: eq(projecten.id, current.projectId) });
+        if (p && p.klantId !== d.klantId) {
+          const kopie = await tx.query.projecten.findFirst({ where: and(eq(projecten.klantId, d.klantId), eq(projecten.naam, p.naam)) });
+          projectId = kopie?.id ?? projectId;
+        }
+      }
+    }
+    await tx
+      .update(contracten)
+      .set({ ...d, projectId, einddatum: d.einddatumType === "vast" ? d.einddatum : null })
+      .where(eq(contracten.id, d.id));
+    await tx.insert(auditLog).values({ userId: user.id, actie: "contract.update", entiteit: "contract", entiteitId: d.id, details: { klantVan: current.klantId, klantNaar: d.klantId, verhuisd } });
+  });
   revalidatePath(`/contracten/${d.id}`);
   revalidatePath("/contracten");
-  return { ok: true, message: "Opgeslagen" };
+  revalidatePath("/inzetten");
+  revalidatePath("/medewerkers");
+  return { ok: true, message: verhuisd ? `Opgeslagen; ${verhuisd} inzet(ten) mee verhuisd naar de nieuwe klant` : "Opgeslagen" };
 }

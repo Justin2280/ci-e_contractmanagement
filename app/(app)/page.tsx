@@ -14,7 +14,7 @@ export default async function DashboardPage() {
   const today = todayIso();
   const horizon = toIsoDate(addDays(new Date(), 90));
 
-  const [openActies, verlopend, teBeoordelen, perStatus, [mailStats]] = await Promise.all([
+  const [openActies, verlopend, teBeoordelen, perStatus, [mailStats], opTeVolgen] = await Promise.all([
     db.query.acties.findMany({
       where: inArray(acties.status, ["open", "conceptmail_klaar"]),
       with: { inzet: { with: { medewerker: true, klant: true } }, toegewezen: true },
@@ -33,6 +33,7 @@ export default async function DashboardPage() {
     }),
     db.select({ status: inzetten.status, n: sql<number>`count(*)::int` }).from(inzetten).groupBy(inzetten.status),
     db.select({ n: count() }).from(emailsIn),
+    db.query.acties.findMany({ where: and(eq(acties.status, "verstuurd"), lte(acties.opvolgenOp, today)), columns: { id: true } }),
   ]);
 
   const lopend = perStatus.filter((s) => LOPENDE_STATUSSEN.includes(s.status)).reduce((a, b) => a + b.n, 0);
@@ -46,7 +47,12 @@ export default async function DashboardPage() {
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Stat label="Lopende inzetten" value={lopend} href="/inzetten" />
-        <Stat label="Open acties" value={openActies.length} sub={overdue ? `${overdue} over tijd` : undefined} href="/acties" />
+        <Stat
+          label="Open acties"
+          value={openActies.length}
+          sub={[overdue ? `${overdue} over tijd` : null, opTeVolgen.length ? `${opTeVolgen.length} zonder reactie` : null].filter(Boolean).join(" · ") || undefined}
+          href="/acties"
+        />
         <Stat
           label="Loopt af binnen 90 dagen"
           value={verlopend.length}

@@ -7,6 +7,8 @@ export interface ContractVoorwaarden {
   indexatie: "onbekend" | "geen" | "vast" | "jaarlijks_cbs" | "jaarlijks_overleg";
   indexatieMoment: string | null;
   indexatieToelichting: string | null;
+  indexatieWijze?: "vooraf" | "achteraf_correctie";
+  indexatieAanvraagMoment?: string | null;
   opzegtermijnDagen: number | null;
   opzegtermijnToelichting: string | null;
   verlengingAfspraak: string | null;
@@ -23,6 +25,9 @@ export function effectiveContract<T extends ContractVoorwaarden & { parent?: Con
     indexatie: c.indexatie === "onbekend" ? p.indexatie : c.indexatie,
     indexatieMoment: c.indexatieMoment ?? p.indexatieMoment,
     indexatieToelichting: c.indexatieToelichting ?? p.indexatieToelichting,
+    // Wijze/aanvraagmoment: alleen erven als het kind niets afwijkends heeft ingevuld (wijze is standaard "vooraf").
+    indexatieWijze: c.indexatie === "onbekend" || (c.indexatieWijze ?? "vooraf") === "vooraf" ? (p.indexatieWijze ?? c.indexatieWijze) : c.indexatieWijze,
+    indexatieAanvraagMoment: c.indexatieAanvraagMoment ?? p.indexatieAanvraagMoment ?? null,
     opzegtermijnDagen: c.opzegtermijnDagen ?? p.opzegtermijnDagen,
     opzegtermijnToelichting: c.opzegtermijnToelichting ?? p.opzegtermijnToelichting,
     verlengingAfspraak: c.verlengingAfspraak ?? p.verlengingAfspraak,

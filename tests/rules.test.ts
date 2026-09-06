@@ -103,3 +103,56 @@ describe("regels-engine", () => {
     expect(out).toHaveLength(0);
   });
 });
+
+describe("indexatie achteraf (correctie, Mobilis-praktijk)", () => {
+  const achteraf = (over: Partial<NonNullable<RegelInzet["contract"]>> = {}) =>
+    inzet({
+      einddatumType: "einde_opdracht",
+      einddatum: null,
+      tarief: 92.6,
+      contract: {
+        id: "c2",
+        nummer: "21116-037C",
+        indexatie: "jaarlijks_cbs",
+        indexatieMoment: "01-01",
+        indexatieWijze: "achteraf_correctie",
+        indexatieAanvraagMoment: null,
+        indexatieToelichting: "CBS 7112 (voorheen 71121)",
+        startdatum: "2022-07-01",
+        opzegtermijnDagen: 30,
+        reviewStatus: "goedgekeurd",
+        heeftDocument: true,
+        ...over,
+      },
+    });
+
+  it("vraagt de indexatie van het lopende jaar aan vanaf een week vóór het aanvraagmoment", () => {
+    expect(evalueerRegels({ ...base, today: "2026-09-01", inzetten: [achteraf()] }).filter((a) => a.soort === "indexatie_aanvragen")).toHaveLength(0);
+    const out = evalueerRegels({ ...base, today: "2026-09-08", inzetten: [achteraf()] });
+    const a = out.find((x) => x.soort === "indexatie_aanvragen")!;
+    expect(a).toBeTruthy();
+    expect(a.dedupeKey).toBe("indexatie_aanvragen:c2:2026");
+    expect(a.vervaldatum).toBe("2026-09-15");
+    expect(a.titel).toContain("Indexatie 2026");
+    expect(a.omschrijving).toContain("CBS 7112");
+    expect(a.omschrijving).toContain("€ 92.60");
+  });
+
+  it("blijft open na het aanvraagmoment en gebruikt een eigen aanvraagmoment van het contract", () => {
+    const out = evalueerRegels({ ...base, today: "2026-11-17", inzetten: [achteraf({ indexatieAanvraagMoment: "10-01" })] });
+    const a = out.find((x) => x.soort === "indexatie_aanvragen")!;
+    expect(a.vervaldatum).toBe("2026-11-17");
+    expect(a.dedupeKey).toBe("indexatie_aanvragen:c2:2026");
+  });
+
+  it("slaat het startjaar van het contract over (tarief staat vast)", () => {
+    const out = evalueerRegels({ ...base, today: "2026-10-01", inzetten: [achteraf({ startdatum: "2026-03-01" })] });
+    expect(out.filter((a) => a.soort === "indexatie_aanvragen")).toHaveLength(0);
+  });
+
+  it("laat de vooraf-variant ongemoeid", () => {
+    const out = evalueerRegels({ ...base, today: "2026-11-25", inzetten: [achteraf({ indexatieWijze: "vooraf" })] });
+    const a = out.find((x) => x.soort === "indexatie_aanvragen")!;
+    expect(a.dedupeKey).toBe("indexatie_aanvragen:c2:2027");
+  });
+});
