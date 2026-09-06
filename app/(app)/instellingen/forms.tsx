@@ -30,6 +30,12 @@ export function RegelsForm({ settings }: { settings: Settings }) {
       <F label="Indexatie aanvragen (weken vóór indexatiemoment)">
         <Input name="indexatieWekenVooraf" type="number" defaultValue={settings.indexatieWekenVooraf} />
       </F>
+      <F label="Indexatie achteraf: aanvraagmoment (MM-DD, CBS-cijfers bekend)">
+        <Input name="indexatieAchterafAanvraagMoment" defaultValue={settings.indexatieAchterafAanvraagMoment} placeholder="09-15" />
+      </F>
+      <F label="Herinnering na verstuurde mail zonder reactie (dagen)">
+        <Input name="opvolgenNaDagen" type="number" defaultValue={settings.opvolgenNaDagen} />
+      </F>
       <F label="Contract opvragen (dagen na start zonder contract)">
         <Input name="contractOpvragenDagenNaStart" type="number" defaultValue={settings.contractOpvragenDagenNaStart} />
       </F>

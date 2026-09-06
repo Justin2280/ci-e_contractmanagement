@@ -22,6 +22,8 @@ export async function updateRegels(_prev: ActionState, formData: FormData): Prom
   const parsed = SettingsSchema.partial().safeParse({
     verlengingDagenVooraf: Number(raw.verlengingDagenVooraf),
     indexatieWekenVooraf: Number(raw.indexatieWekenVooraf),
+    indexatieAchterafAanvraagMoment: String(raw.indexatieAchterafAanvraagMoment ?? "09-15").trim(),
+    opvolgenNaDagen: Number(raw.opvolgenNaDagen),
     contractOpvragenDagenNaStart: Number(raw.contractOpvragenDagenNaStart),
     urenbonDagenNaPeriode: Number(raw.urenbonDagenNaPeriode),
     einddatumControleKwartaal: raw.einddatumControleKwartaal === "on",

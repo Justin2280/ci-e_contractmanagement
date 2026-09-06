@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { getInzet } from "@/lib/queries/inzetten";
 import { effectiveContract } from "@/lib/contracts/effective";
-import { listUsers } from "@/lib/queries/master";
+import { listKlanten, listProjecten, listUsers } from "@/lib/queries/master";
 import { fmtDateShort, fmtMoney } from "@/lib/format";
 import { ACTIE_SOORT_LABELS } from "@/lib/labels";
 import { InzetForm } from "./inzet-form";
@@ -16,7 +16,7 @@ import { todayIso } from "@/lib/format";
 
 export default async function InzetDetailPage({ params }: PageProps<"/inzetten/[id]">) {
   const { id } = await params;
-  const [inzet, users] = await Promise.all([getInzet(id), listUsers()]);
+  const [inzet, users, klanten, projecten] = await Promise.all([getInzet(id), listUsers(), listKlanten(), listProjecten()]);
   const voorwaarden = inzet?.contract ? effectiveContract(inzet.contract) : null;
   if (!inzet) notFound();
 
@@ -41,6 +41,8 @@ export default async function InzetDetailPage({ params }: PageProps<"/inzetten/[
                 id: c.id,
                 label: c.email ? `${c.naam} (${c.email})` : c.naam,
               }))}
+              klanten={klanten.map((k) => ({ id: k.id, label: k.naam }))}
+              projecten={projecten.map((p) => ({ id: p.id, label: p.naam, klantId: p.klantId }))}
             />
           </CardContent>
         </Card>

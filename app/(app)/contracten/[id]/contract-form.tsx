@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { CONTRACT_SOORT_LABELS, CONTRACT_STATUS_LABELS, EINDDATUM_TYPE_LABELS, INDEXATIE_LABELS } from "@/lib/labels";
+import { CONTRACT_SOORT_LABELS, CONTRACT_STATUS_LABELS, EINDDATUM_TYPE_LABELS, INDEXATIE_LABELS, INDEXATIE_WIJZE_LABELS } from "@/lib/labels";
 
 interface Option {
   id: string;
@@ -45,6 +45,9 @@ export function ContractForm({
       </F>
       <F label="Klant">
         <SelectField name="klantId" defaultValue={v("klantId")} options={klanten.map((k) => [k.id, k.label])} allowEmpty />
+        <label className="flex items-center gap-2 text-xs text-muted-foreground">
+          <input type="checkbox" name="verhuisInzetten" defaultChecked /> Bij een andere klant: inzetten en project van dit contract mee verhuizen
+        </label>
       </F>
       <F label="Project">
         <SelectField name="projectId" defaultValue={v("projectId")} options={projecten.map((p) => [p.id, p.label])} allowEmpty />
@@ -84,6 +87,12 @@ export function ContractForm({
       </F>
       <F label="Indexatiemoment (MM-DD)">
         <Input name="indexatieMoment" defaultValue={v("indexatieMoment")} placeholder="01-01" />
+      </F>
+      <F label="Indexatiewijze">
+        <SelectField name="indexatieWijze" defaultValue={v("indexatieWijze") || "vooraf"} options={Object.entries(INDEXATIE_WIJZE_LABELS)} />
+      </F>
+      <F label="Aanvraagmoment indexatie (MM-DD, leeg = instelling)">
+        <Input name="indexatieAanvraagMoment" defaultValue={v("indexatieAanvraagMoment")} placeholder="bv. 09-15 (15 september) bij achteraf" />
       </F>
       <F label="Indexatie toelichting">
         <Input name="indexatieToelichting" defaultValue={v("indexatieToelichting")} placeholder="CBS 7112, 2 kwartalen vertraagd…" />

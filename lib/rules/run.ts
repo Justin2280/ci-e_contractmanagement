@@ -35,15 +35,23 @@ export async function runDailyRules(opts: { today?: string } = {}) {
     contractId: i.contractId,
     contractnummerTekst: i.contractnummerTekst,
     actiehouderUserId: i.actiehouderUserId,
+    tarief: i.tarief !== null ? Number(i.tarief) : null,
     contract: i.contract
       ? (() => {
           // Een aanvulling/NOVK erft indexatie en opzegtermijn van het raam-/regiecontract.
           const c = effectiveContract(i.contract);
+          const indexatieBron = i.contract.indexatie === "onbekend" && i.contract.parent ? i.contract.parent : i.contract;
           return {
             id: c.id,
             nummer: c.nummer,
+            indexatieContractId: indexatieBron.id,
+            indexatieContractNummer: indexatieBron.nummer,
             indexatie: c.indexatie,
             indexatieMoment: c.indexatieMoment,
+            indexatieWijze: c.indexatieWijze,
+            indexatieAanvraagMoment: c.indexatieAanvraagMoment,
+            indexatieToelichting: c.indexatieToelichting,
+            startdatum: c.startdatum,
             opzegtermijnDagen: c.opzegtermijnDagen,
             reviewStatus: c.reviewStatus,
             heeftDocument: Boolean(c.pdfBijlageId),

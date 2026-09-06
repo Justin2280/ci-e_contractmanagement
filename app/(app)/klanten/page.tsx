@@ -3,6 +3,7 @@ import { PageHeader } from "@/components/app/page-header";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { listKlanten } from "@/lib/queries/master";
 import { KLANT_SOORT_LABELS } from "@/lib/labels";
+import { NieuweKlantForm } from "./nieuwe-klant-form";
 
 export const metadata = { title: "Klanten" };
 
@@ -11,6 +12,9 @@ export default async function KlantenPage() {
   return (
     <div>
       <PageHeader title="Klanten" description="Opdrachtgevers, contactpersonen en factuureisen." />
+      <div className="mb-4 rounded-lg border bg-muted/30 p-3">
+        <NieuweKlantForm />
+      </div>
       <div className="rounded-lg border">
         <Table>
           <TableHeader>

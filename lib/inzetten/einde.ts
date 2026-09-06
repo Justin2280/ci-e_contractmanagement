@@ -5,6 +5,8 @@ import { acties, auditLog, einddatumType, inzetten } from "@/lib/db/schema";
 
 export const MAIL_DOELEN = ["geen", "verzoek_verlenging", "bevestig_verlenging", "bevestig_beeindiging"] as const;
 export type MailDoel = (typeof MAIL_DOELEN)[number];
+/** Doelen die niet bij een einde-besluit horen maar wel als voorinstelling voor een conceptmail bestaan. */
+export type ExtraMailDoel = "herinnering" | "indexatie_achteraf";
 
 export const MAIL_DOEL_LABELS: Record<MailDoel, string> = {
   geen: "Geen mail",
@@ -14,10 +16,14 @@ export const MAIL_DOEL_LABELS: Record<MailDoel, string> = {
 };
 
 /** Instructie voor de conceptmail per doel; komt als extra aanwijzing in de prompt. */
-export const MAIL_DOEL_INSTRUCTIE: Record<Exclude<MailDoel, "geen">, string> = {
+export const MAIL_DOEL_INSTRUCTIE: Record<Exclude<MailDoel, "geen"> | ExtraMailDoel, string> = {
   verzoek_verlenging: "Doel: vraag de klant of de inzet wordt verlengd, tot wanneer en in welke omvang; noem de (verstreken of naderende) einddatum en vraag om een verlenging van het contract/de werkopdracht.",
   bevestig_verlenging: "Doel: bevestig dat de inzet wordt voortgezet tot de nieuwe einddatum en vraag om de bijbehorende verlenging/aanvulling van het contract of de werkopdracht.",
   bevestig_beeindiging: "Doel: bevestig dat de inzet per de genoemde einddatum eindigt, bedank voor de samenwerking en vraag zo nodig om afronding van de laatste urenstaten/facturatie.",
+  herinnering:
+    "Doel: een vriendelijke herinnering aan de eerder verstuurde mail waarop nog geen reactie is ontvangen. Verwijs kort naar die mail en de datum ervan, herhaal in één zin waar het om gaat en vraag om een reactie of een indicatie wanneer die komt. Geen verwijt.",
+  indexatie_achteraf:
+    "Doel: indexatie met terugwerkende kracht. Meld dat de CBS-cijfers beschikbaar zijn en noem het percentage en de indexreeks uit de extra gegevens. Vraag akkoord en een indexatiebon/correctie-opdrachtbon, zodat de uren vanaf het indexatiemoment tot nu in één correctiefactuur worden verrekend en daarna het nieuwe tarief wordt gehanteerd. Noem de betrokken medewerkers.",
 };
 
 export const EindeBesluitSchema = z

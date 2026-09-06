@@ -12,12 +12,12 @@ import { llmConfigured } from "@/lib/llm/client";
 import { graphConfigured } from "@/lib/graph/client";
 import { getCurrentUser } from "@/lib/auth/current-user";
 import { ConceptForm, GenerateForm } from "./forms";
-import { MAIL_DOEL_INSTRUCTIE, type MailDoel } from "@/lib/inzetten/einde";
+import { MAIL_DOEL_INSTRUCTIE } from "@/lib/inzetten/einde";
 
 export default async function ActieMailPage({ params, searchParams }: PageProps<"/acties/[id]/mail">) {
   const { id } = await params;
   const sp = await searchParams;
-  const doel = typeof sp.doel === "string" && sp.doel in MAIL_DOEL_INSTRUCTIE ? (sp.doel as Exclude<MailDoel, "geen">) : null;
+  const doel = typeof sp.doel === "string" && sp.doel in MAIL_DOEL_INSTRUCTIE ? (sp.doel as keyof typeof MAIL_DOEL_INSTRUCTIE) : null;
   const [actie, user] = await Promise.all([
     db.query.acties.findFirst({
       where: eq(acties.id, id),

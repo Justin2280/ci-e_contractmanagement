@@ -13,6 +13,9 @@ import { assignActie, setActieStatus } from "./actions";
 import { NieuweActieForm, RunRulesButton } from "./forms";
 import { cn } from "@/lib/utils";
 import { EindeBesluitForm } from "@/components/app/einde-besluit-form";
+import { IndexatieForm, type IndexatieInzetOptie } from "@/components/app/indexatie-form";
+import { lopendeInzettenVanContract } from "@/lib/indexatie/verwerk";
+import { effectiveContract } from "@/lib/contracts/effective";
 
 export const metadata = { title: "Acties" };
 
@@ -24,12 +27,23 @@ export default async function ActiesPage({ searchParams }: PageProps<"/acties">)
   const [rows, users] = await Promise.all([
     db.query.acties.findMany({
       where: view === "open" ? inArray(acties.status, ["open", "conceptmail_klaar", "verstuurd"]) : undefined,
-      with: { inzet: { with: { medewerker: true, klant: true, project: true, contactpersoon: true } }, contract: true, toegewezen: true, emailsUit: true },
+      with: { inzet: { with: { medewerker: true, klant: true, project: true, contactpersoon: true } }, contract: { with: { parent: true } }, toegewezen: true, emailsUit: true },
       orderBy: view === "open" ? [asc(acties.vervaldatum)] : [desc(acties.updatedAt)],
       limit: 300,
     }),
     listUsers(),
   ]);
+
+  // Voor indexatie-aanvragen: de lopende inzetten van het contract (en zijn NOVK's) om de indexatie op te verwerken.
+  const indexatieInzetten = new Map<string, IndexatieInzetOptie[]>();
+  for (const a of rows) {
+    if (a.soort !== "indexatie_aanvragen" || !a.contract || !["open", "conceptmail_klaar", "verstuurd"].includes(a.status) || indexatieInzetten.has(a.contract.id)) continue;
+    const list = await lopendeInzettenVanContract(a.contract.id);
+    indexatieInzetten.set(
+      a.contract.id,
+      list.map((i) => ({ id: i.id, label: `${i.medewerker.naam} · ${i.project?.naam ?? i.klant?.naam ?? "-"} · ${i.contract?.nummer ?? "-"}`, tarief: i.tarief !== null ? Number(i.tarief) : null })),
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -54,15 +68,22 @@ export default async function ActiesPage({ searchParams }: PageProps<"/acties">)
         {rows.length === 0 ? <p className="text-sm text-muted-foreground">Geen acties.</p> : null}
         {rows.map((a) => {
           const late = a.vervaldatum && a.vervaldatum < today && ["open", "conceptmail_klaar"].includes(a.status);
-          const canMail = ["verlenging_uitvragen", "indexatie_aanvragen", "contract_opvragen", "einddatum_controleren", "einde_beoordelen"].includes(a.soort) && a.inzet;
+          const opvolgen = a.status === "verstuurd" && a.opvolgenOp && a.opvolgenOp <= today;
+          const indexatieJaar = a.dedupeKey?.match(/:(\d{4})$/)?.[1] ?? today.slice(0, 4);
+          const canMail = ["verlenging_uitvragen", "indexatie_aanvragen", "contract_opvragen", "einddatum_controleren", "einde_beoordelen"].includes(a.soort) && (a.inzet || a.contract);
           return (
-            <Card key={a.id} id={a.id} className={cn(focus === a.id && "ring-2 ring-primary", late && "border-red-300")}>
+            <Card key={a.id} id={a.id} className={cn(focus === a.id && "ring-2 ring-primary", late && "border-red-300", opvolgen && "border-amber-300")}>
               <CardContent className="flex flex-wrap items-start justify-between gap-4 py-4">
                 <div className="min-w-0 flex-1 space-y-1">
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="text-xs uppercase tracking-wide text-muted-foreground">{ACTIE_SOORT_LABELS[a.soort]}</span>
                     <ActieStatusBadge status={a.status} />
                     {late ? <span className="text-xs font-medium text-red-700">over tijd</span> : null}
+                    {opvolgen ? (
+                      <span className="text-xs font-medium text-amber-700">
+                        geen reactie sinds {fmtDateShort(a.opvolgenOp)}{a.herinneringen ? ` · ${a.herinneringen}× herinnerd` : ""}
+                      </span>
+                    ) : null}
                   </div>
                   <div className="font-medium">{a.titel}</div>
                   {a.omschrijving ? <p className="text-sm text-muted-foreground">{a.omschrijving}</p> : null}
@@ -86,6 +107,18 @@ export default async function ActiesPage({ searchParams }: PageProps<"/acties">)
                       </Link>
                     ) : null}
                   </div>
+                  {a.soort === "indexatie_aanvragen" && a.contract && ["open", "conceptmail_klaar", "verstuurd"].includes(a.status) ? (
+                    <div className="mt-2 rounded-md border bg-muted/30 p-2">
+                      <IndexatieForm
+                        contractId={a.contract.id}
+                        actieId={a.id}
+                        inzetten={indexatieInzetten.get(a.contract.id) ?? []}
+                        wijze={effectiveContract(a.contract).indexatieWijze ?? "vooraf"}
+                        defaultIngangsdatum={`${indexatieJaar}-${(effectiveContract(a.contract).indexatieMoment ?? "01-01").replace(/^(\d{2})-(\d{2})$/, "$1-$2")}`}
+                        compact
+                      />
+                    </div>
+                  ) : null}
                   {a.soort === "einde_beoordelen" && a.inzet && ["open", "conceptmail_klaar"].includes(a.status) ? (
                     <div className="mt-2 rounded-md border bg-muted/30 p-2">
                       <EindeBesluitForm inzetId={a.inzet.id} einddatum={a.inzet.einddatum} actieId={a.id} compact />
@@ -110,6 +143,11 @@ export default async function ActiesPage({ searchParams }: PageProps<"/acties">)
                   {canMail ? (
                     <Link href={`/acties/${a.id}/mail`} className="text-sm underline">
                       {a.emailsUit.length ? "Mail openen" : "Concept maken"}
+                    </Link>
+                  ) : null}
+                  {opvolgen && canMail ? (
+                    <Link href={`/acties/${a.id}/mail?doel=herinnering`} className="text-sm font-medium text-amber-800 underline">
+                      Herinnering maken
                     </Link>
                   ) : null}
                   {a.status !== "afgerond" ? (

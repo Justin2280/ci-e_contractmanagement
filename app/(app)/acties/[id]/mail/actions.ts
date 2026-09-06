@@ -12,7 +12,8 @@ import { getSettings } from "@/lib/settings";
 import { generateDraftEmail } from "@/lib/llm/draft-email";
 import { createDraft, sendMail } from "@/lib/graph/mail";
 import { graphConfigured } from "@/lib/graph/client";
-import { fmtDateShort } from "@/lib/format";
+import { fmtDateShort, toIsoDate } from "@/lib/format";
+import { addDays } from "date-fns";
 import type { ActionState } from "../../../inzetten/actions";
 import { defaultRecipient, loadActieMetContext } from "@/lib/acties/context";
 
@@ -134,7 +135,19 @@ export async function saveConcept(_prev: ActionState, formData: FormData): Promi
     }
     await sendMail(mailbox, { to, cc: splitAddresses(d.cc), subject: d.onderwerp, bodyText: d.body });
     await db.update(emailsUit).set({ status: "verstuurd", verstuurdOp: new Date(), outlookMailbox: mailbox, definitieveBody: d.body }).where(eq(emailsUit.id, d.id));
-    await db.update(acties).set({ status: "verstuurd" }).where(eq(acties.id, d.actieId));
+    // Opvolging: zonder reactie binnen N dagen komt de actie terug als "op te volgen".
+    const settings = await getSettings();
+    const huidig = await db.query.acties.findFirst({ where: eq(acties.id, d.actieId) });
+    const eerdereMails = await db.query.emailsUit.findMany({ where: and(eq(emailsUit.actieId, d.actieId), eq(emailsUit.status, "verstuurd")) });
+    const isHerinnering = eerdereMails.length > 1;
+    await db
+      .update(acties)
+      .set({
+        status: "verstuurd",
+        opvolgenOp: toIsoDate(addDays(new Date(), settings.opvolgenNaDagen)),
+        herinneringen: isHerinnering ? (huidig?.herinneringen ?? 0) + 1 : (huidig?.herinneringen ?? 0),
+      })
+      .where(eq(acties.id, d.actieId));
     await db.insert(auditLog).values({ userId: user.id, actie: "mail.verstuurd", entiteit: "email_uit", entiteitId: d.id, details: { to, mailbox } });
     revalidate(d.actieId);
     return { ok: true, message: `Verstuurd vanuit ${mailbox}` };

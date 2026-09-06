@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { updateInzet, type ActionState } from "../actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,6 +18,8 @@ export function InzetForm({
   inzet,
   users,
   contactpersonen,
+  klanten,
+  projecten,
 }: {
   inzet: {
     id: string;
@@ -34,11 +36,17 @@ export function InzetForm({
     leidinggevende: string | null;
     contractnummerTekst: string | null;
     notities: string | null;
+    klantId: string | null;
+    projectId: string | null;
   };
   users: Option[];
   contactpersonen: Option[];
+  klanten: Option[];
+  projecten: Array<Option & { klantId: string | null }>;
 }) {
   const [state, action, pending] = useActionState<ActionState, FormData>(updateInzet, null);
+  const [klantId, setKlantId] = useState(inzet.klantId ?? "");
+  const projectenVanKlant = projecten.filter((p) => p.klantId === klantId);
 
   return (
     <form action={action} className="grid gap-4 md:grid-cols-2">
@@ -54,6 +62,30 @@ export function InzetForm({
       </Field>
       <Field label="Functie / rol">
         <Input name="functie" defaultValue={inzet.functie ?? ""} />
+      </Field>
+      <Field label="Klant">
+        <select name="klantId" value={klantId} onChange={(e) => setKlantId(e.target.value)} className="h-9 w-full rounded-md border bg-background px-2 text-sm">
+          <option value="">—</option>
+          {klanten.map((k) => (
+            <option key={k.id} value={k.id}>
+              {k.label}
+            </option>
+          ))}
+        </select>
+        {klantId !== (inzet.klantId ?? "") ? <p className="text-xs text-amber-800">Klant wijzigt; het project en de contactpersoon worden opnieuw gekozen.</p> : null}
+      </Field>
+      <Field label="Project (of nieuw project)">
+        <div className="flex gap-2">
+          <select name="projectId" defaultValue={inzet.projectId ?? ""} className="h-9 w-full rounded-md border bg-background px-2 text-sm">
+            <option value="">—</option>
+            {projectenVanKlant.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.label}
+              </option>
+            ))}
+          </select>
+          <Input name="nieuwProject" placeholder="nieuw project…" className="w-40" />
+        </div>
       </Field>
       <Field label="Startdatum">
         <Input type="date" name="startdatum" defaultValue={inzet.startdatum ?? ""} />

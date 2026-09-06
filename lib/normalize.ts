@@ -77,6 +77,45 @@ export function normalizeCompanyName(raw: string | null | undefined): string {
     .trim();
 }
 
+/**
+ * Generieke woorden in bedrijfsnamen die niets zeggen over wélk bedrijf het is.
+ * "Bouwcombinatie Nieuw-Zuid" en "Combinatie Vught Verdiept" delen alleen zo'n woord.
+ */
+const GENERIC_COMPANY_WORDS = new Set([
+  "combinatie",
+  "bouwcombinatie",
+  "bouw",
+  "infra",
+  "infrastructuur",
+  "construction",
+  "constructie",
+  "groep",
+  "group",
+  "holding",
+  "nederland",
+  "netherlands",
+  "projecten",
+  "project",
+  "engineering",
+  "engineers",
+  "consultants",
+  "consultancy",
+  "bouwbedrijf",
+  "aannemersbedrijf",
+  "aannemers",
+  "aannemer",
+  "international",
+  "services",
+  "civiel",
+  "techniek",
+  "werken",
+]);
+
+/** Distinctieve tokens van een bedrijfsnaam: zonder rechtsvorm en zonder generieke woorden. */
+export function companyTokens(raw: string | null | undefined): string[] {
+  return tokens(normalizeCompanyName(raw)).filter((t) => !GENERIC_COMPANY_WORDS.has(t));
+}
+
 /** Normalises a contract number: uppercase, no spaces, unify dashes. */
 export function normalizeContractNumber(raw: string | null | undefined): string {
   return String(raw ?? "")

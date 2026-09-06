@@ -22,10 +22,12 @@ export async function sendReminderDigests(opts: { today?: string; force?: boolea
   const isDigestDay = weekday === settings.reminderWeekdag;
 
   const users = (await db.query.users.findMany()).filter((u) => u.actief && !u.email.endsWith("@onbekend.local"));
-  const open = await db.query.acties.findMany({
-    where: and(inArray(acties.status, ["open", "conceptmail_klaar"])),
-    with: { inzet: { with: { medewerker: true, klant: true } } },
-  });
+  const open = (
+    await db.query.acties.findMany({
+      where: and(inArray(acties.status, ["open", "conceptmail_klaar", "verstuurd"])),
+      with: { inzet: { with: { medewerker: true, klant: true } } },
+    })
+  ).filter((a) => a.status !== "verstuurd" || (a.opvolgenOp && a.opvolgenOp <= today));
   const unassigned = open.filter((a) => !a.toegewezenUserId);
 
   const results: Array<{ user: string; sent: boolean; reason: string }> = [];
@@ -54,9 +56,12 @@ export async function sendReminderDigests(opts: { today?: string; force?: boolea
     lines.push(`Hoi ${user.naam?.split(" ")[0] ?? ""},`, "");
     lines.push(`Er staan ${list.length} actie(s) open in Contractbeheer${overdue.length ? `, waarvan ${overdue.length} over tijd` : ""}.`, "");
     const groups = new Map<string, typeof list>();
-    for (const a of list) groups.set(a.soort, [...(groups.get(a.soort) ?? []), a]);
+    for (const a of list) {
+      const key = a.status === "verstuurd" ? "opvolgen" : a.soort;
+      groups.set(key, [...(groups.get(key) ?? []), a]);
+    }
     for (const [soort, items] of groups) {
-      lines.push(`${ACTIE_SOORT_LABELS[soort] ?? soort}:`);
+      lines.push(soort === "opvolgen" ? "Geen reactie ontvangen (herinnering sturen?):" : `${ACTIE_SOORT_LABELS[soort] ?? soort}:`);
       for (const a of items.sort((x, y) => (x.vervaldatum ?? "").localeCompare(y.vervaldatum ?? ""))) {
         const late = a.vervaldatum && a.vervaldatum < today ? " (over tijd)" : "";
         lines.push(`  - ${a.titel} — uiterlijk ${fmtDateShort(a.vervaldatum)}${late}`);

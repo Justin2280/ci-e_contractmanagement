@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/lib/db";
@@ -47,6 +48,35 @@ export async function updateKlant(_prev: ActionState, formData: FormData): Promi
   revalidatePath(`/klanten/${d.id}`);
   revalidatePath("/klanten");
   return { ok: true, message: "Opgeslagen" };
+}
+
+const NieuweKlantSchema = z.object({
+  naam: z.string().trim().min(2, "Vul een naam in"),
+  soort: z.enum(klantSoort.enumValues).default("aannemer"),
+  aliassen: z
+    .string()
+    .trim()
+    .default("")
+    .transform((v) =>
+      v
+        .split(/[,;\n]/)
+        .map((a) => a.trim())
+        .filter(Boolean),
+    ),
+  kvk: opt.default(null),
+});
+
+export async function createKlant(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  await requireUser();
+  const parsed = NieuweKlantSchema.safeParse(Object.fromEntries(formData.entries()));
+  if (!parsed.success) return { ok: false, message: parsed.error.issues.map((i) => i.message).join("; ") };
+  const d = parsed.data;
+  const norm = normalizeCompanyName(d.naam);
+  const bestaand = await db.query.klanten.findFirst({ where: eq(klanten.naamGenormaliseerd, norm) });
+  if (bestaand) return { ok: false, message: `Klant "${bestaand.naam}" bestaat al` };
+  const [k] = await db.insert(klanten).values({ naam: d.naam, naamGenormaliseerd: norm, soort: d.soort, aliassen: d.aliassen, kvk: d.kvk }).returning();
+  revalidatePath("/klanten");
+  redirect(`/klanten/${k.id}`);
 }
 
 const ContactSchema = z.object({
