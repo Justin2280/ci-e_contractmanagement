@@ -54,6 +54,27 @@ async function main() {
     .onConflictDoNothing({ target: emailsIn.graphMessageId })
     .returning();
   console.log(row2 ? `Demo-planningmail aangemaakt: /inbox/${row2.id}` : "Demo-planningmail bestond al.");
+
+  const tarieven = JSON.parse(fs.readFileSync(path.join(process.cwd(), "tests", "fixtures", "extraction-vhb-tarieven-2026.json"), "utf8"));
+  const [row3] = await db
+    .insert(emailsIn)
+    .values({
+      graphMessageId: "demo-vhb-tarieven-2026",
+      internetMessageId: "<demo-vhb-tarieven@contractbeheer>",
+      vanEmail: "nhage@vhbinfra.nl",
+      vanNaam: "Nancy Hage",
+      aan: process.env.GRAPH_SHARED_MAILBOX ?? "contracten@ci-engineers.com",
+      onderwerp: "VHB-RAM-2022-005, tarieven 2026",
+      ontvangenOp: new Date(),
+      bodyText: "Beste Justin,\n\nBijgaand de brief met de verlenging van de raamovereenkomst en de tarieven voor 2026.\n\nMet vriendelijke groet,\nNancy Hage",
+      classificatie: "verlenging_of_tarievenbrief",
+      classificatieToelichting: "Tarievenbrief: verlenging van het raamcontract met nieuwe tarieven per functie voor 2026.",
+      verwerkstatus: "te_beoordelen",
+      extractieJson: tarieven,
+    })
+    .onConflictDoNothing({ target: emailsIn.graphMessageId })
+    .returning();
+  console.log(row3 ? `Demo-tarievenbrief aangemaakt: /inbox/${row3.id}` : "Demo-tarievenbrief bestond al.");
 }
 
 main()

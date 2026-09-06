@@ -1,0 +1,1 @@
+ALTER TABLE "contracten" ADD COLUMN "nummer_alternatieven" text[] DEFAULT '{}' NOT NULL;

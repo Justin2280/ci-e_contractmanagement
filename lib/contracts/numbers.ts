@@ -45,3 +45,27 @@ export function findChildrenByPrefix<T extends NummerRef>(nummer: string | null 
     return findParentByPrefix(c.nummer, contracten, c.id)?.id === undefined || normalizeContractNumber(findParentByPrefix(c.nummer, contracten, c.id)!.nummer) === norm;
   });
 }
+
+/**
+ * Exacte match op nummer, waarbij ook alternatieve kenmerken meetellen: de
+ * alternatieven uit het document tegen de contractnummers, en het nummer uit
+ * het document tegen de alternatieven die bij contracten zijn opgeslagen.
+ */
+export function findByNumberOrAlias<T extends NummerRef & { nummerAlternatieven?: string[] | null }>(
+  nummer: string | null | undefined,
+  alternatieven: string[] | null | undefined,
+  contracten: T[],
+  excludeId?: string,
+): T | null {
+  const exact = findByNumber(nummer, contracten, excludeId);
+  if (exact) return exact;
+  const wanted = new Set([nummer, ...(alternatieven ?? [])].map(normalizeContractNumber).filter(Boolean));
+  if (!wanted.size) return null;
+  return (
+    contracten.find((c) => {
+      if (c.id === excludeId) return false;
+      if (wanted.has(normalizeContractNumber(c.nummer))) return true;
+      return (c.nummerAlternatieven ?? []).some((a) => wanted.has(normalizeContractNumber(a)));
+    }) ?? null
+  );
+}

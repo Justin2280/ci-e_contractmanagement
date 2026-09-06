@@ -8,6 +8,7 @@ const fixturePath = path.join(process.cwd(), "tests", "fixtures", "extraction-ge
 function emptyWire(): ContractExtractionWire {
   return {
     contractnummer: "",
+    contractnummerAlternatieven: [],
     parentContractnummer: null,
     soort: "overig",
     titel: "",

@@ -17,7 +17,7 @@ import {
   tarieven,
 } from "@/lib/db/schema";
 import { normalizeCompanyName, normalizeContractNumber, normalizePersonName } from "@/lib/normalize";
-import { findByNumber } from "@/lib/contracts/numbers";
+import { findByNumber, findChildrenByPrefix } from "@/lib/contracts/numbers";
 import { LOPENDE_STATUSSEN } from "@/lib/queries/inzetten";
 
 const optDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable();
@@ -32,6 +32,8 @@ export const ApprovePayloadSchema = z.object({
     parentContractId: z.string().uuid().nullable(),
     /** Nummer van het bovenliggende contract als dat nog niet in de database staat. */
     parentContractnummerTekst: z.string().nullable().optional(),
+    /** Andere kenmerken van hetzelfde contract (worden bij het contract bewaard voor latere herkenning). */
+    contractnummerAlternatieven: z.array(z.string()).optional(),
     startdatum: optDate,
     einddatum: optDate,
     einddatumType: z.enum(einddatumType.enumValues),
@@ -60,6 +62,10 @@ export const ApprovePayloadSchema = z.object({
   project: z.object({ naam: z.string().nullable(), code: z.string().nullable(), locatie: z.string().nullable() }),
   contactpersonen: z.array(z.object({ naam: z.string(), email: z.string().nullable(), telefoon: z.string().nullable(), rol: z.string().nullable() })),
   contractTarieven: z.array(z.object({ functie: z.string().nullable(), bedrag: z.number(), geldigVanaf: optDate })),
+  /** Tarievenbrief: nieuwe tarieven voor lopende inzetten op het contract en zijn kinderen. */
+  inzetTarieven: z
+    .array(z.object({ inzetId: z.string().uuid(), bedrag: z.number(), geldigVanaf: optDate, functie: z.string().nullable(), toepassen: z.boolean() }))
+    .optional(),
   personen: z.array(
     z.object({
       naam: z.string(),
@@ -132,7 +138,11 @@ export async function approveExtraction(payload: ApprovePayload, userId: string)
     }
 
     // Contract; het bovenliggende contract alsnog op nummer koppelen als het inmiddels bestaat.
-    const alleContracten = await tx.query.contracten.findMany({ columns: { id: true, nummer: true, parentContractId: true, parentContractnummerTekst: true } });
+    const alleContracten = await tx.query.contracten.findMany({
+      columns: { id: true, nummer: true, parentContractId: true, parentContractnummerTekst: true, nummerAlternatieven: true },
+    });
+    const isTariefdocument = p.contract.soort === "tarievenbrief" || p.contract.soort === "verlenging";
+    const alternatieven = (p.contract.contractnummerAlternatieven ?? []).map((n) => n.trim()).filter((n) => n && normalizeContractNumber(n) !== normalizeContractNumber(p.contract.nummer));
     const parentTekst = p.contract.parentContractnummerTekst?.trim() || null;
     const parentContractId =
       p.contract.parentContractId ?? (parentTekst ? (findByNumber(parentTekst, alleContracten, p.contract.bestaandContractId ?? undefined)?.id ?? null) : null);
@@ -144,6 +154,7 @@ export async function approveExtraction(payload: ApprovePayload, userId: string)
       projectId,
       parentContractId,
       parentContractnummerTekst: parentTekst,
+      nummerAlternatieven: alternatieven,
       startdatum: p.contract.startdatum,
       einddatum: p.contract.einddatumType === "vast" ? p.contract.einddatum : null,
       einddatumType: p.contract.einddatumType,
@@ -170,14 +181,26 @@ export async function approveExtraction(payload: ApprovePayload, userId: string)
       contractId = p.contract.bestaandContractId;
       const current = await tx.query.contracten.findFirst({ where: eq(contracten.id, contractId) });
       // Only overwrite with non-null values so a tarievenbrief does not wipe known data.
-      const patch = Object.fromEntries(Object.entries(contractValues).filter(([, v]) => v !== null && v !== undefined));
-      await tx
-        .update(contracten)
-        .set({ ...patch, notities: current?.notities?.replace("document nog niet gekoppeld.", "document gekoppeld.") ?? current?.notities })
-        .where(eq(contracten.id, contractId));
+      const patch: Record<string, unknown> = Object.fromEntries(Object.entries(contractValues).filter(([, v]) => v !== null && v !== undefined));
+      // Alternatieve kenmerken samenvoegen met wat al bekend is.
+      const bekend = current?.nummerAlternatieven ?? [];
+      patch.nummerAlternatieven = [...bekend, ...alternatieven.filter((a) => !bekend.some((b) => normalizeContractNumber(b) === normalizeContractNumber(a)))];
+      let notities = current?.notities?.replace("document nog niet gekoppeld.", "document gekoppeld.") ?? current?.notities ?? null;
+      if (isTariefdocument) {
+        // Een tarievenbrief/verlenging verandert het contract zelf niet van soort en vervangt het contractdocument niet.
+        delete patch.soort;
+        if (current?.pdfBijlageId) delete patch.pdfBijlageId;
+        const regel = `${p.contract.soort === "verlenging" ? "Verlenging" : "Tarievenbrief"} verwerkt op ${today}${p.contract.einddatum ? `, looptijd tot ${p.contract.einddatum}` : ""}.`;
+        notities = notities ? `${notities}\n${regel}` : regel;
+      }
+      await tx.update(contracten).set({ ...patch, notities }).where(eq(contracten.id, contractId));
     } else {
       const [c] = await tx.insert(contracten).values(contractValues).returning();
       contractId = c.id;
+      // Nieuw raam-/regiecontract: eerder ingelezen NOVK's/aanvullingen met dit nummer als prefix eronder hangen.
+      for (const kind of findChildrenByPrefix(p.contract.nummer, alleContracten)) {
+        if (!kind.parentContractId) await tx.update(contracten).set({ parentContractId: contractId }).where(eq(contracten.id, kind.id));
+      }
     }
     // Wezen koppelen: contracten die op dit nummer wachtten als bovenliggend contract.
     const eigenNorm = normalizeContractNumber(p.contract.nummer);
@@ -272,6 +295,39 @@ export async function approveExtraction(payload: ApprovePayload, userId: string)
       }
     }
 
+    // Tarievenbrief: nieuwe tarieven op lopende inzetten (van dit contract en zijn kinderen)
+    const geindexeerd: string[] = [];
+    for (const t of p.inzetTarieven ?? []) {
+      if (!t.toepassen) continue;
+      const inzet = await tx.query.inzetten.findFirst({ where: eq(inzetten.id, t.inzetId) });
+      if (!inzet) continue;
+      const bedrag = t.bedrag.toFixed(2);
+      const geldigVanaf = t.geldigVanaf ?? p.contract.startdatum ?? today;
+      await tx
+        .update(inzetten)
+        .set({ tarief: bedrag, tariefGeldigVanaf: geldigVanaf, functie: inzet.functie ?? t.functie })
+        .where(eq(inzetten.id, inzet.id));
+      if (inzet.tarief !== bedrag) {
+        await tx.insert(tarieven).values({ inzetId: inzet.id, functie: t.functie, bedrag, geldigVanaf, reden: "indexatie", bron: `E-mail ${p.emailId}` });
+      }
+      geindexeerd.push(inzet.id);
+    }
+    // Indexatie-acties van dit contract en zijn kinderen zijn afgehandeld zodra een tarievenbrief is verwerkt
+    // (ook als die een nieuw raamcontract aanmaakt) of nieuwe tarieven op inzetten zijn toegepast.
+    if (isTariefdocument || geindexeerd.length || (p.contract.soort === "raamovereenkomst" && p.contractTarieven.length && p.inzetTarieven?.length)) {
+      const kinderen = await tx.query.contracten.findMany({ where: eq(contracten.parentContractId, contractId), columns: { id: true } });
+      await tx
+        .update(acties)
+        .set({ status: "afgerond", afgerondOp: new Date() })
+        .where(
+          and(
+            inArray(acties.contractId, [contractId, ...kinderen.map((k) => k.id)]),
+            eq(acties.soort, "indexatie_aanvragen"),
+            inArray(acties.status, ["open", "conceptmail_klaar", "verstuurd"]),
+          ),
+        );
+    }
+
     // Close acties that this document resolves (acties of uit-dienst-inzetten zijn al genegeerd)
     const afgerondIds = inzetIds.filter((id) => !uitDienstInzetIds.has(id));
     if (afgerondIds.length) {
@@ -288,8 +344,8 @@ export async function approveExtraction(payload: ApprovePayload, userId: string)
     }
 
     await tx.update(emailsIn).set({ verwerkstatus: "verwerkt" }).where(eq(emailsIn.id, p.emailId));
-    await tx.insert(auditLog).values({ userId, actie: "extractie.goedgekeurd", entiteit: "contract", entiteitId: contractId, details: { emailId: p.emailId, inzetIds } });
-    return { contractId, inzetIds };
+    await tx.insert(auditLog).values({ userId, actie: "extractie.goedgekeurd", entiteit: "contract", entiteitId: contractId, details: { emailId: p.emailId, inzetIds, geindexeerd } });
+    return { contractId, inzetIds, geindexeerd };
   });
 }
 
