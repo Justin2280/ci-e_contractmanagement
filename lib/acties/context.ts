@@ -6,8 +6,8 @@ export async function loadActieMetContext(actieId: string) {
   const actie = await db.query.acties.findFirst({
     where: eq(acties.id, actieId),
     with: {
-      inzet: { with: { medewerker: true, klant: { with: { contactpersonen: true } }, project: true, contract: true, contactpersoon: true } },
-      contract: { with: { klant: { with: { contactpersonen: true } }, inzetten: { with: { medewerker: true } } } },
+      inzet: { with: { medewerker: true, klant: { with: { contactpersonen: true } }, project: true, contract: { with: { parent: true } }, contactpersoon: true } },
+      contract: { with: { parent: true, klant: { with: { contactpersonen: true } }, inzetten: { with: { medewerker: true } } } },
       toegewezen: true,
     },
   });
@@ -24,4 +24,9 @@ export function defaultRecipient(actie: ActieMetContext): { naam: string | null;
   const klant = actie.inzet?.klant ?? actie.contract?.klant;
   const first = klant?.contactpersonen.find((c) => c.email) ?? klant?.contactpersonen[0];
   return first ? { naam: first.naam, email: first.email, rol: first.rol } : null;
+}
+
+/** Korte omschrijving van de inzet voor lijsten en mails: medewerker · klant · project. */
+export function inzetOmschrijving(inzet: { medewerker: { naam: string }; klant: { naam: string } | null; project: { naam: string } | null }): string {
+  return [inzet.medewerker.naam, inzet.klant?.naam ?? "?", inzet.project?.naam].filter(Boolean).join(" · ");
 }

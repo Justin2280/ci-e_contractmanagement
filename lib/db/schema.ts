@@ -11,6 +11,7 @@ import {
   jsonb,
   uniqueIndex,
   index,
+  type AnyPgColumn,
 } from "drizzle-orm/pg-core";
 import { relations, sql } from "drizzle-orm";
 
@@ -90,6 +91,7 @@ export const actieSoort = pgEnum("actie_soort", [
   "urenbon_opvragen",
   "review_extractie",
   "handmatig",
+  "einde_beoordelen",
 ]);
 
 export const actieStatus = pgEnum("actie_status", [
@@ -105,6 +107,7 @@ export const mailClassificatie = pgEnum("mail_classificatie", [
   "verlenging_of_tarievenbrief",
   "opzegging",
   "overig",
+  "planning_update",
 ]);
 
 export const verwerkStatus = pgEnum("verwerk_status", [
@@ -179,6 +182,8 @@ export const medewerkers = pgTable(
     email: text("email"),
     functie: text("functie"),
     actief: boolean("actief").notNull().default(true),
+    /** Datum uit dienst; gezet samen met actief = false. */
+    uitDienstOp: date("uit_dienst_op"),
     notities: text("notities"),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
@@ -283,7 +288,12 @@ export const contracten = pgTable(
     projectId: uuid("project_id").references(() => projecten.id, {
       onDelete: "set null",
     }),
-    parentContractId: uuid("parent_contract_id"),
+    /** Raam-/regiecontract waar dit contract (NOVK, aanvulling, tarievenbrief) onder valt. */
+    parentContractId: uuid("parent_contract_id").references((): AnyPgColumn => contracten.id, {
+      onDelete: "set null",
+    }),
+    /** Geëxtraheerd nummer van het bovenliggende contract zolang dat nog niet in de database staat. */
+    parentContractnummerTekst: text("parent_contractnummer_tekst"),
     startdatum: date("startdatum"),
     einddatum: date("einddatum"),
     einddatumType: einddatumType("einddatum_type").notNull().default("vast"),
@@ -556,6 +566,7 @@ export const contractenRelations = relations(contracten, ({ one, many }) => ({
     references: [contracten.id],
     relationName: "parent",
   }),
+  children: many(contracten, { relationName: "parent" }),
   bronEmail: one(emailsIn, { fields: [contracten.bronEmailId], references: [emailsIn.id] }),
   pdfBijlage: one(bijlagen, { fields: [contracten.pdfBijlageId], references: [bijlagen.id] }),
   inzetten: many(inzetten),

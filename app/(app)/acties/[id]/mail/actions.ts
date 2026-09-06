@@ -1,5 +1,7 @@
 "use server";
 
+import { effectiveContract } from "@/lib/contracts/effective";
+
 import { revalidatePath } from "next/cache";
 import { and, desc, eq, inArray } from "drizzle-orm";
 import { z } from "zod";
@@ -32,7 +34,8 @@ export async function generateConcept(_prev: ActionState, formData: FormData): P
       orderBy: [desc(stijlVoorbeelden.createdAt)],
       limit: 8,
     });
-    const contract = actie.inzet?.contract ?? actie.contract ?? null;
+    const rawContract = actie.inzet?.contract ?? actie.contract ?? null;
+    const contract = rawContract ? effectiveContract(rawContract) : null;
     const medewerkers = actie.inzet ? [actie.inzet.medewerker.naam] : Array.from(new Set(actie.contract?.inzetten.map((i) => i.medewerker.naam) ?? []));
     const ontvanger = defaultRecipient(actie);
     const draft = await generateDraftEmail(

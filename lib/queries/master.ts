@@ -3,15 +3,17 @@ import { db } from "@/lib/db";
 import { contracten, inzetten, klanten, medewerkers, users } from "@/lib/db/schema";
 import { LOPENDE_STATUSSEN } from "./inzetten";
 
-export async function listMedewerkers() {
+export async function listMedewerkers(opts: { inclusiefUitDienst?: boolean } = {}) {
   const rows = await db.query.medewerkers.findMany({
     orderBy: [asc(medewerkers.naam)],
     with: { inzetten: { with: { klant: true, project: true } } },
   });
-  return rows.map((m) => ({
-    ...m,
-    lopend: m.inzetten.filter((i) => LOPENDE_STATUSSEN.includes(i.status)),
-  }));
+  return rows
+    .filter((m) => opts.inclusiefUitDienst || m.actief)
+    .map((m) => ({
+      ...m,
+      lopend: m.inzetten.filter((i) => LOPENDE_STATUSSEN.includes(i.status)),
+    }));
 }
 
 export async function getMedewerker(id: string) {
@@ -66,6 +68,10 @@ export async function getContract(id: string) {
       klant: { with: { contactpersonen: true } },
       project: true,
       parent: true,
+      children: {
+        with: { inzetten: { with: { medewerker: true, project: true }, orderBy: (i, { desc }) => [desc(i.startdatum)] } },
+        orderBy: (c, { asc }) => [asc(c.nummer)],
+      },
       bronEmail: { with: { bijlagen: true } },
       pdfBijlage: true,
       inzetten: { with: { medewerker: true, project: true }, orderBy: (i, { desc }) => [desc(i.startdatum)] },

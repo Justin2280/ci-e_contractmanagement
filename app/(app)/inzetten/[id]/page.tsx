@@ -5,6 +5,7 @@ import { ActieStatusBadge, InzetStatusBadge } from "@/components/app/status-badg
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { getInzet } from "@/lib/queries/inzetten";
+import { effectiveContract } from "@/lib/contracts/effective";
 import { listUsers } from "@/lib/queries/master";
 import { fmtDateShort, fmtMoney } from "@/lib/format";
 import { ACTIE_SOORT_LABELS } from "@/lib/labels";
@@ -13,6 +14,7 @@ import { InzetForm } from "./inzet-form";
 export default async function InzetDetailPage({ params }: PageProps<"/inzetten/[id]">) {
   const { id } = await params;
   const [inzet, users] = await Promise.all([getInzet(id), listUsers()]);
+  const voorwaarden = inzet?.contract ? effectiveContract(inzet.contract) : null;
   if (!inzet) notFound();
 
   return (
@@ -65,17 +67,30 @@ export default async function InzetDetailPage({ params }: PageProps<"/inzetten/[
               <div>
                 <span className="text-muted-foreground">Contract: </span>
                 {inzet.contract ? (
-                  <Link href={`/contracten/${inzet.contract.id}`} className="hover:underline">
-                    {inzet.contract.nummer}
-                  </Link>
+                  <>
+                    <Link href={`/contracten/${inzet.contract.id}`} className="hover:underline">
+                      {inzet.contract.nummer}
+                    </Link>
+                    {inzet.contract.parent ? (
+                      <span className="text-xs text-muted-foreground">
+                        {" "}
+                        onder{" "}
+                        <Link href={`/contracten/${inzet.contract.parent.id}`} className="hover:underline">
+                          {inzet.contract.parent.nummer}
+                        </Link>
+                      </span>
+                    ) : inzet.contract.parentContractnummerTekst ? (
+                      <span className="text-xs text-muted-foreground"> onder {inzet.contract.parentContractnummerTekst} (nog niet ingelezen)</span>
+                    ) : null}
+                  </>
                 ) : (
                   (inzet.contractnummerTekst ?? "—")
                 )}
               </div>
               {inzet.contract ? (
                 <div className="text-xs text-muted-foreground">
-                  Opzegtermijn: {inzet.contract.opzegtermijnDagen ? `${inzet.contract.opzegtermijnDagen} dagen` : "onbekend"} · Indexatie:{" "}
-                  {inzet.contract.indexatie}
+                  Opzegtermijn: {voorwaarden!.opzegtermijnDagen ? `${voorwaarden!.opzegtermijnDagen} dagen` : "onbekend"} · Indexatie: {voorwaarden!.indexatie}
+                  {inzet.contract.parent ? " (via bovenliggend contract waar niet zelf ingevuld)" : ""}
                 </div>
               ) : null}
             </CardContent>

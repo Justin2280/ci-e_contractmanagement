@@ -70,6 +70,7 @@ export default async function ActiesPage({ searchParams }: PageProps<"/acties">)
                     {a.inzet ? (
                       <Link href={`/inzetten/${a.inzet.id}`} className="hover:underline">
                         Inzet {a.inzet.medewerker.naam} · {a.inzet.klant?.naam ?? "?"}
+                        {a.inzet.project ? ` · ${a.inzet.project.naam}` : ""}
                       </Link>
                     ) : null}
                     {a.contract ? (

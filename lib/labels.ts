@@ -32,6 +32,7 @@ export const ACTIE_SOORT_LABELS: Record<string, string> = {
   urenbon_opvragen: "Urenbon opvragen",
   review_extractie: "Extractie beoordelen",
   handmatig: "Handmatig",
+  einde_beoordelen: "Einde beoordelen",
 };
 
 export const KLANT_SOORT_LABELS: Record<string, string> = {
