@@ -9,6 +9,7 @@ import { syncInbox } from "@/lib/intake/sync";
 import { processEmail } from "@/lib/intake/process";
 import type { ActionState } from "../inzetten/actions";
 import { approveExtraction, type ApprovePayload } from "@/lib/review/approve";
+import { applyPlanning, type ApplyPlanningPayload } from "@/lib/review/apply-planning";
 
 export async function syncNow(): Promise<ActionState> {
   await requireUser();
@@ -57,6 +58,22 @@ export async function approveExtractionAction(payload: ApprovePayload): Promise<
     revalidatePath("/acties");
     revalidatePath("/");
     return { ok: true, message: "Goedgekeurd en verwerkt", contractId: result.contractId };
+  } catch (err) {
+    return { ok: false, message: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+export async function applyPlanningAction(payload: ApplyPlanningPayload): Promise<ActionState> {
+  const user = await requireUser();
+  try {
+    const r = await applyPlanning(payload, user.id);
+    revalidatePath(`/inbox/${payload.emailId}`);
+    revalidatePath("/inbox");
+    revalidatePath("/inzetten");
+    revalidatePath("/acties");
+    revalidatePath("/");
+    const extra = r.contractActies.length ? `; ${r.contractActies.length} actie(s) om een contractverlenging op te vragen` : "";
+    return { ok: true, message: `${r.bijgewerkt.length} inzet(ten) bijgewerkt, ${r.overgeslagen.length} overgeslagen${extra}` };
   } catch (err) {
     return { ok: false, message: err instanceof Error ? err.message : String(err) };
   }

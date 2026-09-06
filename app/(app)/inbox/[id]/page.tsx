@@ -13,6 +13,9 @@ import { ReviewPanel } from "./review-panel";
 import { listKlanten, listMedewerkers, listContracten, listUsers } from "@/lib/queries/master";
 import { buildReviewProposal } from "@/lib/review/proposal";
 import { isStaleProcessing } from "@/lib/intake/process";
+import { isPlanningExtraction } from "@/lib/llm/schemas";
+import { buildPlanningProposal } from "@/lib/review/planning-proposal";
+import { PlanningPanel } from "./planning-panel";
 
 export default async function InboxDetailPage({ params }: PageProps<"/inbox/[id]">) {
   const { id } = await params;
@@ -20,7 +23,9 @@ export default async function InboxDetailPage({ params }: PageProps<"/inbox/[id]
   if (!email) notFound();
 
   const [klanten, medewerkers, contracten, users] = await Promise.all([listKlanten(), listMedewerkers({ inclusiefUitDienst: true }), listContracten(), listUsers()]);
-  const proposal = email.extractieJson ? await buildReviewProposal(email, { klanten, medewerkers, contracten }) : null;
+  const isPlanning = isPlanningExtraction(email.extractieJson);
+  const proposal = email.extractieJson && !isPlanning ? await buildReviewProposal(email, { klanten, medewerkers, contracten }) : null;
+  const planning = isPlanning ? await buildPlanningProposal(email, { klanten, medewerkers }) : null;
   const staleProcessing = isStaleProcessing(email);
 
   return (
@@ -96,7 +101,17 @@ export default async function InboxDetailPage({ params }: PageProps<"/inbox/[id]
         </div>
 
         <div className="lg:col-span-2">
-          {proposal ? (
+          {planning ? (
+            <PlanningPanel
+              emailId={email.id}
+              proposal={planning}
+              alreadyApplied={email.verwerkstatus === "verwerkt"}
+              options={{
+                klanten: klanten.map((k) => ({ id: k.id, label: k.naam })),
+                medewerkers: medewerkers.map((m) => ({ id: m.id, label: m.actief ? m.naam : `${m.naam} (uit dienst)` })),
+              }}
+            />
+          ) : proposal ? (
             <ReviewPanel
               emailId={email.id}
               proposal={proposal}

@@ -55,7 +55,7 @@ interface Context {
   contracten: Array<Pick<Contract, "id" | "nummer" | "klantId">>;
 }
 
-function scoreKlant(naam: string | null | undefined, k: Context["klanten"][number]): number {
+export function scoreKlant(naam: string | null | undefined, k: { naam: string; aliassen: string[] }): number {
   if (!naam) return 0;
   const target = normalizeCompanyName(naam);
   const candidates = [k.naam, ...k.aliassen].map(normalizeCompanyName);
