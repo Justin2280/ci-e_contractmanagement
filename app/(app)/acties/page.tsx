@@ -15,6 +15,7 @@ import { cn } from "@/lib/utils";
 import { EindeBesluitForm } from "@/components/app/einde-besluit-form";
 import { IndexatieForm, type IndexatieInzetOptie } from "@/components/app/indexatie-form";
 import { lopendeInzettenVanContract } from "@/lib/indexatie/verwerk";
+import { cbsIndexcijfer } from "@/lib/indexatie/cbs";
 import { effectiveContract } from "@/lib/contracts/effective";
 
 export const metadata = { title: "Acties" };
@@ -34,10 +35,11 @@ export default async function ActiesPage({ searchParams }: PageProps<"/acties">)
     listUsers(),
   ]);
 
-  // Voor indexatie-aanvragen: de lopende inzetten van het contract (en zijn NOVK's) om de indexatie op te verwerken.
+  // Voor indexatie-acties: de lopende inzetten van het contract (en zijn NOVK's) om de indexatie op te verwerken.
+  const cbsCijfer = rows.some((a) => a.soort === "indexatie_aanvragen" || a.soort === "indexatie_voorstellen") ? await cbsIndexcijfer(Number(today.slice(0, 4)), 2, { today }) : null;
   const indexatieInzetten = new Map<string, IndexatieInzetOptie[]>();
   for (const a of rows) {
-    if (a.soort !== "indexatie_aanvragen" || !a.contract || !["open", "conceptmail_klaar", "verstuurd"].includes(a.status) || indexatieInzetten.has(a.contract.id)) continue;
+    if (!["indexatie_aanvragen", "indexatie_voorstellen"].includes(a.soort) || !a.contract || !["open", "conceptmail_klaar", "verstuurd"].includes(a.status) || indexatieInzetten.has(a.contract.id)) continue;
     const list = await lopendeInzettenVanContract(a.contract.id);
     indexatieInzetten.set(
       a.contract.id,
@@ -70,7 +72,7 @@ export default async function ActiesPage({ searchParams }: PageProps<"/acties">)
           const late = a.vervaldatum && a.vervaldatum < today && ["open", "conceptmail_klaar"].includes(a.status);
           const opvolgen = a.status === "verstuurd" && a.opvolgenOp && a.opvolgenOp <= today;
           const indexatieJaar = a.dedupeKey?.match(/:(\d{4})$/)?.[1] ?? today.slice(0, 4);
-          const canMail = ["verlenging_uitvragen", "indexatie_aanvragen", "contract_opvragen", "einddatum_controleren", "einde_beoordelen"].includes(a.soort) && (a.inzet || a.contract);
+          const canMail = ["verlenging_uitvragen", "indexatie_aanvragen", "indexatie_voorstellen", "contract_opvragen", "einddatum_controleren", "einde_beoordelen"].includes(a.soort) && (a.inzet || a.contract);
           return (
             <Card key={a.id} id={a.id} className={cn(focus === a.id && "ring-2 ring-primary", late && "border-red-300", opvolgen && "border-amber-300")}>
               <CardContent className="flex flex-wrap items-start justify-between gap-4 py-4">
@@ -107,7 +109,7 @@ export default async function ActiesPage({ searchParams }: PageProps<"/acties">)
                       </Link>
                     ) : null}
                   </div>
-                  {a.soort === "indexatie_aanvragen" && a.contract && ["open", "conceptmail_klaar", "verstuurd"].includes(a.status) ? (
+                  {["indexatie_aanvragen", "indexatie_voorstellen"].includes(a.soort) && a.contract && ["open", "conceptmail_klaar", "verstuurd"].includes(a.status) ? (
                     <div className="mt-2 rounded-md border bg-muted/30 p-2">
                       <IndexatieForm
                         contractId={a.contract.id}
@@ -115,6 +117,7 @@ export default async function ActiesPage({ searchParams }: PageProps<"/acties">)
                         inzetten={indexatieInzetten.get(a.contract.id) ?? []}
                         wijze={effectiveContract(a.contract).indexatieWijze ?? "vooraf"}
                         defaultIngangsdatum={`${indexatieJaar}-${(effectiveContract(a.contract).indexatieMoment ?? "01-01").replace(/^(\d{2})-(\d{2})$/, "$1-$2")}`}
+                        defaultPercentage={a.soort === "indexatie_voorstellen" ? (cbsCijfer?.jaarmutatie ?? null) : null}
                         compact
                       />
                     </div>

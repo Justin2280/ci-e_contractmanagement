@@ -33,6 +33,9 @@ export function RegelsForm({ settings }: { settings: Settings }) {
       <F label="Indexatie achteraf: aanvraagmoment (MM-DD, CBS-cijfers bekend)">
         <Input name="indexatieAchterafAanvraagMoment" defaultValue={settings.indexatieAchterafAanvraagMoment} placeholder="09-15" />
       </F>
+      <F label="Tariefverhoging voorstellen na (maanden zonder wijziging, geen clausule)">
+        <Input name="indexatieVoorstelNaMaanden" type="number" defaultValue={settings.indexatieVoorstelNaMaanden} />
+      </F>
       <F label="Herinnering na verstuurde mail zonder reactie (dagen)">
         <Input name="opvolgenNaDagen" type="number" defaultValue={settings.opvolgenNaDagen} />
       </F>

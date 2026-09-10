@@ -77,6 +77,10 @@ export const ApprovePayloadSchema = z.object({
       functie: z.string().nullable(),
       tarief: z.number().nullable(),
       tariefGeldigVanaf: optDate,
+      /** Alle tarieven met ingangsdatum uit het document; worden als tariefhistorie vastgelegd. */
+      tariefHistorie: z
+        .array(z.object({ bedrag: z.number(), geldigVanaf: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), toelichting: z.string().nullable() }))
+        .optional(),
       startdatum: optDate,
       einddatum: optDate,
       einddatumType: z.enum(einddatumType.enumValues),
@@ -227,6 +231,37 @@ export async function approveExtraction(payload: ApprovePayload, userId: string)
       });
     }
 
+    /**
+     * Legt de tariefhistorie uit een document vast op een inzet: één `tarieven`-rij per
+     * (bedrag, ingangsdatum) die er nog niet is. De eerste regel is `initieel`, een regel met een
+     * percentage/indexatie in de toelichting `indexatie`, de rest `verlenging`.
+     */
+    const schrijfTariefHistorie = async (inzetId: string, historie: Array<{ bedrag: number; geldigVanaf: string; toelichting: string | null }>, functie: string | null) => {
+      if (!historie.length) return 0;
+      const bestaand = await tx.query.tarieven.findMany({ where: eq(tarieven.inzetId, inzetId) });
+      const gezien = new Set(bestaand.map((t) => `${Number(t.bedrag).toFixed(2)}@${t.geldigVanaf}`));
+      const gesorteerd = [...historie].sort((a, b) => a.geldigVanaf.localeCompare(b.geldigVanaf));
+      let geschreven = 0;
+      for (const [i, h] of gesorteerd.entries()) {
+        const bedrag = h.bedrag.toFixed(2);
+        const key = `${bedrag}@${h.geldigVanaf}`;
+        if (gezien.has(key)) continue;
+        gezien.add(key);
+        const toelichting = h.toelichting ?? "";
+        const reden = i === 0 && bestaand.length === 0 ? "initieel" : /%|indexa|inflatie|verhoging|tariefaanpassing/i.test(toelichting) ? "indexatie" : "verlenging";
+        await tx.insert(tarieven).values({
+          inzetId,
+          functie,
+          bedrag,
+          geldigVanaf: h.geldigVanaf,
+          reden,
+          bron: `Document via e-mail ${p.emailId}${toelichting ? ` — ${toelichting}` : ""}`,
+        });
+        geschreven++;
+      }
+      return geschreven;
+    };
+
     // Personen -> medewerkers + inzetten
     const inzetIds: string[] = [];
     const uitDienstInzetIds = new Set<string>();
@@ -276,7 +311,8 @@ export async function approveExtraction(payload: ApprovePayload, userId: string)
         patch.einddatumType = values.einddatumType;
         if (values.einddatumType !== "vast") patch.einddatum = null;
         await tx.update(inzetten).set(patch).where(eq(inzetten.id, bestaandeInzetId));
-        if (tariefStr && current?.tarief !== tariefStr) {
+        const uitHistorie = await schrijfTariefHistorie(bestaandeInzetId, persoon.tariefHistorie ?? [], persoon.functie);
+        if (!uitHistorie && tariefStr && current?.tarief !== tariefStr) {
           await tx.insert(tarieven).values({
             inzetId: bestaandeInzetId,
             bedrag: tariefStr,
@@ -288,7 +324,8 @@ export async function approveExtraction(payload: ApprovePayload, userId: string)
         inzetIds.push(bestaandeInzetId);
       } else {
         const [i] = await tx.insert(inzetten).values(values).returning();
-        if (tariefStr) {
+        const uitHistorie = await schrijfTariefHistorie(i.id, persoon.tariefHistorie ?? [], persoon.functie);
+        if (!uitHistorie && tariefStr) {
           await tx.insert(tarieven).values({ inzetId: i.id, bedrag: tariefStr, geldigVanaf: values.tariefGeldigVanaf ?? today, reden: "initieel", bron: `E-mail ${p.emailId}` });
         }
         inzetIds.push(i.id);

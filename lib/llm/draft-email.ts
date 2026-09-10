@@ -26,6 +26,9 @@ export interface DraftContext {
   indexatieToelichting: string | null;
   verlengingAfspraak: string | null;
   extraInstructie: string | null;
+  /** Actueel CBS-cijfer (reeks 7112) en een daarop gebaseerd tariefvoorstel. */
+  cbs?: string | null;
+  tariefVoorstel?: string | null;
 }
 
 export interface StyleProfile {
@@ -69,6 +72,8 @@ export async function generateDraftEmail(ctx: DraftContext, style: StyleProfile)
     Indexatiemoment: ctx.indexatieMoment,
     "Indexatie toelichting": ctx.indexatieToelichting,
     Verlengingsafspraak: ctx.verlengingAfspraak,
+    "CBS-indexcijfer": ctx.cbs,
+    "Voorgesteld nieuw tarief": ctx.tariefVoorstel,
     "Extra instructie van de afzender": ctx.extraInstructie,
   })
     .filter(([, v]) => v !== null && v !== undefined && v !== "")

@@ -39,6 +39,7 @@ export const ACTIE_SOORT_LABELS: Record<string, string> = {
   handmatig: "Handmatig",
   einde_beoordelen: "Einde beoordelen",
   indexatie_verwerken: "Indexatie verwerken (correctie)",
+  indexatie_voorstellen: "Tariefverhoging voorstellen",
 };
 
 export const KLANT_SOORT_LABELS: Record<string, string> = {

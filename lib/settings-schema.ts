@@ -7,6 +7,8 @@ export const SettingsSchema = z.object({
   indexatieAchterafAanvraagMoment: z.string().regex(/^\d{2}-\d{2}$/).default("09-15"),
   /** Dagen na het versturen van een mail waarna we zonder reactie een herinnering willen sturen. */
   opvolgenNaDagen: z.number().int().min(1).max(90).default(14),
+  /** Zonder indexatieclausule: na hoeveel maanden zonder tariefwijziging stellen we een verhoging voor. */
+  indexatieVoorstelNaMaanden: z.number().int().min(6).max(60).default(12),
   contractOpvragenDagenNaStart: z.number().int().min(0).max(120).default(14),
   urenbonDagenNaPeriode: z.number().int().min(0).max(28).default(3),
   einddatumControleKwartaal: z.boolean().default(true),

@@ -101,6 +101,7 @@ export const actieSoort = pgEnum("actie_soort", [
   "handmatig",
   "einde_beoordelen",
   "indexatie_verwerken",
+  "indexatie_voorstellen",
 ]);
 
 export const actieStatus = pgEnum("actie_status", [

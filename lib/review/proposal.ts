@@ -5,6 +5,7 @@ import { ContractExtractionSchema, type ContractExtraction } from "@/lib/llm/sch
 import { findByNumber, findByNumberOrAlias, findChildrenByPrefix, findParentByPrefix } from "@/lib/contracts/numbers";
 import { companyTokens, levenshtein, normalizeCompanyName, personMatchKey, tokenOverlap } from "@/lib/normalize";
 import { LOPENDE_STATUSSEN } from "@/lib/queries/inzetten";
+import { todayIso } from "@/lib/format";
 
 export interface Kandidaat {
   id: string;
@@ -18,6 +19,8 @@ export interface PersoonVoorstel {
   functie: string | null;
   tarief: number | null;
   tariefGeldigVanaf: string | null;
+  /** Alle tarieven met ingangsdatum uit het document (werkopdracht met mutaties); leeg als er maar één tarief is. */
+  tariefHistorie: Array<{ bedrag: number; geldigVanaf: string; toelichting: string | null }>;
   startdatum: string | null;
   einddatum: string | null;
   einddatumType: string;
@@ -214,6 +217,7 @@ export async function buildReviewProposal(email: EmailIn, ctx: Context): Promise
     `${i.klant?.naam ?? "?"} · ${i.project?.naam ?? "-"} · ${i.contract?.nummer ?? i.contractnummerTekst ?? "-"} · ${i.startdatum ?? "?"}–${i.einddatum ?? i.einddatumType}`;
   const projectNaam = normalizeCompanyName(extractie.project?.naam ?? "");
 
+  const vandaag = todayIso();
   const personen: PersoonVoorstel[] = extractie.personen.map((p, index) => {
     const key = personMatchKey(p.naam);
     const kandidaten = ctx.medewerkers
@@ -240,12 +244,17 @@ export async function buildReviewProposal(email: EmailIn, ctx: Context): Promise
         null;
     }
     const bijKlantCount = klantId ? mine.filter((i) => i.klantId === klantId).length : 0;
+    // Tariefhistorie: het tarief dat vandaag geldt is de laatste regel met een ingangsdatum in het verleden;
+    // een regel met een toekomstige ingangsdatum blijft in de historie tot die datum bereikt is.
+    const historie = [...p.tariefHistorie].sort((a, b) => a.geldigVanaf.localeCompare(b.geldigVanaf));
+    const huidig = [...historie].reverse().find((h) => h.geldigVanaf <= vandaag) ?? null;
     return {
       index,
       naam: p.naam,
       functie: p.functie,
-      tarief: p.tarief,
-      tariefGeldigVanaf: p.tariefGeldigVanaf,
+      tarief: huidig?.bedrag ?? p.tarief,
+      tariefGeldigVanaf: huidig?.geldigVanaf ?? p.tariefGeldigVanaf,
+      tariefHistorie: historie,
       startdatum: p.startdatum ?? extractie.startdatum,
       einddatum: p.einddatum ?? extractie.einddatum,
       einddatumType: p.einddatum || extractie.einddatum ? (p.einddatum ? p.einddatumType : extractie.einddatumType) : p.einddatumType,
