@@ -117,6 +117,7 @@ export const mailClassificatie = pgEnum("mail_classificatie", [
   "opzegging",
   "overig",
   "planning_update",
+  "indexatie_akkoord",
 ]);
 
 export const verwerkStatus = pgEnum("verwerk_status", [

@@ -75,6 +75,28 @@ async function main() {
     .onConflictDoNothing({ target: emailsIn.graphMessageId })
     .returning();
   console.log(row3 ? `Demo-tarievenbrief aangemaakt: /inbox/${row3.id}` : "Demo-tarievenbrief bestond al.");
+
+  const indexatie = JSON.parse(fs.readFileSync(path.join(process.cwd(), "tests", "fixtures", "indexatie-mobilis-2025.json"), "utf8"));
+  const [row4] = await db
+    .insert(emailsIn)
+    .values({
+      graphMessageId: "demo-indexatie-mobilis-2025",
+      internetMessageId: "<demo-indexatie@contractbeheer>",
+      vanEmail: "j.deweert@ci-engineers.com",
+      vanNaam: "Weert, Justin de",
+      aan: process.env.GRAPH_SHARED_MAILBOX ?? "contracten@ci-engineers.com",
+      onderwerp: "FW: Indexatie over 2025",
+      ontvangenOp: new Date(),
+      bodyText:
+        "Zoals telefonisch besproken, hierbij ook ter volledigheid de mail.\n\n--- Ingesloten bericht: FW: Indexering CI-Engineers (Groot, Marco de <mjh.degroot@mobilis.nl>, 2 december 2025) ---\nBeste Justin,\n\nIn de bijlage de Indexering t/m wk. 44/2025.\n\nMet vriendelijke groet,\nMarco de Groot\nBouwcombinatie Nieuw-Zuid, KvK 84229764",
+      classificatie: "indexatie_akkoord",
+      classificatieToelichting: "Indexatiebonnen van Bouwcombinatie Nieuw-Zuid met oude en nieuwe uurtarieven en de correctie t/m week 44/2025.",
+      verwerkstatus: "te_beoordelen",
+      extractieJson: indexatie,
+    })
+    .onConflictDoNothing({ target: emailsIn.graphMessageId })
+    .returning();
+  console.log(row4 ? `Demo-indexatiebon aangemaakt: /inbox/${row4.id}` : "Demo-indexatiebon bestond al.");
 }
 
 main()

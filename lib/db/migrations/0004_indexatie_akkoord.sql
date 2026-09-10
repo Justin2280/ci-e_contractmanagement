@@ -1,0 +1,1 @@
+ALTER TYPE "public"."mail_classificatie" ADD VALUE 'indexatie_akkoord';

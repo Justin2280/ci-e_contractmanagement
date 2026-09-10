@@ -13,9 +13,20 @@ import { ReviewPanel } from "./review-panel";
 import { listKlanten, listMedewerkers, listContracten, listUsers } from "@/lib/queries/master";
 import { buildReviewProposal } from "@/lib/review/proposal";
 import { isStaleProcessing } from "@/lib/intake/process";
-import { isPlanningExtraction } from "@/lib/llm/schemas";
+import { isIndexatieExtraction, isPlanningExtraction } from "@/lib/llm/schemas";
 import { buildPlanningProposal } from "@/lib/review/planning-proposal";
 import { PlanningPanel } from "./planning-panel";
+import { buildIndexatieProposal } from "@/lib/review/indexatie-proposal";
+import { IndexatiePanel } from "./indexatie-panel";
+
+const CLASS_LABEL: Record<string, string> = {
+  contract: "Contract",
+  verlenging_of_tarievenbrief: "Verlenging / tarieven",
+  opzegging: "Opzegging",
+  planning_update: "Planning-update",
+  indexatie_akkoord: "Indexatie-akkoord",
+  overig: "Overig",
+};
 
 export default async function InboxDetailPage({ params }: PageProps<"/inbox/[id]">) {
   const { id } = await params;
@@ -24,8 +35,10 @@ export default async function InboxDetailPage({ params }: PageProps<"/inbox/[id]
 
   const [klanten, medewerkers, contracten, users] = await Promise.all([listKlanten(), listMedewerkers({ inclusiefUitDienst: true }), listContracten(), listUsers()]);
   const isPlanning = isPlanningExtraction(email.extractieJson);
-  const proposal = email.extractieJson && !isPlanning ? await buildReviewProposal(email, { klanten, medewerkers, contracten }) : null;
+  const isIndexatie = isIndexatieExtraction(email.extractieJson);
+  const proposal = email.extractieJson && !isPlanning && !isIndexatie ? await buildReviewProposal(email, { klanten, medewerkers, contracten }) : null;
   const planning = isPlanning ? await buildPlanningProposal(email, { klanten, medewerkers }) : null;
+  const indexatie = isIndexatie ? await buildIndexatieProposal(email, { klanten, medewerkers }) : null;
   const staleProcessing = isStaleProcessing(email);
 
   return (
@@ -93,7 +106,7 @@ export default async function InboxDetailPage({ params }: PageProps<"/inbox/[id]
                 <CardTitle>Classificatie</CardTitle>
               </CardHeader>
               <CardContent className="text-sm">
-                <div className="font-medium">{email.classificatie}</div>
+                <div className="font-medium">{CLASS_LABEL[email.classificatie ?? ""] ?? email.classificatie}</div>
                 <p className="text-muted-foreground">{email.classificatieToelichting}</p>
               </CardContent>
             </Card>
@@ -101,7 +114,17 @@ export default async function InboxDetailPage({ params }: PageProps<"/inbox/[id]
         </div>
 
         <div className="lg:col-span-2">
-          {planning ? (
+          {indexatie ? (
+            <IndexatiePanel
+              emailId={email.id}
+              proposal={indexatie}
+              alreadyApplied={email.verwerkstatus === "verwerkt"}
+              options={{
+                klanten: klanten.map((k) => ({ id: k.id, label: k.naam })),
+                medewerkers: medewerkers.map((m) => ({ id: m.id, label: m.actief ? m.naam : `${m.naam} (uit dienst)` })),
+              }}
+            />
+          ) : planning ? (
             <PlanningPanel
               emailId={email.id}
               proposal={planning}

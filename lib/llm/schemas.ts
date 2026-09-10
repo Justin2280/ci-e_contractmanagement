@@ -6,7 +6,7 @@ import { z } from "zod";
  */
 
 export const MailClassificationSchema = z.object({
-  classificatie: z.enum(["contract", "verlenging_of_tarievenbrief", "opzegging", "planning_update", "overig"]),
+  classificatie: z.enum(["contract", "verlenging_of_tarievenbrief", "opzegging", "planning_update", "indexatie_akkoord", "overig"]),
   toelichting: z.string().describe("Eén of twee zinnen in het Nederlands waarom deze classificatie."),
   vertrouwen: z.number().min(0).max(1),
 });
@@ -330,6 +330,46 @@ export type PlanningExtraction = z.infer<typeof PlanningExtractionSchema>;
 
 export function isPlanningExtraction(v: unknown): v is PlanningExtraction {
   return typeof v === "object" && v !== null && (v as { type?: unknown }).type === "planning_update";
+}
+
+// ---------------------------------------------------------------------------
+// Indexatie-akkoord: akkoord/indexatiebon/correctie-overzicht met oude en nieuwe
+// uurtarieven per medewerker. Klein schema, structured output.
+// ---------------------------------------------------------------------------
+
+export const IndexatieRegelSchema = z.object({
+  naam: z.string().describe("Naam van de medewerker van CI-Engineers zoals op de bon/in de mail"),
+  project: z.string().nullable().describe("Projectcode of -naam zoals op de bon, bv. '21118' of 'Realisatie OVT 2'"),
+  functie: z.string().nullable(),
+  oudTarief: z.number().nullable().describe("Uurtarief vóór indexatie in euro's"),
+  nieuwTarief: z.number().nullable().describe("Uurtarief na indexatie in euro's"),
+  uren: z.number().nullable().describe("Totaal uren waarover de correctie gaat"),
+  correctieBedrag: z.number().nullable().describe("Correctiebedrag voor deze regel (uren × verschil)"),
+});
+
+export const IndexatieAkkoordSchema = z.object({
+  opdrachtgever: z.string().nullable(),
+  kvk: z.string().nullable(),
+  percentage: z.number().nullable().describe("Indexatiepercentage, bv. 3 voor 3 %"),
+  jaar: z.number().int().describe("Jaar waarover de indexatie gaat"),
+  ingangsdatum: isoDate.nullable(),
+  periodeTmWeek: z.string().nullable().describe("Laatste week van de correctie als YYYY-Www"),
+  documentDatum: isoDate.nullable(),
+  projecten: z.array(z.object({ code: z.string().nullable(), naam: z.string().nullable() })),
+  regels: z.array(IndexatieRegelSchema),
+  totaalCorrectie: z.number().nullable(),
+  akkoordDoor: z.string().nullable(),
+  samenvatting: z.string(),
+  onzekerheden: z.array(z.string()),
+});
+export type IndexatieAkkoord = z.infer<typeof IndexatieAkkoordSchema>;
+
+/** Zo wordt een indexatie-akkoord in `emails_in.extractie_json` opgeslagen. */
+export const IndexatieExtractionSchema = IndexatieAkkoordSchema.extend({ type: z.literal("indexatie_akkoord") });
+export type IndexatieExtraction = z.infer<typeof IndexatieExtractionSchema>;
+
+export function isIndexatieExtraction(v: unknown): v is IndexatieExtraction {
+  return typeof v === "object" && v !== null && (v as { type?: unknown }).type === "indexatie_akkoord";
 }
 
 export const DraftEmailSchema = z.object({

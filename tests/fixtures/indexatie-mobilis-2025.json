@@ -1,0 +1,35 @@
+{
+  "type": "indexatie_akkoord",
+  "opdrachtgever": "Bouwcombinatie Nieuw-Zuid",
+  "kvk": "84229764",
+  "percentage": 3,
+  "jaar": 2025,
+  "ingangsdatum": null,
+  "periodeTmWeek": "2025-W44",
+  "documentDatum": "2025-12-02",
+  "projecten": [
+    { "code": "21118", "naam": "Realisatie OVT 2" },
+    { "code": "23045", "naam": "Realisatie OVT 1" }
+  ],
+  "regels": [
+    { "naam": "Boris Prins", "project": "21118 Realisatie OVT 2", "functie": null, "oudTarief": 85.37, "nieuwTarief": 87.93, "uren": 928, "correctieBedrag": 2376.7 },
+    { "naam": "Jelle Schenk", "project": "21118 Realisatie OVT 2", "functie": null, "oudTarief": 89.78, "nieuwTarief": 92.47, "uren": 634.25, "correctieBedrag": 1708.29 },
+    { "naam": "Klaes van Dulst", "project": "21118 Realisatie OVT 2", "functie": null, "oudTarief": 91.98, "nieuwTarief": 94.74, "uren": 737.5, "correctieBedrag": 2035.06 },
+    { "naam": "Paul van Apeldoorn", "project": "21118 Realisatie OVT 2", "functie": null, "oudTarief": 112.91, "nieuwTarief": 116.3, "uren": 577, "correctieBedrag": 1954.47 },
+    { "naam": "Ramkishoor Badloe", "project": "21118 Realisatie OVT 2", "functie": null, "oudTarief": 79.3, "nieuwTarief": 81.68, "uren": 570, "correctieBedrag": 1356.03 },
+    { "naam": "Robert Rier", "project": "21118 Realisatie OVT 2", "functie": null, "oudTarief": 91.98, "nieuwTarief": 94.74, "uren": 416, "correctieBedrag": 1147.91 },
+    { "naam": "Sander van Dalen", "project": "21118 Realisatie OVT 2", "functie": null, "oudTarief": 112.91, "nieuwTarief": 116.3, "uren": 954.75, "correctieBedrag": 3234.02 },
+    { "naam": "Boris Prins", "project": "23045 Realisatie OVT 1", "functie": null, "oudTarief": 85.37, "nieuwTarief": 87.93, "uren": 308, "correctieBedrag": 788.82 },
+    { "naam": "Jelle Schenk", "project": "23045 Realisatie OVT 1", "functie": null, "oudTarief": 89.78, "nieuwTarief": 92.47, "uren": 842.75, "correctieBedrag": 2269.86 },
+    { "naam": "Klaes van Dulst", "project": "23045 Realisatie OVT 1", "functie": null, "oudTarief": 91.98, "nieuwTarief": 94.74, "uren": 650, "correctieBedrag": 1793.61 },
+    { "naam": "Paul van Apeldoorn", "project": "23045 Realisatie OVT 1", "functie": null, "oudTarief": 112.91, "nieuwTarief": 116.3, "uren": 829, "correctieBedrag": 2808.07 },
+    { "naam": "Ramkishoor Badloe", "project": "23045 Realisatie OVT 1", "functie": null, "oudTarief": 79.3, "nieuwTarief": 81.68, "uren": 632, "correctieBedrag": 1503.53 },
+    { "naam": "Robert Rier", "project": "23045 Realisatie OVT 1", "functie": null, "oudTarief": 91.98, "nieuwTarief": 94.74, "uren": 108, "correctieBedrag": 298.02 },
+    { "naam": "Sander van Dalen", "project": "23045 Realisatie OVT 1", "functie": null, "oudTarief": 112.91, "nieuwTarief": 116.3, "uren": 461.25, "correctieBedrag": 1562.39 },
+    { "naam": "Semere Fisseha", "project": "23045 Realisatie OVT 1", "functie": null, "oudTarief": 112.5, "nieuwTarief": 115.88, "uren": 268, "correctieBedrag": 904.5 }
+  ],
+  "totaalCorrectie": 25741.28,
+  "akkoordDoor": "Marco de Groot (Financieel Medewerker), na akkoord van Johan Huizer (Finance Manager) en Erik van Weesep (Projectdirecteur)",
+  "samenvatting": "Bouwcombinatie Nieuw-Zuid stuurt de indexatiebonnen 2025 (3 %, CBS) voor de projecten 21118 Realisatie OVT 2 en 23045 Realisatie OVT 1: per medewerker het oude en nieuwe uurtarief, de uren t/m week 44 en het correctiebedrag; totaal € 25.741,28.",
+  "onzekerheden": ["Percentage 3 % komt uit de mailthread (CBS-methode); de bonnen noemen het percentage niet expliciet.", "Ingangsdatum niet genoemd; correctie loopt vanaf week 1 van 2025."]
+}
