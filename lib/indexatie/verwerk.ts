@@ -19,6 +19,18 @@ export const IndexatieVerwerkSchema = z.object({
   inzetIds: z.array(z.string().uuid()),
   akkoordOp: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
   toelichting: z.string().nullable().optional(),
+  /** Expliciete nieuwe tarieven (bv. uit een indexatiebon); winnen van percentage × afronding. */
+  nieuweTarieven: z.array(z.object({ inzetId: z.string().uuid(), nieuwTarief: z.number().positive() })).optional(),
+  /** Correctie uit een bon: t/m welke week en de bedragen per project; komt in de correctie-actie. */
+  correctie: z
+    .object({
+      tmWeek: z.string().nullable(),
+      bedragen: z.array(z.object({ project: z.string(), bedrag: z.number() })),
+      bron: z.string().nullable(),
+    })
+    .optional(),
+  /** Ook bij "vooraf": maak een correctie-actie (de bon bevat een correctie). */
+  forceerCorrectieActie: z.boolean().optional(),
 });
 export type IndexatieVerwerk = z.infer<typeof IndexatieVerwerkSchema>;
 
@@ -47,15 +59,17 @@ export async function verwerkIndexatie(input: IndexatieVerwerk, userId: string |
     const kinderen = await tx.query.contracten.findMany({ where: eq(contracten.parentContractId, contract.id), columns: { id: true } });
     const contractIds = [contract.id, ...kinderen.map((k) => k.id)];
 
+    const expliciet = new Map((v.nieuweTarieven ?? []).map((t) => [t.inzetId, t.nieuwTarief]));
     const rows = v.inzetIds.length ? await tx.query.inzetten.findMany({ where: and(inArray(inzetten.id, v.inzetIds), inArray(inzetten.contractId, contractIds)), with: { medewerker: true } }) : [];
     const resultaat: Array<{ inzetId: string; naam: string; van: number | null; naar: number | null }> = [];
     for (const i of rows) {
       const huidig = i.tarief !== null ? Number(i.tarief) : null;
-      if (huidig === null) {
+      const opgegeven = expliciet.get(i.id);
+      if (huidig === null && opgegeven === undefined) {
         resultaat.push({ inzetId: i.id, naam: i.medewerker.naam, van: null, naar: null });
         continue;
       }
-      const nieuw = indexeerBedrag(huidig, v.percentage, v.afronding);
+      const nieuw = opgegeven ?? indexeerBedrag(huidig!, v.percentage, v.afronding);
       const bedrag = nieuw.toFixed(2);
       await tx.update(inzetten).set({ tarief: bedrag, tariefGeldigVanaf: v.ingangsdatum }).where(eq(inzetten.id, i.id));
       await tx.insert(tarieven).values({
@@ -64,7 +78,7 @@ export async function verwerkIndexatie(input: IndexatieVerwerk, userId: string |
         bedrag,
         geldigVanaf: v.ingangsdatum,
         reden: "indexatie",
-        bron: `Indexatie ${jaar}: ${v.percentage}% op € ${huidig.toFixed(2)}${v.akkoordOp ? `, akkoord ${v.akkoordOp}` : ""}${v.toelichting ? ` (${v.toelichting})` : ""}`,
+        bron: `Indexatie ${jaar}: ${v.percentage}%${huidig !== null ? ` op € ${huidig.toFixed(2)}` : ""}${v.akkoordOp ? `, akkoord ${v.akkoordOp}` : ""}${v.toelichting ? ` (${v.toelichting})` : ""}`,
       });
       resultaat.push({ inzetId: i.id, naam: i.medewerker.naam, van: huidig, naar: nieuw });
     }
@@ -78,25 +92,45 @@ export async function verwerkIndexatie(input: IndexatieVerwerk, userId: string |
 
     // Achteraf: de facturatie moet de uren sinds de ingangsdatum nog corrigeren.
     let correctieActieId: string | null = null;
-    if ((voorwaarden.indexatieWijze ?? "vooraf") === "achteraf_correctie" && resultaat.some((r) => r.naar !== null)) {
+    const achteraf = (voorwaarden.indexatieWijze ?? "vooraf") === "achteraf_correctie" || v.forceerCorrectieActie === true;
+    if (achteraf && resultaat.some((r) => r.naar !== null)) {
       const week = getISOWeek(parseISO(today));
       const aanvraag = v.actieId ? await tx.query.acties.findFirst({ where: eq(acties.id, v.actieId) }) : null;
-      const namen = resultaat.filter((r) => r.naar !== null).map((r) => `${r.naam} (€ ${r.van!.toFixed(2)} → € ${r.naar!.toFixed(2)})`).join(", ");
-      const [ins] = await tx
-        .insert(acties)
-        .values({
-          soort: "indexatie_verwerken",
-          titel: `Correctie indexatie ${jaar} (${v.percentage}%): ${contract.nummer} (${contract.klant?.naam ?? "?"})`,
-          omschrijving: `Correctiefactuur/-bon opstellen voor de uren van ${v.ingangsdatum} t/m week ${week} met ${v.percentage}% en vanaf week ${week + 1} het nieuwe tarief factureren. Betreft: ${namen}.`,
-          vervaldatum: toIsoDate(addDays(parseISO(today), 14)),
-          dedupeKey: `indexatie_verwerken:${contract.id}:${jaar}`,
-          contractId: contract.id,
-          inzetId: resultaat.find((r) => r.naar !== null)?.inzetId ?? null,
-          toegewezenUserId: aanvraag?.toegewezenUserId ?? null,
-        })
-        .onConflictDoNothing({ target: acties.dedupeKey })
-        .returning({ id: acties.id });
-      correctieActieId = ins?.id ?? null;
+      const namen = resultaat
+        .filter((r) => r.naar !== null)
+        .map((r) => `${r.naam} (${r.van !== null ? `€ ${r.van.toFixed(2)} → ` : ""}€ ${r.naar!.toFixed(2)})`)
+        .join(", ");
+      const tmWeek = v.correctie?.tmWeek ? v.correctie.tmWeek.replace(/^(\d{4})-W(\d{1,2})$/, "$2/$1") : `${week}`;
+      const bedragen = v.correctie?.bedragen.length
+        ? ` Bedragen volgens de bon: ${v.correctie.bedragen.map((b) => `€ ${b.bedrag.toFixed(2)} (${b.project})`).join(", ")}; totaal € ${v.correctie.bedragen.reduce((a, b) => a + b.bedrag, 0).toFixed(2)}.`
+        : "";
+      const omschrijving = v.correctie
+        ? `Correctiefactuur opstellen voor de uren van ${v.ingangsdatum} t/m week ${tmWeek} met ${v.percentage}% en daarna het nieuwe tarief factureren.${bedragen}${v.correctie.bron ? ` Bron: ${v.correctie.bron}.` : ""} Betreft: ${namen}.`
+        : `Correctiefactuur/-bon opstellen voor de uren van ${v.ingangsdatum} t/m week ${week} met ${v.percentage}% en vanaf week ${week + 1} het nieuwe tarief factureren. Betreft: ${namen}.`;
+      const dedupeKey = `indexatie_verwerken:${contract.id}:${jaar}`;
+      const bestaandeCorrectie = await tx.query.acties.findFirst({ where: eq(acties.dedupeKey, dedupeKey) });
+      if (bestaandeCorrectie) {
+        await tx
+          .update(acties)
+          .set({ omschrijving, status: bestaandeCorrectie.status === "genegeerd" ? "open" : bestaandeCorrectie.status, afgerondOp: bestaandeCorrectie.status === "afgerond" ? bestaandeCorrectie.afgerondOp : null })
+          .where(eq(acties.id, bestaandeCorrectie.id));
+        correctieActieId = bestaandeCorrectie.id;
+      } else {
+        const [ins] = await tx
+          .insert(acties)
+          .values({
+            soort: "indexatie_verwerken",
+            titel: `Correctie indexatie ${jaar} (${v.percentage}%): ${contract.nummer} (${contract.klant?.naam ?? "?"})`,
+            omschrijving,
+            vervaldatum: toIsoDate(addDays(parseISO(today), 14)),
+            dedupeKey,
+            contractId: contract.id,
+            inzetId: resultaat.find((r) => r.naar !== null)?.inzetId ?? null,
+            toegewezenUserId: aanvraag?.toegewezenUserId ?? null,
+          })
+          .returning({ id: acties.id });
+        correctieActieId = ins?.id ?? null;
+      }
     }
 
     await tx.insert(auditLog).values({

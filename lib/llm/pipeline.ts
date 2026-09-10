@@ -13,6 +13,8 @@ import {
   type ContractExtraction,
   type MailClassification,
   type PlanningExtraction,
+  IndexatieAkkoordSchema,
+  type IndexatieExtraction,
 } from "./schemas";
 
 function prompt(name: string): string {
@@ -48,7 +50,7 @@ async function buildContent(email: EmailWithBijlagen): Promise<ContentBlock[]> {
     `Ontvangen: ${email.ontvangenOp?.toISOString() ?? ""}`,
     `Bijlagen: ${email.bijlagen.map((b) => b.naam).join(", ") || "geen"}`,
   ].join("\n");
-  blocks.push({ type: "text", text: `${header}\n\n--- E-mailtekst ---\n${(email.bodyText ?? "").slice(0, 20000)}` });
+  blocks.push({ type: "text", text: `${header}\n\n--- E-mailtekst ---\n${(email.bodyText ?? "").slice(0, 40000)}` });
   return blocks;
 }
 
@@ -169,10 +171,29 @@ export async function extractPlanning(email: EmailWithBijlagen, content?: Conten
   return { type: "planning_update", ...res.parsed_output };
 }
 
+/** Indexatie-akkoord/-bon: klein schema, structured output. */
+export async function extractIndexatie(email: EmailWithBijlagen, content?: ContentBlock[]): Promise<IndexatieExtraction> {
+  const client = getAnthropic();
+  const res = await client.beta.messages.parse(
+    {
+      ...FALLBACK_PARAMS,
+      model: LLM_MODEL,
+      max_tokens: 6000,
+      system: prompt("indexatie"),
+      output_config: { effort: "medium", format: betaZodOutputFormat(IndexatieAkkoordSchema) },
+      messages: [{ role: "user", content: content ?? (await buildContent(email)) }],
+    },
+    PLANNING_REQUEST_OPTIONS,
+  );
+  if (res.stop_reason === "refusal") throw new Error("Model weigerde de indexatie-extractie");
+  if (!res.parsed_output) throw new Error("Indexatie-akkoord kon niet worden geparsed");
+  return { type: "indexatie_akkoord", ...res.parsed_output };
+}
+
 export interface PipelineOutcome {
   classificatie: MailClassification["classificatie"];
   toelichting: string;
-  extractie: ContractExtraction | PlanningExtraction | null;
+  extractie: ContractExtraction | PlanningExtraction | IndexatieExtraction | null;
 }
 
 /** Classification followed by extraction for contract-like mails. */
@@ -186,6 +207,10 @@ export async function classifyAndExtract(email: EmailWithBijlagen): Promise<Pipe
   if (cls.classificatie === "planning_update") {
     const planning = await extractPlanning(email, content);
     return { classificatie: cls.classificatie, toelichting: cls.toelichting, extractie: planning };
+  }
+  if (cls.classificatie === "indexatie_akkoord") {
+    const indexatie = await extractIndexatie(email, content);
+    return { classificatie: cls.classificatie, toelichting: cls.toelichting, extractie: indexatie };
   }
   const extractie = await extractContract(email, content);
   return { classificatie: cls.classificatie, toelichting: cls.toelichting, extractie };

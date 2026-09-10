@@ -8,6 +8,7 @@ import { acties, actieSoort, auditLog } from "@/lib/db/schema";
 import { requireUser } from "@/lib/auth/current-user";
 import { runDailyRules } from "@/lib/rules/run";
 import { verwerkIndexatie } from "@/lib/indexatie/verwerk";
+import { cbsJaarmutatie, CBS_STATLINE_URL } from "@/lib/indexatie/cbs";
 import type { ActionState } from "../inzetten/actions";
 
 function revalidate() {
@@ -109,5 +110,16 @@ export async function verwerkIndexatieAction(_prev: ActionState, formData: FormD
     return { ok: true, message: `${n} tarief(ven) geïndexeerd${r.correctieActieId ? "; correctie-actie voor de facturatie aangemaakt" : ""}` };
   } catch (err) {
     return { ok: false, message: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+export async function cbsPercentageAction(jaar: number, kwartaal: number): Promise<{ ok: boolean; percentage?: number; message: string; url: string }> {
+  await requireUser();
+  try {
+    const r = await cbsJaarmutatie(jaar, kwartaal);
+    if (r.jaarmutatie === null) return { ok: false, message: `CBS heeft voor ${kwartaal}e kwartaal ${jaar} nog geen jaarmutatie gepubliceerd.`, url: CBS_STATLINE_URL };
+    return { ok: true, percentage: r.jaarmutatie, message: `${r.bron}: ${r.jaarmutatie.toFixed(1).replace(".", ",")} % (prijsindex ${r.prijsindex ?? "?"}). Cijfers kunnen later door CBS worden bijgesteld.`, url: CBS_STATLINE_URL };
+  } catch (err) {
+    return { ok: false, message: err instanceof Error ? err.message : String(err), url: CBS_STATLINE_URL };
   }
 }

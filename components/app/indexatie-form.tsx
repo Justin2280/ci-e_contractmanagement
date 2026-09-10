@@ -3,7 +3,7 @@
 import { useActionState, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { verwerkIndexatieAction } from "@/app/(app)/acties/actions";
+import { cbsPercentageAction, verwerkIndexatieAction } from "@/app/(app)/acties/actions";
 import type { ActionState } from "@/app/(app)/inzetten/actions";
 import { AFRONDING_LABELS, indexeerBedrag, type Afronding } from "@/lib/indexatie/bereken";
 
@@ -36,6 +36,16 @@ export function IndexatieForm({
   const [pct, setPct] = useState("");
   const [afronding, setAfronding] = useState<Afronding>("cent");
   const [open, setOpen] = useState(!compact);
+  const [cbs, setCbs] = useState<{ ok: boolean; message: string; url: string } | null>(null);
+  const [cbsBusy, setCbsBusy] = useState(false);
+  const cbsJaar = Number(defaultIngangsdatum.slice(0, 4)) || new Date().getFullYear();
+  async function haalCbs() {
+    setCbsBusy(true);
+    const r = await cbsPercentageAction(cbsJaar, 2);
+    setCbs(r);
+    if (r.ok && r.percentage !== undefined) setPct(String(r.percentage).replace(".", ","));
+    setCbsBusy(false);
+  }
   const p = Number(pct.replace(",", "."));
   const geldig = pct.trim() !== "" && Number.isFinite(p);
 
@@ -78,7 +88,18 @@ export function IndexatieForm({
           <span className="block text-xs text-muted-foreground">Akkoord klant op</span>
           <Input type="date" name="akkoordOp" className="h-8 w-40" />
         </label>
+        <Button type="button" size="sm" variant="outline" onClick={haalCbs} disabled={cbsBusy} title="CBS StatLine, CPA 7112, jaarmutatie 2e kwartaal">
+          {cbsBusy ? "CBS…" : `CBS-percentage ${cbsJaar} ophalen`}
+        </Button>
       </div>
+      {cbs ? (
+        <p className={cbs.ok ? "text-xs text-muted-foreground" : "text-xs text-amber-800"}>
+          {cbs.message}{" "}
+          <a href={cbs.url} target="_blank" rel="noreferrer" className="underline">
+            StatLine
+          </a>
+        </p>
+      ) : null}
       <div className="space-y-1">
         {inzetten.length === 0 ? <p className="text-xs text-muted-foreground">Geen lopende inzetten op dit contract.</p> : null}
         {inzetten.map((i) => (
