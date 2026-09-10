@@ -101,6 +101,7 @@ export function ReviewPanel({ emailId, proposal, options, alreadyApproved }: { e
       functie: p.functie,
       tarief: p.tarief,
       tariefGeldigVanaf: p.tariefGeldigVanaf,
+      tariefHistorie: p.tariefHistorie,
       startdatum: p.startdatum,
       einddatum: p.einddatum,
       einddatumType: p.einddatumType as PersoonState["einddatumType"],
@@ -118,6 +119,7 @@ export function ReviewPanel({ emailId, proposal, options, alreadyApproved }: { e
   const setP = upd(setProject);
   const str = (v: string) => (v.trim() === "" ? null : v);
   const num = (v: string) => (v.trim() === "" ? null : Number(v.replace(",", ".")));
+  const today = new Date().toISOString().slice(0, 10);
 
   function submit() {
     const payload: ApprovePayload = {
@@ -574,6 +576,30 @@ export function ReviewPanel({ emailId, proposal, options, alreadyApproved }: { e
                       <Input className="w-24" value={p.tarief ?? ""} onChange={(ev) => set({ tarief: num(ev.target.value) })} />
                       <Input type="date" value={p.tariefGeldigVanaf ?? ""} onChange={(ev) => set({ tariefGeldigVanaf: str(ev.target.value) })} />
                     </div>
+                    {voorstel.tariefHistorie.length > 1 ? (
+                      <details className="mt-1 text-xs text-muted-foreground">
+                        <summary className="cursor-pointer">
+                          Tariefhistorie in het document ({voorstel.tariefHistorie.length} regels)
+                          <label className="ml-2 inline-flex items-center gap-1">
+                            <input
+                              type="checkbox"
+                              checked={(p.tariefHistorie ?? []).length > 0}
+                              onChange={(ev) => set({ tariefHistorie: ev.target.checked ? voorstel.tariefHistorie : [] })}
+                            />
+                            overnemen
+                          </label>
+                        </summary>
+                        <ul className="mt-1 space-y-0.5">
+                          {voorstel.tariefHistorie.map((h, i) => (
+                            <li key={i} className={h.geldigVanaf > today ? "text-amber-800" : ""}>
+                              vanaf {h.geldigVanaf}: € {h.bedrag.toFixed(2)}
+                              {h.toelichting ? ` · ${h.toelichting}` : ""}
+                              {h.geldigVanaf > today ? " (gaat later in)" : ""}
+                            </li>
+                          ))}
+                        </ul>
+                      </details>
+                    ) : null}
                   </F>
                   <F label="Omvang">
                     <Input value={p.inzetOmvang ?? ""} onChange={(ev) => set({ inzetOmvang: str(ev.target.value) })} />

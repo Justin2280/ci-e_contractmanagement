@@ -1,0 +1,1 @@
+ALTER TYPE "public"."actie_soort" ADD VALUE 'indexatie_voorstellen';

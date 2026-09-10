@@ -41,3 +41,49 @@ export async function cbsJaarmutatie(jaar: number, kwartaal = 2, fetchImpl: type
     bron: `CBS StatLine ${CBS_TABEL}, CPA 7112, jaarmutatie ${kwartaal}e kwartaal ${jaar}`,
   };
 }
+
+const CACHE_DAGEN = 7;
+
+interface CbsCache extends CbsJaarmutatie {
+  opgehaaldOp: string;
+}
+
+/**
+ * Jaarmutatie van CPA 7112 met een cache van 7 dagen in `instellingen`, zodat de dagelijkse
+ * regels-run en conceptmails niet elke keer StatLine bevragen. Geeft `null` terug als het cijfer
+ * (nog) niet beschikbaar is; de aanroeper laat het percentage dan weg.
+ */
+export async function cbsIndexcijfer(
+  jaar: number,
+  kwartaal = 2,
+  opts: { today?: string; fetchImpl?: typeof fetch } = {},
+): Promise<CbsJaarmutatie | null> {
+  const { getSetting, setSetting } = await import("@/lib/settings");
+  const today = opts.today ?? new Date().toISOString().slice(0, 10);
+  const key = `cbs:7112:${jaar}Q${kwartaal}`;
+  const cached = await getSetting<CbsCache>(key);
+  if (cached?.opgehaaldOp) {
+    const dagen = (Date.parse(today) - Date.parse(cached.opgehaaldOp)) / 86_400_000;
+    if (dagen < CACHE_DAGEN) return cached.jaarmutatie === null ? null : cached;
+  }
+  try {
+    const verse = await cbsJaarmutatie(jaar, kwartaal, opts.fetchImpl ?? fetch);
+    await setSetting(key, { ...verse, opgehaaldOp: today } satisfies CbsCache);
+    return verse.jaarmutatie === null ? null : verse;
+  } catch {
+    // Niet bereikbaar of nog niet gepubliceerd: val terug op een verlopen cache, anders geen cijfer.
+    return cached?.jaarmutatie ? cached : null;
+  }
+}
+
+/** Korte tekst voor in een actie-omschrijving of conceptmail. */
+export function cbsTekst(c: CbsJaarmutatie | null): string | null {
+  if (!c || c.jaarmutatie === null) return null;
+  return `CBS 7112 jaarmutatie ${c.kwartaal}e kwartaal ${c.jaar}: ${c.jaarmutatie.toFixed(1).replace(".", ",")} %`;
+}
+
+/** Voorgesteld nieuw tarief bij een percentage, afgerond op de cent. */
+export function voorgesteldTarief(huidig: number | null, percentage: number | null): number | null {
+  if (huidig === null || percentage === null) return null;
+  return Math.round(huidig * (1 + percentage / 100) * 100) / 100;
+}

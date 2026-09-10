@@ -23,6 +23,7 @@ export function IndexatieForm({
   inzetten,
   wijze,
   defaultIngangsdatum,
+  defaultPercentage,
   compact,
 }: {
   contractId: string;
@@ -30,10 +31,12 @@ export function IndexatieForm({
   inzetten: IndexatieInzetOptie[];
   wijze: "vooraf" | "achteraf_correctie";
   defaultIngangsdatum: string;
+  /** Voorgevuld percentage, bv. het CBS-cijfer bij een tariefvoorstel. */
+  defaultPercentage?: number | null;
   compact?: boolean;
 }) {
   const [state, action, pending] = useActionState<ActionState, FormData>(verwerkIndexatieAction, null);
-  const [pct, setPct] = useState("");
+  const [pct, setPct] = useState(defaultPercentage !== null && defaultPercentage !== undefined ? String(defaultPercentage).replace(".", ",") : "");
   const [afronding, setAfronding] = useState<Afronding>("cent");
   const [open, setOpen] = useState(!compact);
   const [cbs, setCbs] = useState<{ ok: boolean; message: string; url: string } | null>(null);

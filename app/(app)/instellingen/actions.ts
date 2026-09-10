@@ -24,6 +24,7 @@ export async function updateRegels(_prev: ActionState, formData: FormData): Prom
     indexatieWekenVooraf: Number(raw.indexatieWekenVooraf),
     indexatieAchterafAanvraagMoment: String(raw.indexatieAchterafAanvraagMoment ?? "09-15").trim(),
     opvolgenNaDagen: Number(raw.opvolgenNaDagen),
+    indexatieVoorstelNaMaanden: Number(raw.indexatieVoorstelNaMaanden),
     contractOpvragenDagenNaStart: Number(raw.contractOpvragenDagenNaStart),
     urenbonDagenNaPeriode: Number(raw.urenbonDagenNaPeriode),
     einddatumControleKwartaal: raw.einddatumControleKwartaal === "on",

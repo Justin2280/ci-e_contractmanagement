@@ -156,3 +156,44 @@ describe("indexatie achteraf (correctie, Mobilis-praktijk)", () => {
     expect(a.dedupeKey).toBe("indexatie_aanvragen:c2:2027");
   });
 });
+
+describe("tariefverhoging voorstellen zonder indexatieclausule", () => {
+  const zonderClausule = (over: Partial<RegelInzet> = {}): RegelInzet =>
+    inzet({
+      einddatum: "2029-12-31",
+      einddatumType: "vast",
+      tarief: 84.25,
+      laatsteTariefwijziging: "2025-04-01",
+      contract: { id: "c9", nummer: "JOB161110", indexatie: "geen", indexatieMoment: null, opzegtermijnDagen: 30, reviewStatus: "goedgekeurd", heeftDocument: true },
+      ...over,
+    });
+  const cbs = { tekst: "CBS 7112 jaarmutatie 2e kwartaal 2026: 5,0 %", percentage: 5 };
+
+  it("fires six weeks before the anniversary of the last tariff change, with the CBS figure and a proposal", () => {
+    expect(evalueerRegels({ ...base, today: "2026-01-15", inzetten: [zonderClausule()] }).some((a) => a.soort === "indexatie_voorstellen")).toBe(false);
+    const out = evalueerRegels({ ...base, today: "2026-03-01", inzetten: [zonderClausule()], cbs });
+    const a = out.find((x) => x.soort === "indexatie_voorstellen")!;
+    expect(a).toBeTruthy();
+    expect(a.dedupeKey).toBe("indexatie_voorstellen:i1:2026");
+    expect(a.vervaldatum).toBe("2026-04-01");
+    expect(a.omschrijving).toContain("11 maanden geleden");
+    expect(a.omschrijving).toContain("CBS 7112");
+    expect(a.omschrijving).toContain("88.46"); // 84,25 + 5 %
+  });
+
+  it("fires immediately when a verlenging is already open, and mentions combining them", () => {
+    const out = evalueerRegels({ ...base, today: "2029-11-15", inzetten: [zonderClausule({ einddatum: "2029-12-31" })], cbs });
+    expect(out.some((a) => a.soort === "verlenging_uitvragen")).toBe(true);
+    const a = out.find((x) => x.soort === "indexatie_voorstellen")!;
+    expect(a).toBeTruthy();
+    expect(a.omschrijving).toContain("combineer");
+  });
+
+  it("stays silent within the configured period and for contracts with a clause or fixed prices", () => {
+    expect(evalueerRegels({ ...base, today: "2025-10-01", inzetten: [zonderClausule()] }).some((a) => a.soort === "indexatie_voorstellen")).toBe(false);
+    for (const indexatie of ["vast", "jaarlijks_cbs", "jaarlijks_overleg"]) {
+      const out = evalueerRegels({ ...base, today: "2026-03-01", inzetten: [zonderClausule({ contract: { ...zonderClausule().contract!, indexatie } })], cbs });
+      expect(out.some((a) => a.soort === "indexatie_voorstellen")).toBe(false);
+    }
+  });
+});

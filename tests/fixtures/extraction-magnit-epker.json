@@ -1,0 +1,59 @@
+{
+  "contractnummer": "JOB161110",
+  "contractnummerAlternatieven": [],
+  "parentContractnummer": null,
+  "soort": "inhuur",
+  "titel": "Werkopdracht Revit Modelleur (André Epker) onder inleenovereenkomst JOB161110",
+  "opdrachtgever": { "naam": "Haskoning Nederland B.V.", "kvk": null, "adres": "Amersfoort" },
+  "intermediair": "Magnit Global Netherlands BN B.V.",
+  "eindklant": null,
+  "project": { "naam": "Revit Modelleur", "code": null, "locatie": "Amersfoort" },
+  "personen": [
+    {
+      "naam": "Epker, A. (Andre)",
+      "functie": "Modelleur",
+      "tarief": 84.25,
+      "tariefGeldigVanaf": "2025-04-01",
+      "tariefHistorie": [
+        { "bedrag": 75.0, "geldigVanaf": "2021-08-18", "toelichting": "Start werkopdracht" },
+        { "bedrag": 80.85, "geldigVanaf": "2023-04-01", "toelichting": "Mutatie 20-02-2023: contractverlenging, uurtarief naar € 80,85" },
+        { "bedrag": 84.25, "geldigVanaf": "2025-04-01", "toelichting": "Mutatie 28-03-2025: tariefaanpassing (verhoging 4,2%)" },
+        { "bedrag": 88.0, "geldigVanaf": "2026-09-08", "toelichting": "Mutatie 02-09-2026: verlenging en tariefaanpassing naar € 88,00" }
+      ],
+      "startdatum": "2021-08-18",
+      "einddatum": "2029-12-31",
+      "einddatumType": "vast",
+      "inzetOmvang": "40,00 uur per week"
+    }
+  ],
+  "tarieven": [],
+  "startdatum": "2021-08-18",
+  "einddatum": "2029-12-31",
+  "einddatumType": "vast",
+  "opzegtermijn": { "dagen": 30, "toelichting": "Wederzijds 1 maand" },
+  "verlengingAfspraak": "Verlenging via een mutatie op de werkopdracht in het systeem van Magnit",
+  "indexatie": {
+    "soort": "geen",
+    "moment": null,
+    "toelichting": "Artikel 8.6: tijdens de looptijd van een werkopdracht (inclusief verlengingen) mag het tarief niet worden verhoogd; tariefsaanpassingen alleen na schriftelijk akkoord (artikel 8.2)"
+  },
+  "betalingstermijnDagen": null,
+  "facturatie": { "frequentie": null, "eisen": "Uren via het elektronische urenregistratiesysteem van de broker; alleen goedgekeurde uren", "email": null },
+  "contactpersonen": [
+    { "naam": "Vette de, P. (Pepijn)", "email": null, "telefoon": null, "rol": "Contactpersoon", "organisatie": "Magnit Global Netherlands BN B.V." }
+  ],
+  "getekendOp": null,
+  "mutaties": [
+    { "datum": "2026-09-02", "omschrijving": "Werkopdracht verlengen van 07-09-2026 naar 31-12-2029; uurtarief van € 84,25 naar € 88,00 per 08-09-2026" },
+    { "datum": "2025-10-20", "omschrijving": "Scopewijziging opdrachtgever: André Epker verlengen tot en met week 36, 2026" },
+    { "datum": "2025-03-28", "omschrijving": "Tariefaanpassing per 28-03-2025 naar € 84,25 (verhoging 4,2%)" },
+    { "datum": "2023-02-20", "omschrijving": "Contractverlenging naar 31-03-2024; uurtarief wijzigt naar € 80,85" }
+  ],
+  "samenvatting": "Werkopdracht via Magnit (voorheen Brainnet) onder inleenovereenkomst JOB161110: André Epker werkt als Revit-modelleur 40 uur per week bij Haskoning in Amersfoort, van 18-08-2021 tot en met 31-12-2029, opzegtermijn wederzijds 1 maand. Het uurtarief liep via mutaties van € 75,00 naar € 88,00 per 08-09-2026. Er is geen indexatieclausule: tariefaanpassingen gaan via een mutatie op de werkopdracht.",
+  "onzekerheden": ["Ingangsdatum van de eerste tariefverhoging (01-04-2023) staat in de tarievenlijst; de mutatie noemt 20-02-2023"],
+  "bronverwijzingen": [
+    { "veld": "contractnummer", "pagina": 1, "citaat": "Inleenovereenkomst met nummer: JOB161110" },
+    { "veld": "tarief", "pagina": 1, "citaat": "Ingangsdatum: 1-4-2025 - Tarief: € 84,25" },
+    { "veld": "indexatie", "pagina": 5, "citaat": "8.6 Tijdens de looptijd van een Werkopdracht (inclusief verlengingen) mag Opdrachtnemer het tarief niet verhogen." }
+  ]
+}

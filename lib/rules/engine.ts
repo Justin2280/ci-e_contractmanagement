@@ -1,4 +1,4 @@
-import { addDays, differenceInCalendarDays, parseISO } from "date-fns";
+import { addDays, addMonths, differenceInCalendarDays, parseISO } from "date-fns";
 import type { Settings } from "@/lib/settings-schema";
 import { toIsoDate } from "@/lib/format";
 
@@ -14,7 +14,8 @@ export type ActieSoort =
   | "indexatie_aanvragen"
   | "contract_opvragen"
   | "urenbon_opvragen"
-  | "einde_beoordelen";
+  | "einde_beoordelen"
+  | "indexatie_voorstellen";
 
 export interface RegelInzet {
   id: string;
@@ -30,6 +31,8 @@ export interface RegelInzet {
   contractnummerTekst: string | null;
   actiehouderUserId: string | null;
   tarief?: number | null;
+  /** Laatste tariefwijziging (uit de tariefhistorie, anders tariefGeldigVanaf of startdatum). */
+  laatsteTariefwijziging?: string | null;
   contract: {
     id: string;
     nummer: string;
@@ -64,6 +67,8 @@ export interface RegelInput {
   inzetten: RegelInzet[];
   periodes: RegelPeriode[];
   settings: Settings;
+  /** Actueel CBS-cijfer (reeks 7112) om in omschrijvingen mee te geven; null als niet beschikbaar. */
+  cbs?: { tekst: string; percentage: number } | null;
 }
 
 export interface ActieVoorstel {
@@ -92,6 +97,22 @@ function quarterOf(iso: string): { jaar: number; q: number; start: string } {
   const d = parseISO(iso);
   const q = Math.floor(d.getMonth() / 3) + 1;
   return { jaar: d.getFullYear(), q, start: toIsoDate(new Date(d.getFullYear(), (q - 1) * 3, 1)) };
+}
+
+/** Hele maanden tussen twee ISO-datums. */
+function maandenTussen(van: string, tot: string): number {
+  const a = parseISO(van);
+  const b = parseISO(tot);
+  let m = (b.getFullYear() - a.getFullYear()) * 12 + (b.getMonth() - a.getMonth());
+  if (b.getDate() < a.getDate()) m -= 1;
+  return m;
+}
+
+/** Eerstvolgende jaarlijkse "verjaardag" van `datum` op of na `today`, minimaal `naMaanden` erna. */
+function volgendeVerjaardag(datum: string, today: string, naMaanden: number): string {
+  let kandidaat = addMonths(parseISO(datum), naMaanden);
+  for (let guard = 0; guard < 50 && toIsoDate(kandidaat) < today; guard++) kandidaat = addMonths(kandidaat, 12);
+  return toIsoDate(kandidaat);
 }
 
 /** Next indexation moment (MM-DD) on or after today. */
@@ -219,6 +240,41 @@ export function evalueerRegels(input: RegelInput): ActieVoorstel[] {
       contractId,
       medewerkerId: list[0].medewerkerId,
       toegewezenUserId: list[0].actiehouderUserId,
+    });
+  }
+
+  // 3b. Tariefverhoging voorstellen bij inzetten zonder indexatieclausule.
+  // Het logische moment is de verjaardag van de laatste tariefwijziging, of eerder als er al een
+  // verlenging/einde-beoordeling loopt: dan gaat de tariefvraag mee met die verlenging.
+  const verlengingsInzetten = new Set(out.filter((a) => a.soort === "verlenging_uitvragen" || a.soort === "einde_beoordelen").map((a) => a.inzetId));
+  for (const i of lopend) {
+    const indexatie = i.contract?.indexatie ?? "onbekend";
+    if (!["onbekend", "geen"].includes(indexatie)) continue;
+    const laatste = i.laatsteTariefwijziging ?? i.startdatum;
+    if (!laatste) continue;
+    const maanden = maandenTussen(laatste, today);
+    const verjaardag = volgendeVerjaardag(laatste, today, settings.indexatieVoorstelNaMaanden);
+    // Zes weken vóór de verjaardag van de laatste wijziging, of meteen als er al een verlenging loopt.
+    const bijVerlenging = verlengingsInzetten.has(i.id) && maanden >= settings.indexatieVoorstelNaMaanden;
+    if (!bijVerlenging && daysBetween(today, verjaardag) > 42) continue;
+    const jaar = (bijVerlenging ? today : verjaardag).slice(0, 4);
+    const voorstel = input.cbs && i.tarief ? Math.round(i.tarief * (1 + input.cbs.percentage / 100) * 100) / 100 : null;
+    const details = [
+      `Laatste tariefwijziging ${laatste} (${maanden} maanden geleden)`,
+      i.tarief ? `huidig tarief € ${i.tarief.toFixed(2)}` : null,
+      input.cbs ? input.cbs.tekst : null,
+      voorstel ? `voorstel € ${voorstel.toFixed(2)}` : null,
+    ].filter(Boolean);
+    out.push({
+      soort: "indexatie_voorstellen",
+      titel: `Tariefverhoging voorstellen: ${i.medewerkerNaam} bij ${i.klantNaam ?? "?"}`,
+      omschrijving: `${details.join("; ")}. In dit contract is geen indexatie vastgelegd${bijVerlenging ? "; combineer de tariefvraag met de lopende verlenging" : ""}.`,
+      vervaldatum: bijVerlenging ? today : laterOf(today, verjaardag),
+      dedupeKey: `indexatie_voorstellen:${i.id}:${jaar}`,
+      inzetId: i.id,
+      contractId: i.contractId ?? undefined,
+      medewerkerId: i.medewerkerId,
+      toegewezenUserId: i.actiehouderUserId,
     });
   }
 

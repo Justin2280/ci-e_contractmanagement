@@ -12,7 +12,8 @@ import { getSettings } from "@/lib/settings";
 import { generateDraftEmail } from "@/lib/llm/draft-email";
 import { createDraft, sendMail } from "@/lib/graph/mail";
 import { graphConfigured } from "@/lib/graph/client";
-import { fmtDateShort, toIsoDate } from "@/lib/format";
+import { fmtDateShort, toIsoDate, todayIso } from "@/lib/format";
+import { cbsIndexcijfer, cbsTekst, voorgesteldTarief } from "@/lib/indexatie/cbs";
 import { addDays } from "date-fns";
 import type { ActionState } from "../../../inzetten/actions";
 import { defaultRecipient, loadActieMetContext } from "@/lib/acties/context";
@@ -29,7 +30,7 @@ export async function generateConcept(_prev: ActionState, formData: FormData): P
   try {
     const actie = await loadActieMetContext(actieId);
     const settings = await getSettings();
-    const soortKey = actie.soort === "verlenging_uitvragen" || actie.soort === "einde_beoordelen" ? "verlenging" : actie.soort === "indexatie_aanvragen" ? "indexatie" : actie.soort === "contract_opvragen" ? "contract_opvragen" : "algemeen";
+    const soortKey = actie.soort === "verlenging_uitvragen" || actie.soort === "einde_beoordelen" ? "verlenging" : actie.soort === "indexatie_aanvragen" || actie.soort === "indexatie_voorstellen" ? "indexatie" : actie.soort === "contract_opvragen" ? "contract_opvragen" : "algemeen";
     const voorbeelden = await db.query.stijlVoorbeelden.findMany({
       where: and(eq(stijlVoorbeelden.actief, true), inArray(stijlVoorbeelden.soort, [soortKey, "algemeen"] as ("algemeen" | "verlenging" | "indexatie" | "contract_opvragen")[])),
       orderBy: [desc(stijlVoorbeelden.createdAt)],
@@ -39,6 +40,11 @@ export async function generateConcept(_prev: ActionState, formData: FormData): P
     const contract = rawContract ? effectiveContract(rawContract) : null;
     const medewerkers = actie.inzet ? [actie.inzet.medewerker.naam] : Array.from(new Set(actie.contract?.inzetten.map((i) => i.medewerker.naam) ?? []));
     const ontvanger = defaultRecipient(actie);
+    // Bij tarief-/indexatievragen het actuele CBS-cijfer (reeks 7112) meegeven als onderbouwing.
+    const wilCbs = ["indexatie_aanvragen", "indexatie_voorstellen", "verlenging_uitvragen", "einde_beoordelen"].includes(actie.soort);
+    const cbsCijfer = wilCbs ? await cbsIndexcijfer(Number(todayIso().slice(0, 4)), 2) : null;
+    const huidigTarief = actie.inzet?.tarief !== null && actie.inzet?.tarief !== undefined ? Number(actie.inzet.tarief) : null;
+    const nieuwTarief = actie.soort === "indexatie_voorstellen" ? voorgesteldTarief(huidigTarief, cbsCijfer?.jaarmutatie ?? null) : null;
     const draft = await generateDraftEmail(
       {
         soort: actie.soort,
@@ -61,6 +67,8 @@ export async function generateConcept(_prev: ActionState, formData: FormData): P
         indexatieToelichting: contract?.indexatieToelichting ?? null,
         verlengingAfspraak: contract?.verlengingAfspraak ?? null,
         extraInstructie,
+        cbs: cbsTekst(cbsCijfer),
+        tariefVoorstel: nieuwTarief !== null ? `€ ${nieuwTarief.toFixed(2)} per uur (nu € ${huidigTarief!.toFixed(2)})` : null,
       },
       { instructies: settings.stijlInstructies, handtekening: settings.handtekening, voorbeelden: voorbeelden.map((v) => ({ titel: v.titel, tekst: v.tekst })) },
     );

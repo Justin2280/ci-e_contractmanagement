@@ -97,6 +97,27 @@ async function main() {
     .onConflictDoNothing({ target: emailsIn.graphMessageId })
     .returning();
   console.log(row4 ? `Demo-indexatiebon aangemaakt: /inbox/${row4.id}` : "Demo-indexatiebon bestond al.");
+
+  const werkopdracht = JSON.parse(fs.readFileSync(path.join(process.cwd(), "tests", "fixtures", "extraction-magnit-epker.json"), "utf8"));
+  const [row5] = await db
+    .insert(emailsIn)
+    .values({
+      graphMessageId: "demo-magnit-werkopdracht",
+      internetMessageId: "<demo-magnit@contractbeheer>",
+      vanEmail: "noreply@magnitglobal.com",
+      vanNaam: "Magnit Global",
+      aan: process.env.GRAPH_SHARED_MAILBOX ?? "contracten@ci-engineers.com",
+      onderwerp: "Werkopdracht JOB161110 — Epker, A. (Andre)",
+      ontvangenOp: new Date(),
+      bodyText: "Beste, in de bijlage de gewijzigde werkopdracht met de tariefhistorie en de verlenging tot 31-12-2029.",
+      classificatie: "contract",
+      classificatieToelichting: "Werkopdracht via broker Magnit onder inleenovereenkomst JOB161110, met tariefhistorie en mutaties.",
+      verwerkstatus: "te_beoordelen",
+      extractieJson: werkopdracht,
+    })
+    .onConflictDoNothing({ target: emailsIn.graphMessageId })
+    .returning();
+  console.log(row5 ? `Demo-werkopdracht aangemaakt: /inbox/${row5.id}` : "Demo-werkopdracht bestond al.");
 }
 
 main()

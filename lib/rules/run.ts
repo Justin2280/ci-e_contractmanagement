@@ -2,11 +2,13 @@ import { and, eq, inArray } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { acties, inzetten } from "@/lib/db/schema";
 import { getSettings } from "@/lib/settings";
-import { todayIso } from "@/lib/format";
+import { todayIso, toIsoDate } from "@/lib/format";
 import { LOPENDE_STATUSSEN } from "@/lib/queries/inzetten";
 import { ensurePeriodesEnRegels, periodesMetOntbrekendeUrenbonnen } from "@/lib/facturatie/periodes";
 import { evalueerRegels, type RegelInzet } from "./engine";
 import { effectiveContract } from "@/lib/contracts/effective";
+import { activeerGeplandeTarieven, tariefStanden } from "@/lib/inzetten/tarieven";
+import { cbsIndexcijfer, cbsTekst } from "@/lib/indexatie/cbs";
 
 /**
  * Loads state, runs the pure rules engine and upserts acties on dedupe_key.
@@ -17,11 +19,17 @@ export async function runDailyRules(opts: { today?: string } = {}) {
   const settings = await getSettings();
 
   await ensurePeriodesEnRegels(today);
+  // Tarieven die volgens de historie vandaag ingaan (werkopdracht met een toekomstige wijziging).
+  const geactiveerd = await activeerGeplandeTarieven({ today });
 
   const rows = await db.query.inzetten.findMany({
     where: inArray(inzetten.status, LOPENDE_STATUSSEN),
     with: { medewerker: true, klant: true, project: true, contract: { with: { parent: true } } },
   });
+  const standen = await tariefStanden(
+    rows.map((r) => r.id),
+    today,
+  );
   const regelInzetten: RegelInzet[] = rows.map((i) => ({
     id: i.id,
     medewerkerId: i.medewerkerId,
@@ -35,7 +43,8 @@ export async function runDailyRules(opts: { today?: string } = {}) {
     contractId: i.contractId,
     contractnummerTekst: i.contractnummerTekst,
     actiehouderUserId: i.actiehouderUserId,
-    tarief: i.tarief !== null ? Number(i.tarief) : null,
+    tarief: standen.get(i.id)?.huidig ?? (i.tarief !== null ? Number(i.tarief) : null),
+    laatsteTariefwijziging: standen.get(i.id)?.sinds ?? i.tariefGeldigVanaf ?? i.startdatum,
     contract: i.contract
       ? (() => {
           // Een aanvulling/NOVK erft indexatie en opzegtermijn van het raam-/regiecontract.
@@ -62,7 +71,11 @@ export async function runDailyRules(opts: { today?: string } = {}) {
   }));
 
   const periodes = await periodesMetOntbrekendeUrenbonnen(today);
-  const voorstellen = evalueerRegels({ today, inzetten: regelInzetten, periodes, settings });
+  // CBS-cijfer (reeks 7112) van het 2e kwartaal; gecachet, zodat de omschrijvingen een percentage kunnen noemen.
+  const cbsCijfer = await cbsIndexcijfer(Number(today.slice(0, 4)), 2, { today });
+  const cbsTxt = cbsTekst(cbsCijfer);
+  const cbs = cbsTxt && cbsCijfer?.jaarmutatie !== null && cbsCijfer ? { tekst: cbsTxt, percentage: cbsCijfer.jaarmutatie! } : null;
+  const voorstellen = evalueerRegels({ today, inzetten: regelInzetten, periodes, settings, cbs });
 
   let aangemaakt = 0;
   for (const v of voorstellen) {
@@ -109,11 +122,20 @@ export async function runDailyRules(opts: { today?: string } = {}) {
       gesloten++;
       continue;
     }
+    // Tariefvoorstel is achterhaald zodra het tarief van de inzet daarna is gewijzigd.
+    if (a.soort === "indexatie_voorstellen") {
+      const sinds = standen.get(a.inzet.id)?.sinds ?? a.inzet.tariefGeldigVanaf;
+      if (sinds && a.createdAt && sinds > toIsoDate(a.createdAt)) {
+        await db.update(acties).set({ status: "afgerond", afgerondOp: new Date() }).where(eq(acties.id, a.id));
+        gesloten++;
+        continue;
+      }
+    }
     if (a.soort === "contract_opvragen" && a.inzet.contractId && a.inzet.status !== "contract_wachten") {
       await db.update(acties).set({ status: "afgerond", afgerondOp: new Date() }).where(eq(acties.id, a.id));
       gesloten++;
     }
   }
 
-  return { voorstellen: voorstellen.length, aangemaakt, gesloten };
+  return { voorstellen: voorstellen.length, aangemaakt, gesloten, tarievenGeactiveerd: geactiveerd.bijgewerkt.length };
 }

@@ -27,11 +27,18 @@ export const IndexatieSoortSchema = z.enum(["onbekend", "geen", "vast", "jaarlij
 
 const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/).describe("Datum als YYYY-MM-DD");
 
+export const TariefHistorieRegelSchema = z.object({
+  bedrag: z.number().describe("Uurtarief in euro exclusief btw"),
+  geldigVanaf: isoDate.describe("Ingangsdatum van dit tarief"),
+  toelichting: z.string().nullable().describe("Reden/mutatie, bv. 'verhoging 4,2%' of 'contractverlenging'"),
+});
+
 export const ExtractedPersoonSchema = z.object({
   naam: z.string().describe("Volledige naam van de ingezette medewerker zoals in het document"),
   functie: z.string().nullable().describe("Functie/rol, bv. constructeur, site engineer, modelleur"),
   tarief: z.number().nullable().describe("Uurtarief in euro exclusief btw"),
   tariefGeldigVanaf: isoDate.nullable(),
+  tariefHistorie: z.array(TariefHistorieRegelSchema).default([]).describe("Alle tarieven met ingangsdatum uit het document, oud naar nieuw"),
   startdatum: isoDate.nullable(),
   einddatum: isoDate.nullable().describe("Alleen bij een vaste einddatum; 'Q3 2026' wordt de laatste dag van dat kwartaal"),
   einddatumType: EinddatumTypeSchema,
@@ -111,6 +118,10 @@ export const ContractExtractionSchema = z.object({
     .nullable(),
   contactpersonen: z.array(ExtractedContactpersoonSchema),
   getekendOp: isoDate.nullable(),
+  mutaties: z
+    .array(z.object({ datum: isoDate.nullable(), omschrijving: z.string() }))
+    .default([])
+    .describe("Mutatie-/verlengingshistorie uit het document, bv. 'Mutatie 28-03-2025: tariefaanpassing naar € 84,25'"),
   samenvatting: z.string().describe("3-6 zinnen in het Nederlands: wat, wie, hoe lang, tarief, bijzonderheden"),
   onzekerheden: z.array(z.string()).describe("Velden die niet zeker zijn of ontbreken, in het Nederlands"),
   bronverwijzingen: z.array(BronverwijzingSchema),
@@ -131,11 +142,18 @@ export type ContractExtraction = z.infer<typeof ContractExtractionSchema>;
 const wireText = (desc: string) => z.string().nullable().describe(`${desc}. Leeg of null als onbekend`);
 const wireDate = (desc = "Datum") => z.string().nullable().describe(`${desc} als YYYY-MM-DD, of null als onbekend`);
 
+export const TariefHistorieRegelWireSchema = z.object({
+  bedrag: z.number().describe("Uurtarief in euro exclusief btw"),
+  geldigVanaf: z.string().describe("Ingangsdatum van dit tarief als YYYY-MM-DD"),
+  toelichting: wireText("Reden/mutatie, bv. 'verhoging 4,2%' of 'contractverlenging'"),
+});
+
 export const ExtractedPersoonWireSchema = z.object({
   naam: z.string().describe("Volledige naam van de ingezette medewerker zoals in het document"),
   functie: wireText("Functie/rol, bv. constructeur, site engineer, modelleur"),
   tarief: z.number().nullable().describe("Uurtarief in euro exclusief btw; null als onbekend"),
   tariefGeldigVanaf: wireDate("Ingangsdatum van het tarief"),
+  tariefHistorie: z.array(TariefHistorieRegelWireSchema).default([]).describe("Alle tarieven met ingangsdatum uit het document, oud naar nieuw; leeg als er maar één tarief is"),
   startdatum: wireDate("Startdatum van de inzet"),
   einddatum: wireDate("Einddatum; alleen bij een vaste einddatum, 'Q3 2026' wordt de laatste dag van dat kwartaal"),
   einddatumType: EinddatumTypeSchema,
@@ -212,6 +230,10 @@ export const ContractExtractionWireSchema = z.object({
     .nullable(),
   contactpersonen: z.array(ExtractedContactpersoonWireSchema).default([]),
   getekendOp: wireDate("Datum van ondertekening"),
+  mutaties: z
+    .array(z.object({ datum: wireDate("Datum van de mutatie"), omschrijving: z.string() }))
+    .default([])
+    .describe("Mutatie-/verlengingshistorie uit het document, bv. 'Mutatie 28-03-2025: tariefaanpassing naar € 84,25'"),
   samenvatting: z.string().describe("3-6 zinnen in het Nederlands: wat, wie, hoe lang, tarief, bijzonderheden"),
   onzekerheden: z.array(z.string()).default([]).describe("Velden die niet zeker zijn of ontbreken, in het Nederlands"),
   bronverwijzingen: z.array(BronverwijzingWireSchema).default([]),
@@ -260,6 +282,10 @@ export function fromWire(wire: ContractExtractionWire): ContractExtraction {
       functie: text(p.functie),
       tarief: p.tarief,
       tariefGeldigVanaf: date(`personen[${i}].tariefGeldigVanaf`, p.tariefGeldigVanaf),
+      tariefHistorie: (p.tariefHistorie ?? [])
+        .map((h, j) => ({ bedrag: h.bedrag, geldigVanaf: date(`personen[${i}].tariefHistorie[${j}].geldigVanaf`, h.geldigVanaf), toelichting: text(h.toelichting) }))
+        .filter((h): h is { bedrag: number; geldigVanaf: string; toelichting: string | null } => h.geldigVanaf !== null)
+        .sort((a, b) => a.geldigVanaf.localeCompare(b.geldigVanaf)),
       startdatum: date(`personen[${i}].startdatum`, p.startdatum),
       einddatum: date(`personen[${i}].einddatum`, p.einddatum),
       einddatumType: p.einddatumType,
@@ -295,6 +321,7 @@ export function fromWire(wire: ContractExtractionWire): ContractExtraction {
       organisatie: text(c.organisatie),
     })),
     getekendOp: date("getekendOp", wire.getekendOp),
+    mutaties: (wire.mutaties ?? []).map((m, i) => ({ datum: date(`mutaties[${i}].datum`, m.datum), omschrijving: m.omschrijving })),
     samenvatting: wire.samenvatting,
     onzekerheden,
     bronverwijzingen: wire.bronverwijzingen.map((b) => ({ veld: b.veld, pagina: b.pagina, citaat: text(b.citaat) })),

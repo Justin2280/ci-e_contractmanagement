@@ -28,6 +28,7 @@ function emptyWire(): ContractExtractionWire {
     facturatie: null,
     contactpersonen: [],
     getekendOp: "",
+    mutaties: [],
     samenvatting: "Leeg document.",
     onzekerheden: [],
     bronverwijzingen: [],
@@ -70,6 +71,7 @@ describe("fromWire", () => {
         startdatum: "2026-01-05",
         einddatum: null,
         einddatumType: "einde_opdracht",
+      tariefHistorie: [],
         inzetOmvang: "",
       },
     ];
