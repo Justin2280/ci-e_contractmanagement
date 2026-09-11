@@ -6,7 +6,7 @@ import { z } from "zod";
  */
 
 export const MailClassificationSchema = z.object({
-  classificatie: z.enum(["contract", "verlenging_of_tarievenbrief", "opzegging", "planning_update", "indexatie_akkoord", "overig"]),
+  classificatie: z.enum(["contract", "verlenging_of_tarievenbrief", "opzegging", "planning_update", "indexatie_akkoord", "inzetafspraak", "overig"]),
   toelichting: z.string().describe("Eén of twee zinnen in het Nederlands waarom deze classificatie."),
   vertrouwen: z.number().min(0).max(1),
 });
@@ -397,6 +397,48 @@ export type IndexatieExtraction = z.infer<typeof IndexatieExtractionSchema>;
 
 export function isIndexatieExtraction(v: unknown): v is IndexatieExtraction {
   return typeof v === "object" && v !== null && (v as { type?: unknown }).type === "indexatie_akkoord";
+}
+
+// ---------------------------------------------------------------------------
+// Inzetafspraak: een mail waarin een inzet is afgesproken terwijl het contract
+// nog moet volgen. Klein schema, structured output.
+// ---------------------------------------------------------------------------
+
+export const InzetafspraakPersoonSchema = z.object({
+  naam: z.string().describe("Naam van de medewerker van CI-Engineers"),
+  functie: z.string().nullable(),
+  startdatum: isoDate.nullable(),
+  startdatumVoorlopig: z.boolean().describe("True als de startdatum nog een principe-afspraak is of kan schuiven"),
+  einddatum: isoDate.nullable(),
+  einddatumType: EinddatumTypeSchema,
+  inzetOmvang: z.string().nullable().describe("Bv. '4 dagen per week, waarvan 2 in Den Bosch'"),
+  basisTarief: z.number().nullable().describe("Uurtarief zonder toeslagen"),
+  opslag: z.number().nullable().describe("Toeslag per uur bovenop het basistarief"),
+  opslagToelichting: z.string().nullable().describe("Waar de toeslag voor is, bv. 'ICT-opslag'"),
+  totaalTarief: z.number().nullable().describe("Uurtarief dat gefactureerd wordt (basis + opslag)"),
+});
+
+export const InzetafspraakSchema = z.object({
+  opdrachtgever: z.string().nullable(),
+  intermediair: z.string().nullable(),
+  project: z.object({ naam: z.string().nullable(), code: z.string().nullable(), locatie: z.string().nullable() }),
+  personen: z.array(InzetafspraakPersoonSchema),
+  contractVolgtTekst: z.string().nullable().describe("De zin waarin staat dat en wanneer het contract volgt"),
+  verwachtContractSoort: z.enum(["nadere_overeenkomst", "overeenkomst_van_opdracht", "inhuur", "overig"]),
+  openpunten: z.array(z.string()).describe("Wat nog wordt uitgezocht"),
+  afspraken: z.array(z.string()).describe("Overige toezeggingen, bv. over hulpmiddelen"),
+  contactpersonen: z.array(ExtractedContactpersoonSchema),
+  samenvatting: z.string(),
+  onzekerheden: z.array(z.string()),
+});
+export type Inzetafspraak = z.infer<typeof InzetafspraakSchema>;
+
+/** Zo wordt een inzetafspraak in `emails_in.extractie_json` opgeslagen. */
+export const InzetafspraakExtractionSchema = InzetafspraakSchema.extend({ type: z.literal("inzetafspraak") });
+export type InzetafspraakExtraction = z.infer<typeof InzetafspraakExtractionSchema>;
+
+export function isInzetafspraakExtraction(v: unknown): v is InzetafspraakExtraction {
+  return typeof v === "object" && v !== null && (v as { type?: unknown }).type === "inzetafspraak";
 }
 
 export const DraftEmailSchema = z.object({

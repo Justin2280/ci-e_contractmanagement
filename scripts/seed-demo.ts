@@ -118,6 +118,28 @@ async function main() {
     .onConflictDoNothing({ target: emailsIn.graphMessageId })
     .returning();
   console.log(row5 ? `Demo-werkopdracht aangemaakt: /inbox/${row5.id}` : "Demo-werkopdracht bestond al.");
+
+  const afspraak = JSON.parse(fs.readFileSync(path.join(process.cwd(), "tests", "fixtures", "inzetafspraak-berrier.json"), "utf8"));
+  const [row6] = await db
+    .insert(emailsIn)
+    .values({
+      graphMessageId: "demo-inzetafspraak-berrier",
+      internetMessageId: "<demo-afspraak@contractbeheer>",
+      vanEmail: "nhage@vhbinfra.nl",
+      vanNaam: "Hage, Nancy",
+      aan: process.env.GRAPH_SHARED_MAILBOX ?? "contracten@ci-engineers.com",
+      onderwerp: "Modelleur Frans Berrier - start 2 november 2026 PHS Vught-Den Bosch",
+      ontvangenOp: new Date(),
+      bodyText:
+        "Beste Justin,\n\nWe hebben zojuist telefonisch een principe afspraak met Frans gemaakt voor start 2 november, 4 dagen/week, waarvan 2 dagen in Den Bosch. Laptop met Allplan licentie wordt door jullie gefaciliteerd.\n\nTarief is dan € 91,50 + € 3,60 opslag voor ICT = € 95,10 per uur.\n\nErwin de Jong onderzoekt nog of eerder starten mogelijk is.\n\nZodra startdatum definitief is zal ik zorgen voor de nadere overeenkomst.\n\nMet vriendelijke groet,\nNancy Hage | Senior Coördinator\nVan Hattum en Blankevoort BV",
+      classificatie: "inzetafspraak",
+      classificatieToelichting: "Afspraak over een nieuwe inzet met startdatum, omvang en tarief; de nadere overeenkomst volgt nog.",
+      verwerkstatus: "te_beoordelen",
+      extractieJson: afspraak,
+    })
+    .onConflictDoNothing({ target: emailsIn.graphMessageId })
+    .returning();
+  console.log(row6 ? `Demo-inzetafspraak aangemaakt: /inbox/${row6.id}` : "Demo-inzetafspraak bestond al.");
 }
 
 main()

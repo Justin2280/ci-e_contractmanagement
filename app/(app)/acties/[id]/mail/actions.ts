@@ -30,7 +30,7 @@ export async function generateConcept(_prev: ActionState, formData: FormData): P
   try {
     const actie = await loadActieMetContext(actieId);
     const settings = await getSettings();
-    const soortKey = actie.soort === "verlenging_uitvragen" || actie.soort === "einde_beoordelen" ? "verlenging" : actie.soort === "indexatie_aanvragen" || actie.soort === "indexatie_voorstellen" ? "indexatie" : actie.soort === "contract_opvragen" ? "contract_opvragen" : "algemeen";
+    const soortKey = actie.soort === "verlenging_uitvragen" || actie.soort === "einde_beoordelen" ? "verlenging" : actie.soort === "indexatie_aanvragen" || actie.soort === "indexatie_voorstellen" ? "indexatie" : actie.soort === "contract_opvragen" || actie.soort === "overeenkomst_opvragen" ? "contract_opvragen" : "algemeen";
     const voorbeelden = await db.query.stijlVoorbeelden.findMany({
       where: and(eq(stijlVoorbeelden.actief, true), inArray(stijlVoorbeelden.soort, [soortKey, "algemeen"] as ("algemeen" | "verlenging" | "indexatie" | "contract_opvragen")[])),
       orderBy: [desc(stijlVoorbeelden.createdAt)],
@@ -120,7 +120,7 @@ export async function saveConcept(_prev: ActionState, formData: FormData): Promi
 
   if (d.bewaarStijl === "on") {
     const actie = await db.query.acties.findFirst({ where: eq(acties.id, d.actieId) });
-    const soort = actie?.soort === "verlenging_uitvragen" ? "verlenging" : actie?.soort === "indexatie_aanvragen" ? "indexatie" : actie?.soort === "contract_opvragen" ? "contract_opvragen" : "algemeen";
+    const soort = actie?.soort === "verlenging_uitvragen" ? "verlenging" : actie?.soort === "indexatie_aanvragen" ? "indexatie" : actie?.soort === "contract_opvragen" || actie?.soort === "overeenkomst_opvragen" ? "contract_opvragen" : "algemeen";
     await db.insert(stijlVoorbeelden).values({ titel: d.onderwerp, tekst: d.body, soort, bron: "bewerkt_concept" });
   }
 

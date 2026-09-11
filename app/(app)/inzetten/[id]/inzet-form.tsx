@@ -25,6 +25,9 @@ export function InzetForm({
     id: string;
     status: string;
     startdatum: string | null;
+    startdatumVoorlopig: boolean;
+    tariefOpslag: string | null;
+    tariefOpslagToelichting: string | null;
     einddatum: string | null;
     einddatumType: string;
     functie: string | null;
@@ -89,6 +92,9 @@ export function InzetForm({
       </Field>
       <Field label="Startdatum">
         <Input type="date" name="startdatum" defaultValue={inzet.startdatum ?? ""} />
+        <label className="flex items-center gap-2 text-xs text-muted-foreground">
+          <input type="checkbox" name="startdatumVoorlopig" defaultChecked={inzet.startdatumVoorlopig} /> startdatum nog niet definitief
+        </label>
       </Field>
       <Field label="Soort einddatum">
         <select name="einddatumType" defaultValue={inzet.einddatumType} className="h-9 w-full rounded-md border bg-background px-2 text-sm">
@@ -110,6 +116,12 @@ export function InzetForm({
       </Field>
       <Field label="Tarief geldig vanaf">
         <Input type="date" name="tariefGeldigVanaf" defaultValue={inzet.tariefGeldigVanaf ?? ""} />
+      </Field>
+      <Field label="Waarvan opslag (bv. ICT) en waarvoor">
+        <div className="flex gap-2">
+          <Input name="tariefOpslag" inputMode="decimal" className="w-24" defaultValue={inzet.tariefOpslag ?? ""} />
+          <Input name="tariefOpslagToelichting" defaultValue={inzet.tariefOpslagToelichting ?? ""} placeholder="bv. ICT-opslag" />
+        </div>
       </Field>
       <Field label="Actiehouder">
         <select name="actiehouderUserId" defaultValue={inzet.actiehouderUserId ?? ""} className="h-9 w-full rounded-md border bg-background px-2 text-sm">

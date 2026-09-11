@@ -102,6 +102,7 @@ export const actieSoort = pgEnum("actie_soort", [
   "einde_beoordelen",
   "indexatie_verwerken",
   "indexatie_voorstellen",
+  "overeenkomst_opvragen",
 ]);
 
 export const actieStatus = pgEnum("actie_status", [
@@ -119,6 +120,7 @@ export const mailClassificatie = pgEnum("mail_classificatie", [
   "overig",
   "planning_update",
   "indexatie_akkoord",
+  "inzetafspraak",
 ]);
 
 export const verwerkStatus = pgEnum("verwerk_status", [
@@ -366,6 +368,11 @@ export const inzetten = pgTable(
     einddatum: date("einddatum"),
     einddatumType: einddatumType("einddatum_type").notNull().default("vast"),
     inzetOmvang: text("inzet_omvang"),
+    /** Startdatum is nog een principe-afspraak; kan nog schuiven tot het contract er is. */
+    startdatumVoorlopig: boolean("startdatum_voorlopig").notNull().default(false),
+    /** Toeslag bovenop het uurtarief (bv. ICT-opslag), al inbegrepen in `tarief`. */
+    tariefOpslag: numeric("tarief_opslag", { precision: 8, scale: 2 }),
+    tariefOpslagToelichting: text("tarief_opslag_toelichting"),
     status: inzetStatus("status").notNull().default("actief"),
     actiehouderUserId: uuid("actiehouder_user_id").references(() => users.id, {
       onDelete: "set null",

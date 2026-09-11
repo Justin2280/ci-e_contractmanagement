@@ -47,6 +47,13 @@ const InzetUpdateSchema = z.object({
   leidinggevende: optionalText,
   contractnummerTekst: optionalText,
   notities: optionalText,
+  startdatumVoorlopig: z.union([z.literal("on"), z.undefined()]).transform((v) => v === "on"),
+  tariefOpslag: z
+    .string()
+    .trim()
+    .transform((v) => (v === "" ? null : Number(v.replace(",", "."))))
+    .refine((v) => v === null || (Number.isFinite(v) && v >= 0 && v < 10000), "Ongeldige opslag"),
+  tariefOpslagToelichting: optionalText,
   klantId: optionalUuid.optional(),
   projectId: optionalUuid.optional(),
   nieuwProject: optionalText.optional(),
@@ -85,6 +92,9 @@ export async function updateInzet(_prev: ActionState, formData: FormData): Promi
         contactpersoonId: klantId === current.klantId ? data.contactpersoonId : null,
         status: data.status,
         startdatum: data.startdatum,
+        startdatumVoorlopig: data.startdatumVoorlopig,
+        tariefOpslag: data.tariefOpslag === null ? null : data.tariefOpslag.toFixed(2),
+        tariefOpslagToelichting: data.tariefOpslagToelichting,
         einddatum: data.einddatumType === "vast" ? data.einddatum : null,
         einddatumType: data.einddatumType,
         functie: data.functie,

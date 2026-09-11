@@ -13,6 +13,7 @@ import type { ActionState } from "../inzetten/actions";
 import { approveExtraction, type ApprovePayload } from "@/lib/review/approve";
 import { applyPlanning, type ApplyPlanningPayload } from "@/lib/review/apply-planning";
 import { applyIndexatie, type ApplyIndexatiePayload } from "@/lib/review/apply-indexatie";
+import { applyInzetafspraak, type ApplyInzetafspraakPayload } from "@/lib/review/apply-inzetafspraak";
 
 export async function syncNow(): Promise<ActionState> {
   await requireUser();
@@ -103,6 +104,25 @@ export async function applyIndexatieAction(payload: ApplyIndexatiePayload): Prom
     return {
       ok: true,
       message: `${r.bijgewerkt.length} tarief(ven) bijgewerkt${r.overgeslagen.length ? `, ${r.overgeslagen.length} overgeslagen` : ""}${r.correctieActies.length ? `; correctie-actie voor de facturatie aangemaakt` : ""}`,
+    };
+  } catch (err) {
+    return { ok: false, message: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+export async function applyInzetafspraakAction(payload: ApplyInzetafspraakPayload): Promise<ActionState> {
+  const user = await requireUser();
+  try {
+    const r = await applyInzetafspraak(payload, user.id);
+    revalidatePath(`/inbox/${payload.emailId}`);
+    revalidatePath("/inbox");
+    revalidatePath("/inzetten");
+    revalidatePath("/medewerkers");
+    revalidatePath("/acties");
+    revalidatePath("/");
+    return {
+      ok: true,
+      message: `${r.inzetIds.length} inzet(ten) vastgelegd met status "contract afwachten"${r.overgeslagen.length ? `, ${r.overgeslagen.length} overgeslagen` : ""}; ${r.actieIds.length} actie(s) om de overeenkomst op te vragen`,
     };
   } catch (err) {
     return { ok: false, message: err instanceof Error ? err.message : String(err) };
