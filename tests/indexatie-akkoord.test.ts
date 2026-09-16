@@ -116,6 +116,7 @@ describe("indexatie-akkoord (indexatiebon Mobilis)", () => {
     const correctie = (await db.query.acties.findFirst({ where: (a, { eq }) => eq(a.soort, "indexatie_verwerken") }))!;
     expect(correctie.contractId).toBe(contractId);
     expect(correctie.dedupeKey).toBe(`indexatie_verwerken:${contractId}:2025`);
+    expect(correctie.emailInId).toBe(mailId);
     expect(correctie.omschrijving).toContain("week 44/2025");
     expect(correctie.omschrijving).toContain("13812.48");
     expect(correctie.omschrijving).toContain("25741.28");

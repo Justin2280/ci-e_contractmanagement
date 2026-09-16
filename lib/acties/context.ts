@@ -9,6 +9,7 @@ export async function loadActieMetContext(actieId: string) {
       inzet: { with: { medewerker: true, klant: { with: { contactpersonen: true } }, project: true, contract: { with: { parent: true } }, contactpersoon: true } },
       contract: { with: { parent: true, klant: { with: { contactpersonen: true } }, inzetten: { with: { medewerker: true } } } },
       toegewezen: true,
+      emailIn: true,
     },
   });
   if (!actie) throw new Error("Actie niet gevonden");

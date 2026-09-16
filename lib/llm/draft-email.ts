@@ -29,6 +29,8 @@ export interface DraftContext {
   /** Actueel CBS-cijfer (reeks 7112) en een daarop gebaseerd tariefvoorstel. */
   cbs?: string | null;
   tariefVoorstel?: string | null;
+  /** Eerdere mails met deze klant (oud → nieuw): werkwijze en toon. */
+  correspondentie?: string | null;
 }
 
 export interface StyleProfile {
@@ -89,7 +91,16 @@ export async function generateDraftEmail(ctx: DraftContext, style: StyleProfile)
       ...(styleBlock ? [{ type: "text" as const, text: styleBlock, cache_control: { type: "ephemeral" as const } }] : []),
     ],
     output_config: { effort: "medium", format: betaZodOutputFormat(DraftEmailSchema) },
-    messages: [{ role: "user", content: `Schrijf de e-mail op basis van deze context:\n\n${context}` }],
+    messages: [
+      {
+        role: "user",
+        content:
+          `Schrijf de e-mail op basis van deze context:\n\n${context}` +
+          (ctx.correspondentie
+            ? `\n\nEerdere correspondentie met deze klant uit de mailbox (oud → nieuw). Gebruik dit voor de werkwijze die met deze klant gebruikelijk is, de juiste namen en de toon; verwijs waar zinvol kort naar de laatste mail. Neem niets letterlijk over.\n\n${ctx.correspondentie}`
+            : ""),
+      },
+    ],
   });
   if (res.stop_reason === "refusal") throw new Error("Model weigerde de conceptmail");
   if (!res.parsed_output) throw new Error("Conceptmail kon niet worden geparsed");

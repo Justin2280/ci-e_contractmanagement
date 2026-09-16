@@ -31,6 +31,8 @@ export const IndexatieVerwerkSchema = z.object({
     .optional(),
   /** Ook bij "vooraf": maak een correctie-actie (de bon bevat een correctie). */
   forceerCorrectieActie: z.boolean().optional(),
+  /** De mail (bon/akkoord) waar dit uit komt; wordt aan de correctie-actie gehangen voor de conceptmail. */
+  emailInId: z.string().uuid().nullable().optional(),
 });
 export type IndexatieVerwerk = z.infer<typeof IndexatieVerwerkSchema>;
 
@@ -112,7 +114,12 @@ export async function verwerkIndexatie(input: IndexatieVerwerk, userId: string |
       if (bestaandeCorrectie) {
         await tx
           .update(acties)
-          .set({ omschrijving, status: bestaandeCorrectie.status === "genegeerd" ? "open" : bestaandeCorrectie.status, afgerondOp: bestaandeCorrectie.status === "afgerond" ? bestaandeCorrectie.afgerondOp : null })
+          .set({
+            omschrijving,
+            status: bestaandeCorrectie.status === "genegeerd" ? "open" : bestaandeCorrectie.status,
+            afgerondOp: bestaandeCorrectie.status === "afgerond" ? bestaandeCorrectie.afgerondOp : null,
+            ...(v.emailInId ? { emailInId: v.emailInId } : {}),
+          })
           .where(eq(acties.id, bestaandeCorrectie.id));
         correctieActieId = bestaandeCorrectie.id;
       } else {
@@ -127,6 +134,7 @@ export async function verwerkIndexatie(input: IndexatieVerwerk, userId: string |
             contractId: contract.id,
             inzetId: resultaat.find((r) => r.naar !== null)?.inzetId ?? null,
             toegewezenUserId: aanvraag?.toegewezenUserId ?? null,
+            emailInId: v.emailInId ?? null,
           })
           .returning({ id: acties.id });
         correctieActieId = ins?.id ?? null;
