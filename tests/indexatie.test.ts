@@ -1,4 +1,5 @@
 import { beforeAll, describe, expect, it } from "vitest";
+import { eq } from "drizzle-orm";
 
 process.env.DATABASE_URL = "pglite://memory";
 
@@ -100,5 +101,37 @@ describe("indexatie achteraf: aanvraag-actie en verwerking", () => {
     await runDailyRules({ today: "2026-11-19" });
     expect(await db.query.acties.findMany({ where: (a, { eq }) => eq(a.soort, "indexatie_aanvragen") })).toHaveLength(1);
     void acties;
+  });
+
+  it("een oude bon sluit de aanvraag van dit jaar niet, en een onterecht afgeronde aanvraag wordt heropend", async () => {
+    const [k] = await db.insert(klanten).values({ naam: "Combinatie Zuidplein", naamGenormaliseerd: "combinatie zuidplein" }).returning();
+    const [c] = await db
+      .insert(contracten)
+      .values({ nummer: "21200-001C", soort: "overeenkomst_van_opdracht", klantId: k.id, startdatum: "2023-01-01", einddatumType: "einde_opdracht", indexatie: "jaarlijks_cbs", indexatieMoment: "01-01", indexatieWijze: "achteraf_correctie" })
+      .returning();
+    const [m] = await db.insert(medewerkers).values({ naam: "Robert Rier", naamGenormaliseerd: normalizePersonName("Robert Rier") }).returning();
+    const [i] = await db.insert(inzetten).values({ medewerkerId: m.id, klantId: k.id, contractId: c.id, status: "actief", einddatumType: "einde_opdracht", tarief: "94.74", tariefGeldigVanaf: "2025-01-01" }).returning();
+
+    await runDailyRules({ today: "2026-09-16" });
+    const key = `indexatie_aanvragen:${c.id}:2026`;
+    const aanvraag = (await db.query.acties.findFirst({ where: (a, { eq }) => eq(a.dedupeKey, key) }))!;
+    expect(aanvraag.status).toBe("open");
+    expect(aanvraag.omschrijving).toContain("prijspeil 01-01-2025; indexeren naar 01-01-2026");
+
+    // De bon van 2025 (achteraf verwerkt in 2026) hoort de aanvraag 2026 niet te sluiten.
+    await verwerkIndexatie({ contractId: c.id, percentage: 3, ingangsdatum: "2025-01-01", afronding: "cent", inzetIds: [i.id], nieuweTarieven: [{ inzetId: i.id, nieuwTarief: 94.74 }], historisch: true }, userId, db, { today: "2026-09-16" });
+    expect((await db.query.acties.findFirst({ where: (a, { eq }) => eq(a.dedupeKey, key) }))!.status).toBe("open");
+    expect((await db.query.acties.findFirst({ where: (a, { eq }) => eq(a.dedupeKey, `indexatie_verwerken:${c.id}:2025`) }))!.status).toBe("afgerond");
+
+    // Per ongeluk afgerond terwijl niemand op prijspeil 2026 staat: de dagelijkse run zet hem weer open.
+    await db.update(acties).set({ status: "afgerond", afgerondOp: new Date() }).where(eq(acties.id, aanvraag.id));
+    const r = await runDailyRules({ today: "2026-09-17" });
+    expect(r.heropend).toBe(1);
+    expect((await db.query.acties.findFirst({ where: (a, { eq }) => eq(a.id, aanvraag.id) }))!.status).toBe("open");
+
+    // Genegeerd is een bewuste keuze en blijft staan.
+    await db.update(acties).set({ status: "genegeerd" }).where(eq(acties.id, aanvraag.id));
+    await runDailyRules({ today: "2026-09-18" });
+    expect((await db.query.acties.findFirst({ where: (a, { eq }) => eq(a.id, aanvraag.id) }))!.status).toBe("genegeerd");
   });
 });

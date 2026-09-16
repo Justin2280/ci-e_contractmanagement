@@ -89,6 +89,8 @@ export interface ActieVoorstel {
   contractId?: string;
   medewerkerId?: string;
   toegewezenUserId?: string | null;
+  /** Een eerder afgeronde actie met deze sleutel weer openzetten (de aanvraag is aantoonbaar nog niet verwerkt). */
+  heropenen?: boolean;
 }
 
 const LOPEND = new Set(["actief", "verlengen", "in_contact", "contract_wachten"]);
@@ -252,6 +254,9 @@ export function evalueerRegels(input: RegelInput): ActieVoorstel[] {
         contractId,
         medewerkerId: teIndexeren[0].medewerkerId,
         toegewezenUserId: teIndexeren[0].actiehouderUserId,
+        // Zolang niemand op het nieuwe prijspeil staat, is een "afgeronde" aanvraag niet echt afgehandeld
+        // (bv. per ongeluk gesloten door het verwerken van de bon van vorig jaar).
+        heropenen: alGeindexeerd.length === 0,
       });
       continue;
     }

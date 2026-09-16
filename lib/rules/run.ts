@@ -88,13 +88,23 @@ export async function runDailyRules(opts: { today?: string } = {}) {
   const voorstellen = evalueerRegels({ today, inzetten: regelInzetten, periodes, settings, cbs, cbsPerKwartaal });
 
   let aangemaakt = 0;
+  let heropend = 0;
   for (const v of voorstellen) {
-    // Een open indexatie-aanvraag krijgt de actuele omschrijving (CBS-cijfer, betrokken mensen, weeknummer).
+    // Een open indexatie-aanvraag krijgt de actuele omschrijving (CBS-cijfer, betrokken mensen, periode).
     if (v.soort === "indexatie_aanvragen") {
       await db
         .update(acties)
         .set({ omschrijving: v.omschrijving })
         .where(and(eq(acties.dedupeKey, v.dedupeKey), eq(acties.status, "open")));
+      // Afgerond terwijl er nog niets is verwerkt: weer openzetten ("genegeerd" blijft een bewuste keuze).
+      if (v.heropenen) {
+        const r = await db
+          .update(acties)
+          .set({ status: "open", afgerondOp: null, omschrijving: v.omschrijving, vervaldatum: v.vervaldatum })
+          .where(and(eq(acties.dedupeKey, v.dedupeKey), eq(acties.status, "afgerond")))
+          .returning({ id: acties.id });
+        heropend += r.length;
+      }
     }
     const inserted = await db
       .insert(acties)
@@ -173,5 +183,5 @@ export async function runDailyRules(opts: { today?: string } = {}) {
     }
   }
 
-  return { voorstellen: voorstellen.length, aangemaakt, gesloten, tarievenGeactiveerd: geactiveerd.bijgewerkt.length };
+  return { voorstellen: voorstellen.length, aangemaakt, heropend, gesloten, tarievenGeactiveerd: geactiveerd.bijgewerkt.length };
 }

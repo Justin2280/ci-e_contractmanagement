@@ -1,4 +1,4 @@
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, like } from "drizzle-orm";
 import { getISOWeek } from "date-fns";
 import { z } from "zod";
 import { db as defaultDb, type Db } from "@/lib/db";
@@ -87,11 +87,19 @@ export async function verwerkIndexatie(input: IndexatieVerwerk, userId: string |
       resultaat.push({ inzetId: i.id, naam: i.medewerker.naam, van: huidig, naar: nieuw });
     }
 
-    // Aanvraag-acties van dit contract en zijn kinderen zijn hiermee afgehandeld.
+    // Aanvraag-acties van dit contract en zijn kinderen voor dít indexatiejaar zijn hiermee afgehandeld
+    // (een oude bon van vorig jaar mag de aanvraag van dit jaar niet sluiten).
     await tx
       .update(acties)
       .set({ status: "afgerond", afgerondOp: new Date() })
-      .where(and(inArray(acties.contractId, contractIds), eq(acties.soort, "indexatie_aanvragen"), inArray(acties.status, ["open", "conceptmail_klaar", "verstuurd"])));
+      .where(
+        and(
+          inArray(acties.contractId, contractIds),
+          eq(acties.soort, "indexatie_aanvragen"),
+          like(acties.dedupeKey, `%:${jaar}`),
+          inArray(acties.status, ["open", "conceptmail_klaar", "verstuurd"]),
+        ),
+      );
     if (v.actieId) await tx.update(acties).set({ status: "afgerond", afgerondOp: new Date() }).where(eq(acties.id, v.actieId));
 
     // Achteraf: de facturatie moet de uren sinds de ingangsdatum nog corrigeren.

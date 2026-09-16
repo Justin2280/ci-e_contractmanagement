@@ -105,6 +105,14 @@ describe("eerdereCorrespondentie", () => {
     expect(tekst).not.toContain("M +31 6 50223032");
   });
 
+  it("prefers mails about the action's subject when the window is small", async () => {
+    const klant = (await db.query.klanten.findFirst({ where: (k, { eq }) => eq(k.id, klantId), with: { contactpersonen: true } }))!;
+    const corr = await eerdereCorrespondentie({ id: "y", emailInId: null, contractId, inzetId: null }, klant, null, db, { limiet: 1, voorkeurOnderwerp: /index/i });
+    expect(corr.tekst).toContain("FW: Indexatie over 2025");
+    expect(corr.tekst).not.toContain("Contract Boskalis");
+    expect(corr.laatsteAfzender?.email).toBe("mjh.degroot@mobilis.nl");
+  });
+
   it("returns null when there is nothing to search on", async () => {
     expect(await eerdereCorrespondentie({ id: "x", emailInId: null, contractId: null, inzetId: null }, null, null, db)).toEqual({ tekst: null, laatsteAfzender: null });
   });
