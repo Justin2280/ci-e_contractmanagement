@@ -287,6 +287,13 @@ export async function approveExtraction(payload: ApprovePayload, userId: string)
         });
         if (dup) bestaandeInzetId = dup.id;
       }
+      // Een inzet die per mail is afgesproken en op dit contract wacht (status contract_wachten), wordt aangevuld.
+      if (!bestaandeInzetId && klantId) {
+        const wachtend = await tx.query.inzetten.findMany({
+          where: and(eq(inzetten.medewerkerId, medewerkerId), eq(inzetten.klantId, klantId), eq(inzetten.status, "contract_wachten")),
+        });
+        if (wachtend.length === 1) bestaandeInzetId = wachtend[0].id;
+      }
       const tariefStr = persoon.tarief !== null ? persoon.tarief.toFixed(2) : null;
       const values = {
         medewerkerId,
@@ -310,14 +317,19 @@ export async function approveExtraction(payload: ApprovePayload, userId: string)
         // einddatumType may legitimately switch to a non-fixed type
         patch.einddatumType = values.einddatumType;
         if (values.einddatumType !== "vast") patch.einddatum = null;
-        await tx.update(inzetten).set(patch).where(eq(inzetten.id, bestaandeInzetId));
+        // Het contract maakt een voorlopige startdatum definitief.
+        const wasVoorlopig = current?.status === "contract_wachten";
+        await tx
+          .update(inzetten)
+          .set({ ...patch, ...(values.startdatum ? { startdatumVoorlopig: false } : {}) })
+          .where(eq(inzetten.id, bestaandeInzetId));
         const uitHistorie = await schrijfTariefHistorie(bestaandeInzetId, persoon.tariefHistorie ?? [], persoon.functie);
         if (!uitHistorie && tariefStr && current?.tarief !== tariefStr) {
           await tx.insert(tarieven).values({
             inzetId: bestaandeInzetId,
             bedrag: tariefStr,
             geldigVanaf: values.tariefGeldigVanaf ?? today,
-            reden: p.contract.soort === "tarievenbrief" || p.contract.soort === "verlenging" ? "indexatie" : "verlenging",
+            reden: wasVoorlopig ? "initieel" : p.contract.soort === "tarievenbrief" || p.contract.soort === "verlenging" ? "indexatie" : "verlenging",
             bron: `E-mail ${p.emailId}`,
           });
         }
@@ -380,7 +392,7 @@ export async function approveExtraction(payload: ApprovePayload, userId: string)
           and(
             inArray(acties.inzetId, afgerondIds),
             inArray(acties.status, ["open", "conceptmail_klaar", "verstuurd"]),
-            inArray(acties.soort, ["contract_opvragen", "verlenging_uitvragen", ...(p.contract.soort === "tarievenbrief" ? ["indexatie_aanvragen" as const] : [])]),
+            inArray(acties.soort, ["contract_opvragen", "overeenkomst_opvragen", "verlenging_uitvragen", ...(p.contract.soort === "tarievenbrief" ? ["indexatie_aanvragen" as const] : [])]),
           ),
         );
     }

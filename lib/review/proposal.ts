@@ -214,7 +214,7 @@ export async function buildReviewProposal(email: EmailIn, ctx: Context): Promise
     with: { medewerker: true, klant: true, project: true, contract: true },
   });
   const inzetLabel = (i: (typeof inzetRows)[number]) =>
-    `${i.klant?.naam ?? "?"} · ${i.project?.naam ?? "-"} · ${i.contract?.nummer ?? i.contractnummerTekst ?? "-"} · ${i.startdatum ?? "?"}–${i.einddatum ?? i.einddatumType}`;
+    `${i.klant?.naam ?? "?"} · ${i.project?.naam ?? "-"} · ${i.contract?.nummer ?? i.contractnummerTekst ?? (i.status === "contract_wachten" ? "contract volgt" : "-")} · ${i.startdatum ?? "?"}–${i.einddatum ?? i.einddatumType}`;
   const projectNaam = normalizeCompanyName(extractie.project?.naam ?? "");
 
   const vandaag = todayIso();
@@ -237,13 +237,18 @@ export async function buildReviewProposal(email: EmailIn, ctx: Context): Promise
     if (medewerkerId) {
       mine = inzetRows.filter((i) => i.medewerkerId === medewerkerId);
       const bijKlant = klantId ? mine.filter((i) => i.klantId === klantId) : [];
+      // Een inzet die per mail is afgesproken en op het contract wacht, is precies waar dit contract voor komt.
+      const wachtend = bijKlant.filter((i) => i.status === "contract_wachten");
       bestaandeInzet =
         (bestaand ? mine.find((i) => i.contractId === bestaand.id) : undefined) ??
+        (wachtend.length === 1 ? wachtend[0] : undefined) ??
         (projectNaam ? bijKlant.find((i) => tokenOverlap(normalizeCompanyName(i.project?.naam ?? ""), projectNaam) > 0) : undefined) ??
         (bijKlant.length === 1 ? bijKlant[0] : undefined) ??
         null;
     }
-    const bijKlantCount = klantId ? mine.filter((i) => i.klantId === klantId).length : 0;
+    const bijKlant = klantId ? mine.filter((i) => i.klantId === klantId) : [];
+    const bijKlantCount = bijKlant.length;
+    const eenduidigWachtend = bijKlant.filter((i) => i.status === "contract_wachten").length === 1;
     // Tariefhistorie: het tarief dat vandaag geldt is de laatste regel met een ingangsdatum in het verleden;
     // een regel met een toekomstige ingangsdatum blijft in de historie tot die datum bereikt is.
     const historie = [...p.tariefHistorie].sort((a, b) => a.geldigVanaf.localeCompare(b.geldigVanaf));
@@ -264,7 +269,7 @@ export async function buildReviewProposal(email: EmailIn, ctx: Context): Promise
       bestaandeInzetId: bestaandeInzet?.id ?? null,
       bestaandeInzetLabel: bestaandeInzet ? inzetLabel(bestaandeInzet) : null,
       bestaandeInzetten: mine.map((i) => ({ id: i.id, label: inzetLabel(i) })),
-      ambigu: bijKlantCount > 1,
+      ambigu: bijKlantCount > 1 && !eenduidigWachtend,
     };
   });
 

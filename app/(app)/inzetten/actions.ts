@@ -9,6 +9,7 @@ import { and } from "drizzle-orm";
 import { redirect } from "next/navigation";
 import { requireUser } from "@/lib/auth/current-user";
 import { besluitEindeInzet, EindeBesluitSchema } from "@/lib/inzetten/einde";
+import { verwijderInzet } from "@/lib/inzetten/verwijder";
 
 const optionalDate = z
   .string()
@@ -158,4 +159,25 @@ export async function besluitEinde(_prev: ActionState, formData: FormData): Prom
   revalidatePath("/");
   if (result.mailActieId) redirect(`/acties/${result.mailActieId}/mail?doel=${parsed.data.mail}`);
   return { ok: true, message: "Besluit vastgelegd." };
+}
+
+/** Verwijdert een inzet definitief (bv. een per ongeluk dubbel aangemaakte) en gaat terug naar de medewerker. */
+export async function deleteInzet(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  const user = await requireUser();
+  const id = String(formData.get("id") ?? "");
+  if (!z.string().uuid().safeParse(id).success) return { ok: false, message: "Onbekende inzet." };
+  let medewerkerId: string;
+  try {
+    const r = await verwijderInzet(id, user.id, db, { projectOpruimen: formData.get("projectOpruimen") === "on" });
+    medewerkerId = r.medewerkerId;
+  } catch (err) {
+    return { ok: false, message: err instanceof Error ? err.message : String(err) };
+  }
+  revalidatePath("/inzetten");
+  revalidatePath("/medewerkers");
+  revalidatePath(`/medewerkers/${medewerkerId}`);
+  revalidatePath("/acties");
+  revalidatePath("/facturatie");
+  revalidatePath("/");
+  redirect(`/medewerkers/${medewerkerId}`);
 }

@@ -5,6 +5,7 @@ Haal op:
 - `project`: naam en eventuele code/locatie van het project of werk.
 - `personen`: per medewerker van CI-Engineers de `naam`, `functie`, `startdatum` (YYYY-MM-DD), `startdatumVoorlopig` (true als de datum nog een principe-afspraak is of nog kan schuiven, bv. "we onderzoeken of eerder starten kan"), `einddatum` en `einddatumType` als die genoemd zijn (anders `ntb`), en `inzetOmvang` letterlijk zoals afgesproken ("4 dagen per week, waarvan 2 in Den Bosch").
 - Tarief per persoon: `basisTarief` is het uurtarief zonder toeslagen, `opslag` een eventuele toeslag (ICT-opslag, reiskostenvergoeding per uur) en `opslagToelichting` waar die voor is. `totaalTarief` is het bedrag dat gefactureerd wordt; staat er maar één bedrag, zet dat dan in `basisTarief` en `totaalTarief` en laat `opslag` null.
+- Ontbreekt een tekst- of datumveld, laat het dan leeg (`""`); bedragen die onbekend zijn worden `null`.
 - `contractVolgtTekst`: de zin waarin staat dat en wanneer het contract komt, bv. "Zodra startdatum definitief is zal ik zorgen voor de nadere overeenkomst".
 - `verwachtContractSoort`: wat er komt — `nadere_overeenkomst`, `overeenkomst_van_opdracht`, `inhuur` (werkopdracht via een broker) of `overig`.
 - `openpunten`: dingen die nog uitgezocht worden ("Erwin de Jong onderzoekt of eerder starten mogelijk is", "welke Allplan-versie"), elk als losse regel.
