@@ -33,6 +33,8 @@ export const IndexatieVerwerkSchema = z.object({
   forceerCorrectieActie: z.boolean().optional(),
   /** De mail (bon/akkoord) waar dit uit komt; wordt aan de correctie-actie gehangen voor de conceptmail. */
   emailInId: z.string().uuid().nullable().optional(),
+  /** Oude bon (eerder jaar): tariefhistorie wel schrijven, maar de correctie is al lang gedaan → actie meteen afgerond. */
+  historisch: z.boolean().optional(),
 });
 export type IndexatieVerwerk = z.infer<typeof IndexatieVerwerkSchema>;
 
@@ -106,9 +108,9 @@ export async function verwerkIndexatie(input: IndexatieVerwerk, userId: string |
       const bedragen = v.correctie?.bedragen.length
         ? ` Bedragen volgens de bon: ${v.correctie.bedragen.map((b) => `€ ${b.bedrag.toFixed(2)} (${b.project})`).join(", ")}; totaal € ${v.correctie.bedragen.reduce((a, b) => a + b.bedrag, 0).toFixed(2)}.`
         : "";
-      const omschrijving = v.correctie
+      const omschrijving = (v.historisch ? "Historisch (verwerkt uit een oude mail; correctie destijds al gedaan): " : "") + (v.correctie
         ? `Correctiefactuur opstellen voor de uren van ${v.ingangsdatum} t/m week ${tmWeek} met ${v.percentage}% en daarna het nieuwe tarief factureren.${bedragen}${v.correctie.bron ? ` Bron: ${v.correctie.bron}.` : ""} Betreft: ${namen}.`
-        : `Correctiefactuur/-bon opstellen voor de uren van ${v.ingangsdatum} t/m week ${week} met ${v.percentage}% en vanaf week ${week + 1} het nieuwe tarief factureren. Betreft: ${namen}.`;
+        : `Correctiefactuur/-bon opstellen voor de uren van ${v.ingangsdatum} t/m week ${week} met ${v.percentage}% en vanaf week ${week + 1} het nieuwe tarief factureren. Betreft: ${namen}.`);
       const dedupeKey = `indexatie_verwerken:${contract.id}:${jaar}`;
       const bestaandeCorrectie = await tx.query.acties.findFirst({ where: eq(acties.dedupeKey, dedupeKey) });
       if (bestaandeCorrectie) {
@@ -116,8 +118,8 @@ export async function verwerkIndexatie(input: IndexatieVerwerk, userId: string |
           .update(acties)
           .set({
             omschrijving,
-            status: bestaandeCorrectie.status === "genegeerd" ? "open" : bestaandeCorrectie.status,
-            afgerondOp: bestaandeCorrectie.status === "afgerond" ? bestaandeCorrectie.afgerondOp : null,
+            status: v.historisch ? "afgerond" : bestaandeCorrectie.status === "genegeerd" ? "open" : bestaandeCorrectie.status,
+            afgerondOp: v.historisch ? (bestaandeCorrectie.afgerondOp ?? new Date()) : bestaandeCorrectie.status === "afgerond" ? bestaandeCorrectie.afgerondOp : null,
             ...(v.emailInId ? { emailInId: v.emailInId } : {}),
           })
           .where(eq(acties.id, bestaandeCorrectie.id));
@@ -135,6 +137,7 @@ export async function verwerkIndexatie(input: IndexatieVerwerk, userId: string |
             inzetId: resultaat.find((r) => r.naar !== null)?.inzetId ?? null,
             toegewezenUserId: aanvraag?.toegewezenUserId ?? null,
             emailInId: v.emailInId ?? null,
+            ...(v.historisch ? { status: "afgerond" as const, afgerondOp: new Date() } : {}),
           })
           .returning({ id: acties.id });
         correctieActieId = ins?.id ?? null;

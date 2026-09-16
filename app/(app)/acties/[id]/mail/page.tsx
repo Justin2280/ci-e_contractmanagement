@@ -78,6 +78,11 @@ export default async function ActieMailPage({ params, searchParams }: PageProps<
               <div className="pt-2 text-xs text-muted-foreground">
                 Contactpersonen: {contacten.map((c) => `${c.naam}${c.email ? ` <${c.email}>` : ""}`).join("; ") || "geen bekend — voeg toe bij de klant"}
               </div>
+              {actie.soort.startsWith("indexatie_") ? (
+                <div className="text-xs text-muted-foreground">
+                  Indexatiemails gaan naar de financiële contactpersoon van de klant (rol met “financieel”/“administratie”), anders naar degene die de vorige indexatieronde afhandelde volgens de mailbox.
+                </div>
+              ) : null}
             </CardContent>
           </Card>
           <Card>

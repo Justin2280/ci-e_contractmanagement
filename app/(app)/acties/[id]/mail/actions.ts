@@ -16,7 +16,7 @@ import { fmtDateShort, toIsoDate, todayIso } from "@/lib/format";
 import { cbsIndexcijfer, cbsTekst, voorgesteldTarief } from "@/lib/indexatie/cbs";
 import { addDays } from "date-fns";
 import type { ActionState } from "../../../inzetten/actions";
-import { defaultRecipient, loadActieMetContext } from "@/lib/acties/context";
+import { defaultRecipient, INDEXATIE_SOORTEN, loadActieMetContext } from "@/lib/acties/context";
 import { afzenderUitThread, eerdereCorrespondentie } from "@/lib/acties/correspondentie";
 import { indexatieKwartaalVan } from "@/lib/indexatie/kwartaal";
 
@@ -54,9 +54,11 @@ export async function generateConcept(_prev: ActionState, formData: FormData): P
     // Hangt er een mail achter de actie (bv. de indexatiebon), dan is de laatste externe afzender
     // in die thread de meest logische ontvanger; anders de contactpersoon van inzet/klant.
     const uitThread = actie.emailIn ? afzenderUitThread(actie.emailIn.bodyText) : null;
-    const ontvanger = uitThread ? { naam: uitThread.naam, email: uitThread.email, rol: null } : defaultRecipient(actie);
     const klantVoorCorrespondentie = actie.inzet?.klant ?? actie.contract?.klant ?? null;
     const correspondentie = await eerdereCorrespondentie(actie, klantVoorCorrespondentie, rawContract?.bronEmailId ?? null);
+    const ontvanger = uitThread
+      ? { naam: uitThread.naam, email: uitThread.email, rol: null }
+      : defaultRecipient(actie, { financieel: INDEXATIE_SOORTEN.includes(actie.soort), fallback: correspondentie.laatsteAfzender });
     // Bij tarief-/indexatievragen het actuele CBS-cijfer (reeks 7112) meegeven als onderbouwing.
     const wilCbs = ["indexatie_aanvragen", "indexatie_voorstellen", "verlenging_uitvragen", "einde_beoordelen"].includes(actie.soort);
     // Het jaar van de actie (uit de dedupe-sleutel) en het CBS-kwartaal dat het contract voorschrijft.
@@ -95,7 +97,7 @@ export async function generateConcept(_prev: ActionState, formData: FormData): P
         extraInstructie,
         cbs: cbsTekst(cbsCijfer),
         tariefVoorstel: nieuwTarief !== null ? `€ ${nieuwTarief.toFixed(2)} per uur (nu € ${huidigTarief!.toFixed(2)})` : null,
-        correspondentie,
+        correspondentie: correspondentie.tekst,
       },
       { instructies: settings.stijlInstructies, handtekening: settings.handtekening, voorbeelden: voorbeelden.map((v) => ({ titel: v.titel, tekst: v.tekst })) },
     );

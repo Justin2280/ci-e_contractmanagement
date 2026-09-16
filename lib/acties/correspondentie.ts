@@ -54,13 +54,22 @@ export interface CorrespondentieKlant {
  * achter zusteracties op hetzelfde contract, de bronmail van het contract, afzenders met een
  * domein van de contactpersonen en mails die de klantnaam of een alias noemen.
  */
+export interface Correspondentie {
+  /** Tekstblok oud → nieuw, of null als er niets gevonden is. */
+  tekst: string | null;
+  /** De meest recente externe afzender in die mails (bv. de finance-contactpersoon van de vorige ronde). */
+  laatsteAfzender: { naam: string | null; email: string } | null;
+}
+
+const LEEG: Correspondentie = { tekst: null, laatsteAfzender: null };
+
 export async function eerdereCorrespondentie(
   actie: { id: string; emailInId: string | null; contractId: string | null; inzetId: string | null },
   klant: CorrespondentieKlant | null,
   contractBronEmailId: string | null,
   database: Db = defaultDb,
   opts: { limiet?: number } = {},
-): Promise<string | null> {
+): Promise<Correspondentie> {
   const ids = new Set<string>();
   if (actie.emailInId) ids.add(actie.emailInId);
   if (contractBronEmailId) ids.add(contractBronEmailId);
@@ -86,7 +95,7 @@ export async function eerdereCorrespondentie(
       if (n.length >= 4) conds.push(sql`${emailsIn.bodyText} ilike ${`%${n}%`}`);
     }
   }
-  if (!conds.length) return null;
+  if (!conds.length) return LEEG;
 
   const rows = await database.query.emailsIn.findMany({
     where: or(...conds),
@@ -94,7 +103,20 @@ export async function eerdereCorrespondentie(
     limit: opts.limiet ?? 4,
     columns: { id: true, onderwerp: true, vanNaam: true, vanEmail: true, ontvangenOp: true, bodyText: true },
   });
-  if (!rows.length) return null;
+  if (!rows.length) return LEEG;
+
+  // Laatste externe afzender, bij voorkeur van een domein dat bij de klant hoort (een mail van een
+  // andere partij die de klantnaam noemt, telt niet). Zonder bekende domeinen geldt de eerste externe.
+  const klantDomeinen = new Set((klant?.contactpersonen ?? []).map((c) => c.email?.split("@")[1]?.toLowerCase()).filter((d): d is string => Boolean(d)));
+  const kandidaten: Array<{ naam: string | null; email: string }> = [];
+  for (const m of rows) {
+    const uitThread = afzenderUitThread(m.bodyText);
+    if (uitThread) kandidaten.push(uitThread);
+    if (m.vanEmail && !interneAfzender(m.vanEmail)) kandidaten.push({ naam: m.vanNaam ?? null, email: m.vanEmail.toLowerCase() });
+  }
+  const laatsteAfzender = klantDomeinen.size
+    ? (kandidaten.find((k) => klantDomeinen.has(k.email.split("@")[1] ?? "")) ?? null)
+    : (kandidaten[0] ?? null);
 
   const blokken: string[] = [];
   let totaal = 0;
@@ -107,5 +129,5 @@ export async function eerdereCorrespondentie(
     blokken.push(blok);
     totaal += blok.length;
   }
-  return blokken.length ? blokken.join("\n\n") : null;
+  return { tekst: blokken.length ? blokken.join("\n\n") : null, laatsteAfzender };
 }

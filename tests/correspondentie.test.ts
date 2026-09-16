@@ -2,6 +2,7 @@ import { beforeAll, describe, expect, it } from "vitest";
 import { createTestDb } from "./helpers/test-db";
 import { acties, contactpersonen, contracten, emailsIn, klanten } from "@/lib/db/schema";
 import { afzenderUitThread, eerdereCorrespondentie, mailFragment } from "@/lib/acties/correspondentie";
+import { defaultRecipient, type ActieMetContext } from "@/lib/acties/context";
 import type { Db } from "@/lib/db";
 
 process.env.GRAPH_SHARED_MAILBOX = "contracten@ci-engineers.com";
@@ -91,7 +92,10 @@ describe("eerdereCorrespondentie", () => {
       .values({ soort: "indexatie_verwerken", titel: "Correctie 2025", contractId, emailInId: bonMailId, status: "open", dedupeKey: `indexatie_verwerken:${contractId}:2025` })
       .returning();
     const klant = (await db.query.klanten.findFirst({ where: (k, { eq }) => eq(k.id, klantId), with: { contactpersonen: true } }))!;
-    const tekst = (await eerdereCorrespondentie(actie, klant, null, db))!;
+    const corr = await eerdereCorrespondentie(actie, klant, null, db);
+    const tekst = corr.tekst!;
+    // De laatste externe afzender komt uit de nieuwste mail: de bon van Marco de Groot in de doorgestuurde thread.
+    expect(corr.laatsteAfzender).toEqual({ naam: "Groot, Marco de", email: "mjh.degroot@mobilis.nl" });
     expect(tekst).toMatch(/--- Index 71121 2024 · Euser, Marc · 29 okt\.? 2024 ---/);
     expect(tekst).toMatch(/--- FW: Indexatie over 2025 · Weert, Justin de · 10 sep\.? 2026 ---/);
     // c-3 noemt de klantnaam letterlijk en telt dus mee; c-4 (VHB) niet.
@@ -102,6 +106,26 @@ describe("eerdereCorrespondentie", () => {
   });
 
   it("returns null when there is nothing to search on", async () => {
-    expect(await eerdereCorrespondentie({ id: "x", emailInId: null, contractId: null, inzetId: null }, null, null, db)).toBeNull();
+    expect(await eerdereCorrespondentie({ id: "x", emailInId: null, contractId: null, inzetId: null }, null, null, db)).toEqual({ tekst: null, laatsteAfzender: null });
+  });
+});
+
+describe("defaultRecipient", () => {
+  const klant = {
+    naam: "Bouwcombinatie Nieuw-Zuid",
+    contactpersonen: [
+      { id: "c1", naam: "M. Stolk", email: "m.stolk@mobilis.nl", rol: "Projectleider" },
+      { id: "c2", naam: "Johan Huizer", email: "j.huizer@mobilis.nl", rol: "Finance Manager" },
+    ],
+  };
+  const actie = (over: Record<string, unknown> = {}) =>
+    ({ inzet: { contactpersoon: klant.contactpersonen[0], klant }, contract: null, ...over }) as unknown as ActieMetContext;
+
+  it("sends indexatie mails to the financial contact, otherwise to the previous correspondent, otherwise the inzet contact", () => {
+    expect(defaultRecipient(actie(), { financieel: true })?.email).toBe("j.huizer@mobilis.nl");
+    const zonderFinance = actie({ inzet: { contactpersoon: klant.contactpersonen[0], klant: { ...klant, contactpersonen: [klant.contactpersonen[0]] } } });
+    expect(defaultRecipient(zonderFinance, { financieel: true, fallback: { naam: "Groot, Marco de", email: "mjh.degroot@mobilis.nl" } })).toEqual({ naam: "Groot, Marco de", email: "mjh.degroot@mobilis.nl", rol: "uit eerdere correspondentie" });
+    expect(defaultRecipient(zonderFinance, { financieel: true })?.email).toBe("m.stolk@mobilis.nl");
+    expect(defaultRecipient(actie())?.email).toBe("m.stolk@mobilis.nl");
   });
 });

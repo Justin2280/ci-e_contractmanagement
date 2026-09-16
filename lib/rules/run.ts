@@ -114,12 +114,26 @@ export async function runDailyRules(opts: { today?: string } = {}) {
     aangemaakt += inserted.length;
   }
 
+  // Indexatie-acties van een vorig jaar (aanvraag of correctie) zijn na 1 maart van het jaar erna historie:
+  // ze ontstaan bv. uit het verwerken van een oude bon en horen geen mail meer op te leveren.
+  let gesloten = 0;
+  const jaarNu = Number(today.slice(0, 4));
+  const oudeIndexaties = await db.query.acties.findMany({
+    where: and(inArray(acties.soort, ["indexatie_aanvragen", "indexatie_verwerken"]), inArray(acties.status, ["open", "conceptmail_klaar", "verstuurd"])),
+    columns: { id: true, dedupeKey: true },
+  });
+  for (const a of oudeIndexaties) {
+    const jaar = Number(a.dedupeKey?.match(/:(\d{4})$/)?.[1] ?? NaN);
+    if (!Number.isFinite(jaar) || jaar >= jaarNu || today < `${jaar + 1}-03-01`) continue;
+    await db.update(acties).set({ status: "afgerond", afgerondOp: new Date() }).where(eq(acties.id, a.id));
+    gesloten++;
+  }
+
   // Close stale acties: inzet ended, or a verlenging-actie whose einddatum changed.
   const open = await db.query.acties.findMany({
     where: and(inArray(acties.status, ["open", "conceptmail_klaar"])),
     with: { inzet: true },
   });
-  let gesloten = 0;
   for (const a of open) {
     if (!a.inzet) continue;
     if (a.inzet.status === "beeindigd") {
