@@ -11,6 +11,7 @@ import { fmtDateShort, fmtMoney } from "@/lib/format";
 import { ACTIE_SOORT_LABELS } from "@/lib/labels";
 import { InzetForm } from "./inzet-form";
 import { EindeBesluitForm } from "@/components/app/einde-besluit-form";
+import { VerwijderKnop } from "./verwijder-knop";
 import { LOPENDE_STATUSSEN } from "@/lib/queries/inzetten";
 import { todayIso } from "@/lib/format";
 
@@ -169,6 +170,15 @@ export default async function InzetDetailPage({ params }: PageProps<"/inzetten/[
                   <ActieStatusBadge status={a.status} />
                 </div>
               ))}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Verwijderen</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <VerwijderKnop inzetId={inzet.id} projectNaam={inzet.project?.naam ?? null} />
             </CardContent>
           </Card>
         </div>

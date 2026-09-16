@@ -433,6 +433,84 @@ export const InzetafspraakSchema = z.object({
 });
 export type Inzetafspraak = z.infer<typeof InzetafspraakSchema>;
 
+/**
+ * Wire-variant voor structured output: de API staat maximaal 16 velden met union-types toe
+ * en elk `.nullable()` telt mee (het canonieke schema heeft er 18). Tekst- en datumvelden
+ * zijn hier verplicht met "" als onbekend; alleen bedragen blijven nullable (3 unions).
+ */
+const leegAlsOnbekend = z.string().describe('Leeg ("") als onbekend');
+export const InzetafspraakWireSchema = z.object({
+  opdrachtgever: leegAlsOnbekend,
+  intermediair: leegAlsOnbekend,
+  project: z.object({ naam: leegAlsOnbekend, code: leegAlsOnbekend, locatie: leegAlsOnbekend }),
+  personen: z.array(
+    z.object({
+      naam: z.string().describe("Naam van de medewerker van CI-Engineers"),
+      functie: leegAlsOnbekend,
+      startdatum: z.string().describe('YYYY-MM-DD of leeg ("") als onbekend'),
+      startdatumVoorlopig: z.boolean().describe("True als de startdatum nog een principe-afspraak is of kan schuiven"),
+      einddatum: z.string().describe('YYYY-MM-DD of leeg ("") als onbekend'),
+      einddatumType: EinddatumTypeSchema,
+      inzetOmvang: z.string().describe("Bv. '4 dagen per week, waarvan 2 in Den Bosch'; leeg als onbekend"),
+      basisTarief: z.number().nullable().describe("Uurtarief zonder toeslagen"),
+      opslag: z.number().nullable().describe("Toeslag per uur bovenop het basistarief"),
+      opslagToelichting: z.string().describe("Waar de toeslag voor is, bv. 'ICT-opslag'; leeg als er geen toeslag is"),
+      totaalTarief: z.number().nullable().describe("Uurtarief dat gefactureerd wordt (basis + opslag)"),
+    }),
+  ),
+  contractVolgtTekst: z.string().describe("De zin waarin staat dat en wanneer het contract volgt; leeg als die ontbreekt"),
+  verwachtContractSoort: z.enum(["nadere_overeenkomst", "overeenkomst_van_opdracht", "inhuur", "overig"]),
+  openpunten: z.array(z.string()).describe("Wat nog wordt uitgezocht"),
+  afspraken: z.array(z.string()).describe("Overige toezeggingen, bv. over hulpmiddelen"),
+  contactpersonen: z.array(z.object({ naam: z.string(), email: leegAlsOnbekend, telefoon: leegAlsOnbekend, rol: leegAlsOnbekend, organisatie: leegAlsOnbekend })),
+  samenvatting: z.string(),
+  onzekerheden: z.array(z.string()),
+});
+export type InzetafspraakWire = z.infer<typeof InzetafspraakWireSchema>;
+
+/** Zet het wire-antwoord om naar het canonieke type (lege tekst → null, datums gecontroleerd). */
+export function inzetafspraakFromWire(wire: InzetafspraakWire): Inzetafspraak {
+  const onzekerheden = [...wire.onzekerheden];
+  const text = (v: string | null | undefined): string | null => {
+    const t = (v ?? "").trim();
+    return t === "" ? null : t;
+  };
+  const date = (veld: string, v: string | null | undefined): string | null => {
+    const t = (v ?? "").trim();
+    if (t === "") return null;
+    if (ISO_DATE.test(t)) return t;
+    onzekerheden.push(`Datum niet herkend bij ${veld}: "${t}"`);
+    return null;
+  };
+  return InzetafspraakSchema.parse({
+    opdrachtgever: text(wire.opdrachtgever),
+    intermediair: text(wire.intermediair),
+    project: { naam: text(wire.project.naam), code: text(wire.project.code), locatie: text(wire.project.locatie) },
+    personen: wire.personen.map((p) => ({
+      naam: p.naam.trim(),
+      functie: text(p.functie),
+      startdatum: date(`startdatum ${p.naam}`, p.startdatum),
+      startdatumVoorlopig: p.startdatumVoorlopig,
+      einddatum: date(`einddatum ${p.naam}`, p.einddatum),
+      einddatumType: p.einddatumType,
+      inzetOmvang: text(p.inzetOmvang),
+      basisTarief: p.basisTarief,
+      opslag: p.opslag,
+      opslagToelichting: text(p.opslagToelichting),
+      totaalTarief: p.totaalTarief,
+    })),
+    contractVolgtTekst: text(wire.contractVolgtTekst),
+    verwachtContractSoort: wire.verwachtContractSoort,
+    openpunten: wire.openpunten.map((x) => x.trim()).filter(Boolean),
+    afspraken: wire.afspraken.map((x) => x.trim()).filter(Boolean),
+    contactpersonen: wire.contactpersonen
+      .filter((c) => c.naam.trim())
+      .map((c) => ({ naam: c.naam.trim(), email: text(c.email), telefoon: text(c.telefoon), rol: text(c.rol), organisatie: text(c.organisatie) })),
+    samenvatting: wire.samenvatting,
+    onzekerheden,
+  });
+}
+
 /** Zo wordt een inzetafspraak in `emails_in.extractie_json` opgeslagen. */
 export const InzetafspraakExtractionSchema = InzetafspraakSchema.extend({ type: z.literal("inzetafspraak") });
 export type InzetafspraakExtraction = z.infer<typeof InzetafspraakExtractionSchema>;

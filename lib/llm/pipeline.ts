@@ -15,7 +15,8 @@ import {
   type PlanningExtraction,
   IndexatieAkkoordSchema,
   type IndexatieExtraction,
-  InzetafspraakSchema,
+  InzetafspraakWireSchema,
+  inzetafspraakFromWire,
   type InzetafspraakExtraction,
 } from "./schemas";
 
@@ -201,14 +202,14 @@ export async function extractInzetafspraak(email: EmailWithBijlagen, content?: C
       model: LLM_MODEL,
       max_tokens: 4000,
       system: prompt("inzetafspraak"),
-      output_config: { effort: "medium", format: betaZodOutputFormat(InzetafspraakSchema) },
+      output_config: { effort: "medium", format: betaZodOutputFormat(InzetafspraakWireSchema) },
       messages: [{ role: "user", content: content ?? (await buildContent(email)) }],
     },
     PLANNING_REQUEST_OPTIONS,
   );
   if (res.stop_reason === "refusal") throw new Error("Model weigerde de extractie van de inzetafspraak");
   if (!res.parsed_output) throw new Error("Inzetafspraak kon niet worden geparsed");
-  return { type: "inzetafspraak", ...res.parsed_output };
+  return { type: "inzetafspraak", ...inzetafspraakFromWire(res.parsed_output) };
 }
 
 export interface PipelineOutcome {
