@@ -15,7 +15,8 @@ export type ActieSoort =
   | "contract_opvragen"
   | "urenbon_opvragen"
   | "einde_beoordelen"
-  | "indexatie_voorstellen";
+  | "indexatie_voorstellen"
+  | "overeenkomst_opvragen";
 
 export interface RegelInzet {
   id: string;
@@ -33,6 +34,8 @@ export interface RegelInzet {
   tarief?: number | null;
   /** Laatste tariefwijziging (uit de tariefhistorie, anders tariefGeldigVanaf of startdatum). */
   laatsteTariefwijziging?: string | null;
+  /** Startdatum is nog een principe-afspraak; de bewaking wacht dan tot die datum nadert. */
+  startdatumVoorlopig?: boolean;
   contract: {
     id: string;
     nummer: string;
@@ -127,6 +130,8 @@ export function evalueerRegels(input: RegelInput): ActieVoorstel[] {
   const { today, settings } = input;
   const out: ActieVoorstel[] = [];
   const lopend = input.inzetten.filter((i) => LOPEND.has(i.status));
+  // Nog niet begonnen inzetten met een voorlopige startdatum: geen verlengings-/indexatievragen.
+  const nogNietGestart = (i: RegelInzet) => Boolean(i.startdatumVoorlopig && i.startdatum && i.startdatum > today);
 
   // 1. Verlenging uitvragen (vaste einddatum nadert; een verstreken einddatum valt onder regel 6)
   for (const i of lopend) {
@@ -248,6 +253,7 @@ export function evalueerRegels(input: RegelInput): ActieVoorstel[] {
   // verlenging/einde-beoordeling loopt: dan gaat de tariefvraag mee met die verlenging.
   const verlengingsInzetten = new Set(out.filter((a) => a.soort === "verlenging_uitvragen" || a.soort === "einde_beoordelen").map((a) => a.inzetId));
   for (const i of lopend) {
+    if (nogNietGestart(i)) continue;
     const indexatie = i.contract?.indexatie ?? "onbekend";
     if (!["onbekend", "geen"].includes(indexatie)) continue;
     const laatste = i.laatsteTariefwijziging ?? i.startdatum;
@@ -283,10 +289,16 @@ export function evalueerRegels(input: RegelInput): ActieVoorstel[] {
     const gestart = i.startdatum ? daysBetween(i.startdatum, today) >= settings.contractOpvragenDagenNaStart : false;
     const geenContract = !i.contractId && !i.contractnummerTekst;
     if (!(i.status === "contract_wachten" || (gestart && geenContract))) continue;
+    // Een afgesproken inzet die nog moet starten heeft al een eigen actie ("overeenkomst opvragen");
+    // pas als de startdatum is bereikt wordt het echt urgent.
+    if (i.status === "contract_wachten" && i.startdatum && i.startdatum > today) continue;
     out.push({
       soort: "contract_opvragen",
       titel: `Contract opvragen: ${i.medewerkerNaam} bij ${i.klantNaam ?? "?"}`,
-      omschrijving: i.status === "contract_wachten" ? "Inzet staat op ‘contract afwachten’." : `Inzet is gestart op ${i.startdatum} maar er is geen contract(nummer) bekend.`,
+      omschrijving:
+        i.status === "contract_wachten"
+          ? `Inzet staat op ‘contract afwachten’${i.startdatum ? ` en is per ${i.startdatum} gestart` : ""}; de overeenkomst is nog niet ontvangen.`
+          : `Inzet is gestart op ${i.startdatum} maar er is geen contract(nummer) bekend.`,
       vervaldatum: today,
       dedupeKey: `contract_opvragen:${i.id}:${today.slice(0, 4)}`,
       inzetId: i.id,

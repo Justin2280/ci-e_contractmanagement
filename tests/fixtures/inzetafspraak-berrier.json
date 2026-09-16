@@ -1,0 +1,34 @@
+{
+  "type": "inzetafspraak",
+  "opdrachtgever": "Van Hattum en Blankevoort BV",
+  "intermediair": null,
+  "project": { "naam": "PHS Vught-Den Bosch", "code": null, "locatie": "Den Bosch" },
+  "personen": [
+    {
+      "naam": "Frans Berrier",
+      "functie": "Modelleur",
+      "startdatum": "2026-11-02",
+      "startdatumVoorlopig": true,
+      "einddatum": null,
+      "einddatumType": "ntb",
+      "inzetOmvang": "4 dagen per week, waarvan 2 dagen in Den Bosch",
+      "basisTarief": 91.5,
+      "opslag": 3.6,
+      "opslagToelichting": "ICT-opslag",
+      "totaalTarief": 95.1
+    }
+  ],
+  "contractVolgtTekst": "Zodra startdatum definitief is zal ik zorgen voor de nadere overeenkomst.",
+  "verwachtContractSoort": "nadere_overeenkomst",
+  "openpunten": [
+    "Erwin de Jong onderzoekt of eerder starten mogelijk is, omdat Frans eventueel ook eerder kan starten",
+    "Welke Allplan-versie gewenst is voor PHS Vught-Den Bosch"
+  ],
+  "afspraken": ["Laptop met Allplan-licentie wordt door CI-Engineers gefaciliteerd"],
+  "contactpersonen": [
+    { "naam": "Nancy Hage", "email": "nhage@vhbinfra.nl", "telefoon": "+31 6 254 55 963", "rol": "Senior Coördinator", "organisatie": "Van Hattum en Blankevoort" },
+    { "naam": "Erwin de Jong", "email": null, "telefoon": null, "rol": null, "organisatie": "Van Hattum en Blankevoort" }
+  ],
+  "samenvatting": "Van Hattum en Blankevoort bevestigt een principe-afspraak voor Frans Berrier als modelleur op PHS Vught-Den Bosch: start 2 november 2026, 4 dagen per week waarvan 2 in Den Bosch, tarief € 91,50 plus € 3,60 ICT-opslag is € 95,10 per uur. CI-Engineers levert een laptop met Allplan-licentie. De nadere overeenkomst volgt zodra de startdatum definitief is.",
+  "onzekerheden": ["Startdatum kan naar voren schuiven; Erwin de Jong onderzoekt of eerder starten mogelijk is"]
+}

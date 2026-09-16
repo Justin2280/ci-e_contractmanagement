@@ -15,6 +15,8 @@ import {
   type PlanningExtraction,
   IndexatieAkkoordSchema,
   type IndexatieExtraction,
+  InzetafspraakSchema,
+  type InzetafspraakExtraction,
 } from "./schemas";
 
 function prompt(name: string): string {
@@ -190,10 +192,29 @@ export async function extractIndexatie(email: EmailWithBijlagen, content?: Conte
   return { type: "indexatie_akkoord", ...res.parsed_output };
 }
 
+/** Inzetafspraak (contract volgt nog): klein schema, structured output. */
+export async function extractInzetafspraak(email: EmailWithBijlagen, content?: ContentBlock[]): Promise<InzetafspraakExtraction> {
+  const client = getAnthropic();
+  const res = await client.beta.messages.parse(
+    {
+      ...FALLBACK_PARAMS,
+      model: LLM_MODEL,
+      max_tokens: 4000,
+      system: prompt("inzetafspraak"),
+      output_config: { effort: "medium", format: betaZodOutputFormat(InzetafspraakSchema) },
+      messages: [{ role: "user", content: content ?? (await buildContent(email)) }],
+    },
+    PLANNING_REQUEST_OPTIONS,
+  );
+  if (res.stop_reason === "refusal") throw new Error("Model weigerde de extractie van de inzetafspraak");
+  if (!res.parsed_output) throw new Error("Inzetafspraak kon niet worden geparsed");
+  return { type: "inzetafspraak", ...res.parsed_output };
+}
+
 export interface PipelineOutcome {
   classificatie: MailClassification["classificatie"];
   toelichting: string;
-  extractie: ContractExtraction | PlanningExtraction | IndexatieExtraction | null;
+  extractie: ContractExtraction | PlanningExtraction | IndexatieExtraction | InzetafspraakExtraction | null;
 }
 
 /** Classification followed by extraction for contract-like mails. */
@@ -207,6 +228,10 @@ export async function classifyAndExtract(email: EmailWithBijlagen): Promise<Pipe
   if (cls.classificatie === "planning_update") {
     const planning = await extractPlanning(email, content);
     return { classificatie: cls.classificatie, toelichting: cls.toelichting, extractie: planning };
+  }
+  if (cls.classificatie === "inzetafspraak") {
+    const afspraak = await extractInzetafspraak(email, content);
+    return { classificatie: cls.classificatie, toelichting: cls.toelichting, extractie: afspraak };
   }
   if (cls.classificatie === "indexatie_akkoord") {
     const indexatie = await extractIndexatie(email, content);

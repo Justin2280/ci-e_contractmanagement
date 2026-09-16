@@ -9,6 +9,7 @@ Doel per soort:
 - indexatie_verwerken: intern; wordt niet gemaild.
 - Herinnering (extra instructie "herinnering"): verwijs kort naar de eerdere mail en vraag vriendelijk om een reactie; geen verwijt, geen herhaling van de hele inhoud.
 - contract_opvragen: vraag vriendelijk om de (getekende) overeenkomst/werkopdracht/nadere overeenkomst voor de inzet, zodat facturatie kan plaatsvinden.
+- overeenkomst_opvragen: de inzet is per e-mail afgesproken maar de overeenkomst is nog niet ontvangen. Verwijs kort naar die afspraak (datum, medewerker, startdatum en tarief) en vraag om de toegezegde overeenkomst, zodat alles vastligt voordat de medewerker begint. Is de startdatum al bereikt of dichtbij, benoem dat vriendelijk als reden voor de herinnering.
 - einddatum_controleren: check of de inzet nog loopt zoals afgesproken en of er al zicht is op een einddatum of verlenging.
 - einde_beoordelen: de einddatum van de inzet is bereikt of verstreken. Het doel staat in de extra instructie: een verzoek om verlenging (vraag of en tot wanneer de inzet doorloopt en om een verlenging van contract/werkopdracht), een bevestiging van de verlenging (noem de nieuwe einddatum en vraag om de bijbehorende aanvulling), of een bevestiging van de beëindiging (bedank voor de samenwerking, noem de laatste werkdag en de afronding van urenstaten/facturatie). Is de einddatum al verstreken, benoem dat neutraal ("de inzet liep tot …") zonder verwijt.
 

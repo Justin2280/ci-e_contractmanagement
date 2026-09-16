@@ -1,0 +1,1 @@
+ALTER TABLE "graph_subscriptions" ADD COLUMN "immutable_ids" boolean DEFAULT false NOT NULL;

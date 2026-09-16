@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { deltaLinks, emailsIn } from "@/lib/db/schema";
 import { inboxDelta } from "@/lib/graph/mail";
 import { inboxResource } from "@/lib/graph/subscriptions";
+import { markDuplicateMails } from "./dedupe";
 import { ingestMessage } from "./ingest";
 import { markStaleProcessing, processEmail } from "./process";
 
@@ -10,7 +11,7 @@ import { markStaleProcessing, processEmail } from "./process";
  * Delta sync of the shared inbox: the source of truth. Webhooks only make
  * this faster. Safe to run repeatedly (idempotent per message).
  */
-export async function syncInbox(opts: { process?: boolean } = {}): Promise<{ nieuw: number; totaal: number }> {
+export async function syncInbox(opts: { process?: boolean } = {}): Promise<{ nieuw: number; totaal: number; dubbel: number }> {
   // Vastgelopen verwerkingen (functie afgebroken) eerst zichtbaar maken als fout.
   await markStaleProcessing();
   const resource = inboxResource();
@@ -45,5 +46,7 @@ export async function syncInbox(opts: { process?: boolean } = {}): Promise<{ nie
       }
     }
   }
-  return { nieuw, totaal: created.length };
+  // Eerder dubbel binnengehaalde berichten (webhook + delta onder verschillende ids) opruimen.
+  const { gemarkeerd: dubbel } = await markDuplicateMails();
+  return { nieuw, totaal: created.length, dubbel };
 }

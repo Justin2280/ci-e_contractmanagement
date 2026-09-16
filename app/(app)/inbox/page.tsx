@@ -17,6 +17,7 @@ const CLASS_LABEL: Record<string, string> = {
   opzegging: "Opzegging",
   planning_update: "Planning-update",
   indexatie_akkoord: "Indexatie-akkoord",
+  inzetafspraak: "Inzetafspraak (contract volgt)",
   overig: "Overig",
 };
 

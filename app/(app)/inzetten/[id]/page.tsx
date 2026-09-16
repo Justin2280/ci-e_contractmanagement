@@ -24,7 +24,13 @@ export default async function InzetDetailPage({ params }: PageProps<"/inzetten/[
     <div className="space-y-6">
       <PageHeader
         title={`${inzet.medewerker.naam} · ${inzet.klant?.naam ?? "—"}`}
-        description={[inzet.project?.naam, inzet.contract?.nummer ?? inzet.contractnummerTekst].filter(Boolean).join(" · ")}
+        description={[
+          inzet.project?.naam,
+          inzet.contract?.nummer ?? inzet.contractnummerTekst ?? (inzet.status === "contract_wachten" ? "contract volgt nog" : null),
+          inzet.startdatumVoorlopig && inzet.startdatum ? `start ${inzet.startdatum} (nog niet definitief)` : null,
+        ]
+          .filter(Boolean)
+          .join(" · ")}
         actions={<InzetStatusBadge status={inzet.status} />}
       />
 

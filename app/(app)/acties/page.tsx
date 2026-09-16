@@ -72,7 +72,7 @@ export default async function ActiesPage({ searchParams }: PageProps<"/acties">)
           const late = a.vervaldatum && a.vervaldatum < today && ["open", "conceptmail_klaar"].includes(a.status);
           const opvolgen = a.status === "verstuurd" && a.opvolgenOp && a.opvolgenOp <= today;
           const indexatieJaar = a.dedupeKey?.match(/:(\d{4})$/)?.[1] ?? today.slice(0, 4);
-          const canMail = ["verlenging_uitvragen", "indexatie_aanvragen", "indexatie_voorstellen", "contract_opvragen", "einddatum_controleren", "einde_beoordelen"].includes(a.soort) && (a.inzet || a.contract);
+          const canMail = ["verlenging_uitvragen", "indexatie_aanvragen", "indexatie_voorstellen", "contract_opvragen", "overeenkomst_opvragen", "einddatum_controleren", "einde_beoordelen"].includes(a.soort) && (a.inzet || a.contract);
           return (
             <Card key={a.id} id={a.id} className={cn(focus === a.id && "ring-2 ring-primary", late && "border-red-300", opvolgen && "border-amber-300")}>
               <CardContent className="flex flex-wrap items-start justify-between gap-4 py-4">

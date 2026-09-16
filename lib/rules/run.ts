@@ -45,6 +45,7 @@ export async function runDailyRules(opts: { today?: string } = {}) {
     actiehouderUserId: i.actiehouderUserId,
     tarief: standen.get(i.id)?.huidig ?? (i.tarief !== null ? Number(i.tarief) : null),
     laatsteTariefwijziging: standen.get(i.id)?.sinds ?? i.tariefGeldigVanaf ?? i.startdatum,
+    startdatumVoorlopig: i.startdatumVoorlopig,
     contract: i.contract
       ? (() => {
           // Een aanvulling/NOVK erft indexatie en opzegtermijn van het raam-/regiecontract.
@@ -130,6 +131,11 @@ export async function runDailyRules(opts: { today?: string } = {}) {
         gesloten++;
         continue;
       }
+    }
+    if (a.soort === "overeenkomst_opvragen" && a.inzet.contractId) {
+      await db.update(acties).set({ status: "afgerond", afgerondOp: new Date() }).where(eq(acties.id, a.id));
+      gesloten++;
+      continue;
     }
     if (a.soort === "contract_opvragen" && a.inzet.contractId && a.inzet.status !== "contract_wachten") {
       await db.update(acties).set({ status: "afgerond", afgerondOp: new Date() }).where(eq(acties.id, a.id));

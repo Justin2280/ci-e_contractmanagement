@@ -13,11 +13,13 @@ import { ReviewPanel } from "./review-panel";
 import { listKlanten, listMedewerkers, listContracten, listUsers } from "@/lib/queries/master";
 import { buildReviewProposal } from "@/lib/review/proposal";
 import { isStaleProcessing } from "@/lib/intake/process";
-import { isIndexatieExtraction, isPlanningExtraction } from "@/lib/llm/schemas";
+import { isIndexatieExtraction, isInzetafspraakExtraction, isPlanningExtraction } from "@/lib/llm/schemas";
 import { buildPlanningProposal } from "@/lib/review/planning-proposal";
 import { PlanningPanel } from "./planning-panel";
 import { buildIndexatieProposal } from "@/lib/review/indexatie-proposal";
 import { IndexatiePanel } from "./indexatie-panel";
+import { buildInzetafspraakProposal } from "@/lib/review/inzetafspraak-proposal";
+import { InzetafspraakPanel } from "./inzetafspraak-panel";
 
 const CLASS_LABEL: Record<string, string> = {
   contract: "Contract",
@@ -25,6 +27,7 @@ const CLASS_LABEL: Record<string, string> = {
   opzegging: "Opzegging",
   planning_update: "Planning-update",
   indexatie_akkoord: "Indexatie-akkoord",
+  inzetafspraak: "Inzetafspraak (contract volgt)",
   overig: "Overig",
 };
 
@@ -36,9 +39,11 @@ export default async function InboxDetailPage({ params }: PageProps<"/inbox/[id]
   const [klanten, medewerkers, contracten, users] = await Promise.all([listKlanten(), listMedewerkers({ inclusiefUitDienst: true }), listContracten(), listUsers()]);
   const isPlanning = isPlanningExtraction(email.extractieJson);
   const isIndexatie = isIndexatieExtraction(email.extractieJson);
-  const proposal = email.extractieJson && !isPlanning && !isIndexatie ? await buildReviewProposal(email, { klanten, medewerkers, contracten }) : null;
+  const isAfspraak = isInzetafspraakExtraction(email.extractieJson);
+  const proposal = email.extractieJson && !isPlanning && !isIndexatie && !isAfspraak ? await buildReviewProposal(email, { klanten, medewerkers, contracten }) : null;
   const planning = isPlanning ? await buildPlanningProposal(email, { klanten, medewerkers }) : null;
   const indexatie = isIndexatie ? await buildIndexatieProposal(email, { klanten, medewerkers }) : null;
+  const afspraak = isAfspraak ? await buildInzetafspraakProposal(email, { klanten, medewerkers }) : null;
   const staleProcessing = isStaleProcessing(email);
 
   return (
@@ -114,7 +119,18 @@ export default async function InboxDetailPage({ params }: PageProps<"/inbox/[id]
         </div>
 
         <div className="lg:col-span-2">
-          {indexatie ? (
+          {afspraak ? (
+            <InzetafspraakPanel
+              emailId={email.id}
+              proposal={afspraak}
+              alreadyApplied={email.verwerkstatus === "verwerkt"}
+              options={{
+                klanten: klanten.map((k) => ({ id: k.id, label: k.naam })),
+                medewerkers: medewerkers.map((m) => ({ id: m.id, label: m.actief ? m.naam : `${m.naam} (uit dienst)` })),
+                users: users.map((u) => ({ id: u.id, label: u.naam ?? u.email })),
+              }}
+            />
+          ) : indexatie ? (
             <IndexatiePanel
               emailId={email.id}
               proposal={indexatie}
