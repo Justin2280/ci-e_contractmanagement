@@ -160,13 +160,25 @@ describe("indexatie achteraf (correctie, Mobilis-praktijk)", () => {
     const a = out.find((x) => x.soort === "indexatie_aanvragen")!;
     expect(a.omschrijving).toContain("1e kwartaal 2026: 2,4 %");
     expect(a.omschrijving).not.toContain("3,1 %");
-    expect(a.omschrijving).toContain("week 1 t/m 38");
+    // 16-09-2026 valt in periode 10; de laatst afgesloten periode is 9 (week 33–36).
+    expect(a.omschrijving).toContain("Tarieven staan op prijspeil 01-01-2025; indexeren naar 01-01-2026.");
+    expect(a.omschrijving).toContain("week 1 t/m week 36 (periode 9, afgesloten 2026-09-09) en vanaf periode 10 (week 37)");
     expect(a.omschrijving).toContain("Betreft: Dhr. W.S. Terpstra (€ 92.60).");
     expect(a.omschrijving).toContain("Niet indexeren (gestart in 2026, prijspeil 2026): Peter Broek (start 2026-02-01)");
     expect(a.inzetId).toBe("i1");
 
     // Alleen mensen die dit jaar startten: niets aan te vragen.
     expect(evalueerRegels({ ...base, today: "2026-09-16", inzetten: [nieuw], cbsPerKwartaal }).filter((x) => x.soort === "indexatie_aanvragen")).toHaveLength(0);
+  });
+
+  it("laat wie al op het nieuwe prijspeil staat weg en stopt als iedereen is verwerkt", () => {
+    const verwerkt = achteraf({}, { id: "i2", medewerkerId: "m2", medewerkerNaam: "Jelle Schenk", laatsteTariefwijziging: "2026-01-01", tarief: 95.24 });
+    const nog = achteraf({}, { laatsteTariefwijziging: "2025-01-01" });
+    const out = evalueerRegels({ ...base, today: "2026-09-16", inzetten: [verwerkt, nog] });
+    const a = out.find((x) => x.soort === "indexatie_aanvragen")!;
+    expect(a.omschrijving).toContain("Betreft: Dhr. W.S. Terpstra (€ 92.60).");
+    expect(a.omschrijving).toContain("Al op prijspeil 2026: Jelle Schenk.");
+    expect(evalueerRegels({ ...base, today: "2026-09-16", inzetten: [verwerkt] }).filter((x) => x.soort === "indexatie_aanvragen")).toHaveLength(0);
   });
 
   it("meldt dat het CBS-cijfer nog ontbreekt als het niet beschikbaar is", () => {

@@ -44,6 +44,17 @@ export function periodeVoorDatum(date: Date | string): Periode {
   return periodesVoorJaar(jaar)[nummer - 1];
 }
 
+/**
+ * De laatst afgesloten 4-wekenperiode vóór `today` (bij een datum in periode 1: periode 13 van
+ * het jaar ervoor), met de nominale eindweek (periode n = weken 4n-3 t/m 4n). Indexaties achteraf
+ * worden tot en met deze periode gecorrigeerd.
+ */
+export function laatstAfgeslotenPeriode(today: Date | string): Periode & { eindWeek: number } {
+  const lopend = periodeVoorDatum(today);
+  const vorige = lopend.nummer > 1 ? periodesVoorJaar(lopend.jaar)[lopend.nummer - 2] : periodesVoorJaar(lopend.jaar - 1)[PERIODES_PER_JAAR - 1];
+  return { ...vorige, eindWeek: vorige.nummer * 4 };
+}
+
 /** True when the [start, eind] range of an assignment overlaps a period. */
 export function inzetActiefInPeriode(
   inzet: { startdatum: string | null; einddatum: string | null },

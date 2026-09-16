@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { periodesVoorJaar, periodeVoorDatum, inzetActiefInPeriode } from "@/lib/periods";
+import { periodesVoorJaar, periodeVoorDatum, inzetActiefInPeriode, laatstAfgeslotenPeriode } from "@/lib/periods";
 
 describe("periodes", () => {
   it("matches the Excel periods for 2026", () => {
@@ -13,6 +13,12 @@ describe("periodes", () => {
   it("finds the period for a date", () => {
     expect(periodeVoorDatum("2026-02-10").nummer).toBe(2);
     expect(periodeVoorDatum("2026-12-30").nummer).toBe(13);
+  });
+
+  it("finds the last closed period, rolling over to the previous year in January", () => {
+    expect(laatstAfgeslotenPeriode("2026-09-16")).toMatchObject({ jaar: 2026, nummer: 9, einddatum: "2026-09-09", eindWeek: 36 });
+    expect(laatstAfgeslotenPeriode("2025-11-02")).toMatchObject({ jaar: 2025, nummer: 10, eindWeek: 40 });
+    expect(laatstAfgeslotenPeriode("2026-01-10")).toMatchObject({ jaar: 2025, nummer: 13, eindWeek: 52 });
   });
 
   it("checks assignment overlap", () => {

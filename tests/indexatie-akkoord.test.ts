@@ -122,5 +122,26 @@ describe("indexatie-akkoord (indexatiebon Mobilis)", () => {
     expect(correctie.omschrijving).toContain("25741.28");
     expect(correctie.vervaldatum).toBe("2025-12-19");
     expect((await db.query.emailsIn.findFirst({ where: (e, { eq }) => eq(e.id, mailId) }))!.verwerkstatus).toBe("verwerkt");
+
+    // De afzender van de bon is nu bekend als financiële contactpersoon voor de volgende ronde.
+    const marco = await db.query.contactpersonen.findFirst({ where: (c, { eq }) => eq(c.email, "mjh.degroot@mobilis.nl") });
+    expect(marco).toMatchObject({ klantId, naam: "Groot, Marco de", rol: "Financieel (indexatie)" });
+  });
+
+  it("marks the correction as historic when an old bon is processed in a later year", async () => {
+    const mail = (await db.query.emailsIn.findFirst({ where: (e, { eq }) => eq(e.id, mailId) }))!;
+    const ctx = { klanten: await db.query.klanten.findMany(), medewerkers: await db.query.medewerkers.findMany() };
+    const p = await buildIndexatieProposal(mail, ctx, db);
+    const regels = p.regels.map((r) => ({ naam: r.naam, inzetId: r.inzetId, nieuwTarief: r.nieuwTarief, toepassen: Boolean(r.inzetId && r.nieuwTarief !== null) }));
+    await applyIndexatie(
+      { emailId: mailId, klantId: p.klantId, percentage: 3, ingangsdatum: "2025-01-01", akkoordOp: "2025-12-02", periodeTmWeek: "2025-W44", correcties: p.correcties, regels },
+      null,
+      db,
+      { today: "2026-09-16" },
+    );
+    const correctie = (await db.query.acties.findFirst({ where: (a, { eq }) => eq(a.soort, "indexatie_verwerken") }))!;
+    expect(correctie.status).toBe("afgerond");
+    expect(correctie.omschrijving).toMatch(/^Historisch/);
+    expect(await db.query.contactpersonen.findMany({ where: (c, { eq }) => eq(c.email, "mjh.degroot@mobilis.nl") })).toHaveLength(1);
   });
 });

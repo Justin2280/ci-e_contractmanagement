@@ -18,11 +18,27 @@ export async function loadActieMetContext(actieId: string) {
 
 export type ActieMetContext = Awaited<ReturnType<typeof loadActieMetContext>>;
 
-/** Best guess for the recipient: the inzet's contactpersoon, else the first klant contact with an e-mail. */
-export function defaultRecipient(actie: ActieMetContext): { naam: string | null; email: string | null; rol: string | null } | null {
+const FINANCIEEL = /financ|administrat|factu|crediteur|boekhoud|controller/i;
+
+export const INDEXATIE_SOORTEN = ["indexatie_aanvragen", "indexatie_verwerken", "indexatie_voorstellen"];
+
+/**
+ * Best guess for the recipient. Indexatie- en factuurzaken gaan naar de financiële contactpersoon
+ * van de klant (rol), anders naar wie daar de vorige keer over mailde (`fallback`, uit de eerdere
+ * correspondentie); overige mails naar de contactpersoon van de inzet, anders de eerste klantcontact.
+ */
+export function defaultRecipient(
+  actie: ActieMetContext,
+  opts: { financieel?: boolean; fallback?: { naam: string | null; email: string } | null } = {},
+): { naam: string | null; email: string | null; rol: string | null } | null {
+  const klant = actie.inzet?.klant ?? actie.contract?.klant;
+  if (opts.financieel) {
+    const fin = klant?.contactpersonen.find((c) => c.email && FINANCIEEL.test(c.rol ?? ""));
+    if (fin) return { naam: fin.naam, email: fin.email, rol: fin.rol };
+    if (opts.fallback?.email) return { naam: opts.fallback.naam, email: opts.fallback.email, rol: "uit eerdere correspondentie" };
+  }
   const cp = actie.inzet?.contactpersoon;
   if (cp) return { naam: cp.naam, email: cp.email, rol: cp.rol };
-  const klant = actie.inzet?.klant ?? actie.contract?.klant;
   const first = klant?.contactpersonen.find((c) => c.email) ?? klant?.contactpersonen[0];
   return first ? { naam: first.naam, email: first.email, rol: first.rol } : null;
 }

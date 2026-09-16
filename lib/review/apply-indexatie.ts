@@ -1,8 +1,10 @@
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 import { db as defaultDb, type Db } from "@/lib/db";
-import { auditLog, emailsIn, inzetten } from "@/lib/db/schema";
+import { auditLog, contactpersonen, emailsIn, inzetten } from "@/lib/db/schema";
 import { verwerkIndexatie } from "@/lib/indexatie/verwerk";
+import { afzenderUitThread } from "@/lib/acties/correspondentie";
+import { todayIso } from "@/lib/format";
 
 const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 
@@ -59,6 +61,14 @@ export async function applyIndexatie(payload: ApplyIndexatiePayload, userId: str
   }
 
   const email = await database.query.emailsIn.findFirst({ where: eq(emailsIn.id, p.emailId) });
+  // Een bon uit een eerder jaar is historie: tarieven en historie wel vastleggen, de correctie is al gedaan.
+  const historisch = Number(p.ingangsdatum.slice(0, 4)) < Number((opts.today ?? todayIso()).slice(0, 4));
+  // De financiële afzender uit de thread (wie de bon stuurde) als contactpersoon vastleggen voor de volgende ronde.
+  const afzender = afzenderUitThread(email?.bodyText ?? null);
+  if (p.klantId && afzender) {
+    const bekend = await database.query.contactpersonen.findFirst({ where: and(eq(contactpersonen.klantId, p.klantId), eq(contactpersonen.email, afzender.email)) });
+    if (!bekend) await database.insert(contactpersonen).values({ klantId: p.klantId, naam: afzender.naam ?? afzender.email, email: afzender.email, rol: "Financieel (indexatie)" });
+  }
   const bron = `Indexatiebon${p.periodeTmWeek ? ` t/m ${p.periodeTmWeek.replace(/^(\d{4})-W(\d{1,2})$/, "week $2/$1")}` : ""} (e-mail "${email?.onderwerp ?? p.emailId}")`;
 
   for (const [contractId, list] of perContract) {
@@ -75,6 +85,7 @@ export async function applyIndexatie(payload: ApplyIndexatiePayload, userId: str
         correctie: { tmWeek: p.periodeTmWeek, bedragen: p.correcties, bron },
         forceerCorrectieActie: p.correcties.length > 0,
         emailInId: p.emailId,
+        historisch,
       },
       userId,
       database,
