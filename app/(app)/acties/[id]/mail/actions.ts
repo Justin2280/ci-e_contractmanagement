@@ -17,6 +17,17 @@ import { cbsIndexcijfer, cbsTekst, voorgesteldTarief } from "@/lib/indexatie/cbs
 import { addDays } from "date-fns";
 import type { ActionState } from "../../../inzetten/actions";
 import { defaultRecipient, loadActieMetContext } from "@/lib/acties/context";
+import { afzenderUitThread, eerdereCorrespondentie } from "@/lib/acties/correspondentie";
+
+type StijlSoort = "algemeen" | "verlenging" | "indexatie" | "contract_opvragen";
+
+/** Welke stijlvoorbeelden bij een actiesoort horen. */
+function stijlSoort(soort: string): StijlSoort {
+  if (soort === "verlenging_uitvragen" || soort === "einde_beoordelen") return "verlenging";
+  if (soort === "indexatie_aanvragen" || soort === "indexatie_voorstellen" || soort === "indexatie_verwerken") return "indexatie";
+  if (soort === "contract_opvragen" || soort === "overeenkomst_opvragen") return "contract_opvragen";
+  return "algemeen";
+}
 
 function revalidate(actieId: string) {
   revalidatePath(`/acties/${actieId}/mail`);
@@ -30,16 +41,21 @@ export async function generateConcept(_prev: ActionState, formData: FormData): P
   try {
     const actie = await loadActieMetContext(actieId);
     const settings = await getSettings();
-    const soortKey = actie.soort === "verlenging_uitvragen" || actie.soort === "einde_beoordelen" ? "verlenging" : actie.soort === "indexatie_aanvragen" || actie.soort === "indexatie_voorstellen" ? "indexatie" : actie.soort === "contract_opvragen" || actie.soort === "overeenkomst_opvragen" ? "contract_opvragen" : "algemeen";
+    const soortKey = stijlSoort(actie.soort);
     const voorbeelden = await db.query.stijlVoorbeelden.findMany({
-      where: and(eq(stijlVoorbeelden.actief, true), inArray(stijlVoorbeelden.soort, [soortKey, "algemeen"] as ("algemeen" | "verlenging" | "indexatie" | "contract_opvragen")[])),
+      where: and(eq(stijlVoorbeelden.actief, true), inArray(stijlVoorbeelden.soort, [soortKey, "algemeen"])),
       orderBy: [desc(stijlVoorbeelden.createdAt)],
       limit: 8,
     });
     const rawContract = actie.inzet?.contract ?? actie.contract ?? null;
     const contract = rawContract ? effectiveContract(rawContract) : null;
     const medewerkers = actie.inzet ? [actie.inzet.medewerker.naam] : Array.from(new Set(actie.contract?.inzetten.map((i) => i.medewerker.naam) ?? []));
-    const ontvanger = defaultRecipient(actie);
+    // Hangt er een mail achter de actie (bv. de indexatiebon), dan is de laatste externe afzender
+    // in die thread de meest logische ontvanger; anders de contactpersoon van inzet/klant.
+    const uitThread = actie.emailIn ? afzenderUitThread(actie.emailIn.bodyText) : null;
+    const ontvanger = uitThread ? { naam: uitThread.naam, email: uitThread.email, rol: null } : defaultRecipient(actie);
+    const klantVoorCorrespondentie = actie.inzet?.klant ?? actie.contract?.klant ?? null;
+    const correspondentie = await eerdereCorrespondentie(actie, klantVoorCorrespondentie, rawContract?.bronEmailId ?? null);
     // Bij tarief-/indexatievragen het actuele CBS-cijfer (reeks 7112) meegeven als onderbouwing.
     const wilCbs = ["indexatie_aanvragen", "indexatie_voorstellen", "verlenging_uitvragen", "einde_beoordelen"].includes(actie.soort);
     const cbsCijfer = wilCbs ? await cbsIndexcijfer(Number(todayIso().slice(0, 4)), 2) : null;
@@ -69,6 +85,7 @@ export async function generateConcept(_prev: ActionState, formData: FormData): P
         extraInstructie,
         cbs: cbsTekst(cbsCijfer),
         tariefVoorstel: nieuwTarief !== null ? `€ ${nieuwTarief.toFixed(2)} per uur (nu € ${huidigTarief!.toFixed(2)})` : null,
+        correspondentie,
       },
       { instructies: settings.stijlInstructies, handtekening: settings.handtekening, voorbeelden: voorbeelden.map((v) => ({ titel: v.titel, tekst: v.tekst })) },
     );
@@ -120,7 +137,7 @@ export async function saveConcept(_prev: ActionState, formData: FormData): Promi
 
   if (d.bewaarStijl === "on") {
     const actie = await db.query.acties.findFirst({ where: eq(acties.id, d.actieId) });
-    const soort = actie?.soort === "verlenging_uitvragen" ? "verlenging" : actie?.soort === "indexatie_aanvragen" ? "indexatie" : actie?.soort === "contract_opvragen" || actie?.soort === "overeenkomst_opvragen" ? "contract_opvragen" : "algemeen";
+    const soort = actie ? stijlSoort(actie.soort) : "algemeen";
     await db.insert(stijlVoorbeelden).values({ titel: d.onderwerp, tekst: d.body, soort, bron: "bewerkt_concept" });
   }
 

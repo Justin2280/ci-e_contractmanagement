@@ -74,6 +74,7 @@ export async function applyIndexatie(payload: ApplyIndexatiePayload, userId: str
         toelichting: bron,
         correctie: { tmWeek: p.periodeTmWeek, bedragen: p.correcties, bron },
         forceerCorrectieActie: p.correcties.length > 0,
+        emailInId: p.emailId,
       },
       userId,
       database,
