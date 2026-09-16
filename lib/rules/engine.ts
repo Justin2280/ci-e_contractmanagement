@@ -1,4 +1,4 @@
-import { addDays, addMonths, differenceInCalendarDays, parseISO } from "date-fns";
+import { addDays, addMonths, differenceInCalendarDays, getISOWeek, parseISO } from "date-fns";
 import type { Settings } from "@/lib/settings-schema";
 import { toIsoDate } from "@/lib/format";
 
@@ -45,6 +45,8 @@ export interface RegelInzet {
     indexatieWijze?: "vooraf" | "achteraf_correctie" | null;
     indexatieAanvraagMoment?: string | null;
     indexatieToelichting?: string | null;
+    /** CBS-kwartaal dat voor dit contract geldt (uit contract/clausule); leeg = 2. */
+    indexatieKwartaal?: number | null;
     startdatum?: string | null;
     /** Contract dat de indexatie-afspraak draagt (het raam-/regiecontract als die geërfd is); daar hoort de aanvraag bij. */
     indexatieContractId?: string | null;
@@ -70,8 +72,10 @@ export interface RegelInput {
   inzetten: RegelInzet[];
   periodes: RegelPeriode[];
   settings: Settings;
-  /** Actueel CBS-cijfer (reeks 7112) om in omschrijvingen mee te geven; null als niet beschikbaar. */
+  /** Actueel CBS-cijfer (reeks 7112, 2e kwartaal) om in omschrijvingen mee te geven; null als niet beschikbaar. */
   cbs?: { tekst: string; percentage: number } | null;
+  /** CBS-cijfers per kwartaal (1–4) van het lopende jaar, voor contracten met een afwijkend kwartaal. */
+  cbsPerKwartaal?: Partial<Record<number, { tekst: string; percentage: number } | null>>;
 }
 
 export interface ActieVoorstel {
@@ -215,20 +219,32 @@ export function evalueerRegels(input: RegelInput): ActieVoorstel[] {
       const aanvraagdatum = `${jaar}-${mmdd}`;
       if (daysBetween(today, aanvraagdatum) > 7) continue;
       const momentMmdd = /^\d{2}-\d{2}$/.test(c.indexatieMoment ?? "") ? c.indexatieMoment! : "01-01";
-      const tarieven = list
-        .map((i) => `${i.medewerkerNaam}${i.tarief !== null && i.tarief !== undefined ? ` (€ ${i.tarief.toFixed(2)})` : ""}`)
-        .filter((v, idx, arr) => arr.indexOf(v) === idx)
-        .join(", ");
+      // Alleen mensen met een tarief op prijspeil van vóór het indexatiejaar; wie in het jaar zelf is
+      // gestart heeft al het actuele prijspeil (Mobilis 2023: Broek en Schenk niet geïndexeerd).
+      const indexatiemoment = `${jaar}-${momentMmdd.slice(0, 2)}-${momentMmdd.slice(3)}`;
+      const teIndexeren = list.filter((i) => !i.startdatum || i.startdatum < indexatiemoment);
+      const ditJaarGestart = list.filter((i) => i.startdatum && i.startdatum >= indexatiemoment);
+      if (teIndexeren.length === 0) continue;
+      const kwartaal = c.indexatieKwartaal && c.indexatieKwartaal >= 1 && c.indexatieKwartaal <= 4 ? c.indexatieKwartaal : 2;
+      const cbs = input.cbsPerKwartaal?.[kwartaal] ?? (kwartaal === 2 ? (input.cbs ?? null) : null);
+      const naamMetTarief = (i: RegelInzet) => `${i.medewerkerNaam}${i.tarief !== null && i.tarief !== undefined ? ` (€ ${i.tarief.toFixed(2)})` : ""}`;
+      const uniek = (arr: string[]) => arr.filter((v, idx) => arr.indexOf(v) === idx).join(", ");
+      const tarieven = uniek(teIndexeren.map(naamMetTarief));
+      const uitgesloten = ditJaarGestart.length ? ` Niet indexeren (gestart in ${jaar}, prijspeil ${jaar}): ${uniek(ditJaarGestart.map((i) => `${i.medewerkerNaam} (start ${i.startdatum})`))}.` : "";
+      const week = getISOWeek(parseISO(today));
+      const cbsZin = cbs
+        ? `Percentage volgens ${c.indexatieToelichting ?? formule}: ${cbs.tekst}.`
+        : `Het CBS-cijfer voor ${jaar} (reeks 7112, ${kwartaal}e kwartaal) is nog niet gepubliceerd of niet bereikbaar; het verzoek kan pas als het cijfer beschikbaar is. Afspraak: ${c.indexatieToelichting ?? formule}.`;
       out.push({
         soort: "indexatie_aanvragen",
         titel: `Indexatie ${jaar} aanvragen: ${c.nummer} (${list[0].klantNaam ?? "?"}) — achteraf, correctie vanaf ${momentMmdd.slice(3)}-${momentMmdd.slice(0, 2)}`,
-        omschrijving: `De CBS-cijfers voor ${jaar} zijn nu beschikbaar. Bepaal het percentage (${c.indexatieToelichting ?? formule}), mail de klant met het percentage en de betrokken medewerkers en vraag om een indexatiebon. Daarna: correctiefactuur voor de weken vanaf het indexatiemoment (${momentMmdd}) tot nu en vanaf de volgende periode het nieuwe tarief. Betreft: ${tarieven}.`,
+        omschrijving: `${cbsZin} Mail de klant met het percentage en de betrokken medewerkers en vraag akkoord en een indexatiebon; daarna één correctiefactuur voor week 1 t/m ${week} (vanaf ${momentMmdd}) en vanaf de week erna het nieuwe tarief. Betreft: ${tarieven}.${uitgesloten}`,
         vervaldatum: laterOf(today, aanvraagdatum),
         dedupeKey: `indexatie_aanvragen:${contractId}:${jaar}`,
-        inzetId: list[0].id,
+        inzetId: teIndexeren[0].id,
         contractId,
-        medewerkerId: list[0].medewerkerId,
-        toegewezenUserId: list[0].actiehouderUserId,
+        medewerkerId: teIndexeren[0].medewerkerId,
+        toegewezenUserId: teIndexeren[0].actiehouderUserId,
       });
       continue;
     }

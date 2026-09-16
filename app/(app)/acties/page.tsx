@@ -17,6 +17,7 @@ import { IndexatieForm, type IndexatieInzetOptie } from "@/components/app/indexa
 import { lopendeInzettenVanContract } from "@/lib/indexatie/verwerk";
 import { cbsIndexcijfer } from "@/lib/indexatie/cbs";
 import { effectiveContract } from "@/lib/contracts/effective";
+import { indexatieKwartaalVan } from "@/lib/indexatie/kwartaal";
 
 export const metadata = { title: "Acties" };
 
@@ -118,6 +119,7 @@ export default async function ActiesPage({ searchParams }: PageProps<"/acties">)
                         wijze={effectiveContract(a.contract).indexatieWijze ?? "vooraf"}
                         defaultIngangsdatum={`${indexatieJaar}-${(effectiveContract(a.contract).indexatieMoment ?? "01-01").replace(/^(\d{2})-(\d{2})$/, "$1-$2")}`}
                         defaultPercentage={a.soort === "indexatie_voorstellen" ? (cbsCijfer?.jaarmutatie ?? null) : null}
+                        kwartaal={indexatieKwartaalVan(effectiveContract(a.contract))}
                         compact
                       />
                     </div>

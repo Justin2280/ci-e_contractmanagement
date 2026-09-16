@@ -156,7 +156,7 @@ export async function buildReviewProposal(email: EmailIn, ctx: Context): Promise
         contactpersonen: (email.extractieJson as Partial<ContractExtraction>)?.contactpersonen ?? [],
         onzekerheden: (email.extractieJson as Partial<ContractExtraction>)?.onzekerheden ?? [],
         bronverwijzingen: [],
-        indexatie: (email.extractieJson as Partial<ContractExtraction>)?.indexatie ?? { soort: "onbekend", moment: null, toelichting: null },
+        indexatie: (email.extractieJson as Partial<ContractExtraction>)?.indexatie ?? { soort: "onbekend", moment: null, toelichting: null, kwartaal: null },
         einddatumType: (email.extractieJson as Partial<ContractExtraction>)?.einddatumType ?? "vast",
         soort: (email.extractieJson as Partial<ContractExtraction>)?.soort ?? "overig",
         samenvatting: (email.extractieJson as Partial<ContractExtraction>)?.samenvatting ?? "",

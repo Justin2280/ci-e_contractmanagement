@@ -107,6 +107,7 @@ export const ContractExtractionSchema = z.object({
     soort: IndexatieSoortSchema,
     moment: z.string().nullable().describe("MM-DD van het jaarlijkse indexatiemoment, meestal 01-01"),
     toelichting: z.string().nullable().describe("Indexformule/-bron, bv. 'CBS 7112, 2 kwartalen vertraagd, afronden op halve euro'"),
+    kwartaal: z.number().int().min(1).max(4).nullable().optional().describe("CBS-kwartaal waarvan de (jaar)mutatie geldt, als de clausule dat noemt"),
   }),
   betalingstermijnDagen: z.number().int().nullable(),
   facturatie: z
@@ -219,6 +220,7 @@ export const ContractExtractionWireSchema = z.object({
     soort: IndexatieSoortSchema,
     moment: wireText("MM-DD van het jaarlijkse indexatiemoment, meestal 01-01"),
     toelichting: wireText("Indexformule/-bron, bv. 'CBS 7112, 2 kwartalen vertraagd, afronden op halve euro'"),
+    kwartaal: z.number().int().nullable().optional().describe("CBS-kwartaal (1-4) waarvan de index/jaarmutatie wordt vergeleken, als de clausule dat noemt; anders null"),
   }),
   betalingstermijnDagen: z.number().int().nullable().describe("Betalingstermijn in dagen; null als onbekend"),
   facturatie: z
@@ -306,6 +308,8 @@ export function fromWire(wire: ContractExtractionWire): ContractExtraction {
       soort: wire.indexatie.soort,
       moment: text(wire.indexatie.moment),
       toelichting: text(wire.indexatie.toelichting),
+      // Alleen opnemen als de clausule een geldig kwartaal noemt; anders blijft het veld weg.
+      ...(typeof wire.indexatie.kwartaal === "number" && wire.indexatie.kwartaal >= 1 && wire.indexatie.kwartaal <= 4 ? { kwartaal: wire.indexatie.kwartaal } : {}),
     },
     betalingstermijnDagen: wire.betalingstermijnDagen,
     facturatie: objOrNull({

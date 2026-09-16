@@ -1,0 +1,1 @@
+ALTER TABLE "contracten" ADD COLUMN "indexatie_kwartaal" integer;

@@ -94,8 +94,11 @@ export function ContractForm({
       <F label="Aanvraagmoment indexatie (MM-DD, leeg = instelling)">
         <Input name="indexatieAanvraagMoment" defaultValue={v("indexatieAanvraagMoment")} placeholder="bv. 09-15 (15 september) bij achteraf" />
       </F>
-      <F label="Indexatie toelichting">
-        <Input name="indexatieToelichting" defaultValue={v("indexatieToelichting")} placeholder="CBS 7112, 2 kwartalen vertraagd…" />
+      <F label="Indexatie toelichting (clausule)">
+        <Input name="indexatieToelichting" defaultValue={v("indexatieToelichting")} placeholder="CBS 7112, index 1e kwartaal t.o.v. 1e kwartaal vorig jaar…" />
+      </F>
+      <F label="CBS-kwartaal (leeg = uit de clausule, anders 2e kwartaal)">
+        <SelectField name="indexatieKwartaal" defaultValue={v("indexatieKwartaal")} options={[["", "Uit clausule"], ["1", "1e kwartaal"], ["2", "2e kwartaal"], ["3", "3e kwartaal"], ["4", "4e kwartaal"]]} />
       </F>
       <F label="Betalingstermijn (dagen)">
         <Input name="betalingstermijnDagen" inputMode="numeric" defaultValue={v("betalingstermijnDagen")} />

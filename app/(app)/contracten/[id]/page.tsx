@@ -13,6 +13,7 @@ import { ContractForm } from "./contract-form";
 import { IndexatieForm } from "@/components/app/indexatie-form";
 import { LOPENDE_STATUSSEN } from "@/lib/queries/inzetten";
 import { effectiveContract } from "@/lib/contracts/effective";
+import { indexatieKwartaalVan } from "@/lib/indexatie/kwartaal";
 
 export default async function ContractPage({ params }: PageProps<"/contracten/[id]">) {
   const { id } = await params;
@@ -181,6 +182,7 @@ export default async function ContractPage({ params }: PageProps<"/contracten/[i
                     .map((i) => ({ id: i.id, label: `${i.medewerker.naam} · ${i.contractNummer}`, tarief: i.tarief !== null ? Number(i.tarief) : null }))}
                   wijze={effectiveContract(c).indexatieWijze ?? "vooraf"}
                   defaultIngangsdatum={`${new Date().getFullYear()}-${effectiveContract(c).indexatieMoment ?? "01-01"}`}
+                  kwartaal={indexatieKwartaalVan(effectiveContract(c))}
                   compact
                 />
               </CardContent>
