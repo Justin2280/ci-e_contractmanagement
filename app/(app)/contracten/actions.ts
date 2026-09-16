@@ -50,6 +50,7 @@ const ContractSchema = z.object({
   notities: opt,
   indexatieWijze: z.enum(indexatieWijze.enumValues).default("vooraf"),
   indexatieAanvraagMoment: opt.pipe(z.string().regex(/^\d{2}-\d{2}$/).nullable()),
+  indexatieKwartaal: optInt.pipe(z.number().int().min(1).max(4).nullable()),
   /** Bij een andere klant: inzetten en project van dit contract mee verhuizen. */
   verhuisInzetten: z.string().optional(),
 });

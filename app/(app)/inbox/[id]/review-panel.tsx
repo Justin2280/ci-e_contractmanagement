@@ -55,6 +55,7 @@ export function ReviewPanel({ emailId, proposal, options, alreadyApproved }: { e
     indexatieToelichting: e.indexatie.toelichting,
     indexatieWijze: "vooraf",
     indexatieAanvraagMoment: null,
+    indexatieKwartaal: e.indexatie.kwartaal ?? null,
     betalingstermijnDagen: e.betalingstermijnDagen,
     facturatieFrequentie: e.facturatie?.frequentie ?? null,
     factuurEisen: [e.facturatie?.eisen, e.facturatie?.email ? `Facturen naar ${e.facturatie.email}` : null].filter(Boolean).join(" ") || null,
@@ -398,6 +399,19 @@ export function ReviewPanel({ emailId, proposal, options, alreadyApproved }: { e
                 ))}
               </select>
               <Input className="w-24" value={contract.indexatieAanvraagMoment ?? ""} onChange={(ev) => setC({ indexatieAanvraagMoment: str(ev.target.value) })} placeholder="09-15" />
+              <select
+                value={contract.indexatieKwartaal ?? ""}
+                onChange={(ev) => setC({ indexatieKwartaal: ev.target.value ? Number(ev.target.value) : null })}
+                className="h-9 w-40 rounded-md border bg-background px-2 text-sm"
+                title="CBS-kwartaal volgens de clausule"
+              >
+                <option value="">CBS-kwartaal: uit clausule</option>
+                {[1, 2, 3, 4].map((k) => (
+                  <option key={k} value={k}>
+                    {k}e kwartaal
+                  </option>
+                ))}
+              </select>
             </div>
           </F>
           <F label="Betalingstermijn (dagen) / facturatiefrequentie">

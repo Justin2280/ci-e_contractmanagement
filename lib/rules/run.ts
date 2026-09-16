@@ -9,6 +9,7 @@ import { evalueerRegels, type RegelInzet } from "./engine";
 import { effectiveContract } from "@/lib/contracts/effective";
 import { activeerGeplandeTarieven, tariefStanden } from "@/lib/inzetten/tarieven";
 import { cbsIndexcijfer, cbsTekst } from "@/lib/indexatie/cbs";
+import { indexatieKwartaalVan } from "@/lib/indexatie/kwartaal";
 
 /**
  * Loads state, runs the pure rules engine and upserts acties on dedupe_key.
@@ -61,6 +62,7 @@ export async function runDailyRules(opts: { today?: string } = {}) {
             indexatieWijze: c.indexatieWijze,
             indexatieAanvraagMoment: c.indexatieAanvraagMoment,
             indexatieToelichting: c.indexatieToelichting,
+            indexatieKwartaal: indexatieKwartaalVan(c),
             startdatum: c.startdatum,
             opzegtermijnDagen: c.opzegtermijnDagen,
             reviewStatus: c.reviewStatus,
@@ -76,10 +78,24 @@ export async function runDailyRules(opts: { today?: string } = {}) {
   const cbsCijfer = await cbsIndexcijfer(Number(today.slice(0, 4)), 2, { today });
   const cbsTxt = cbsTekst(cbsCijfer);
   const cbs = cbsTxt && cbsCijfer?.jaarmutatie !== null && cbsCijfer ? { tekst: cbsTxt, percentage: cbsCijfer.jaarmutatie! } : null;
-  const voorstellen = evalueerRegels({ today, inzetten: regelInzetten, periodes, settings, cbs });
+  // Contracten met een afwijkend CBS-kwartaal (bv. Nieuw-Zuid: 1e kwartaal) krijgen hun eigen cijfer.
+  const cbsPerKwartaal: Partial<Record<number, { tekst: string; percentage: number } | null>> = { 2: cbs };
+  for (const k of new Set(regelInzetten.map((i) => i.contract?.indexatieKwartaal).filter((k): k is number => typeof k === "number" && k !== 2))) {
+    const c = await cbsIndexcijfer(Number(today.slice(0, 4)), k, { today });
+    const t = cbsTekst(c);
+    cbsPerKwartaal[k] = t && c && c.jaarmutatie !== null ? { tekst: t, percentage: c.jaarmutatie } : null;
+  }
+  const voorstellen = evalueerRegels({ today, inzetten: regelInzetten, periodes, settings, cbs, cbsPerKwartaal });
 
   let aangemaakt = 0;
   for (const v of voorstellen) {
+    // Een open indexatie-aanvraag krijgt de actuele omschrijving (CBS-cijfer, betrokken mensen, weeknummer).
+    if (v.soort === "indexatie_aanvragen") {
+      await db
+        .update(acties)
+        .set({ omschrijving: v.omschrijving })
+        .where(and(eq(acties.dedupeKey, v.dedupeKey), eq(acties.status, "open")));
+    }
     const inserted = await db
       .insert(acties)
       .values({

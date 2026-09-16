@@ -323,6 +323,8 @@ export const contracten = pgTable(
     indexatieWijze: indexatieWijze("indexatie_wijze").notNull().default("vooraf"),
     /** "MM-DD" waarop de indexatie wordt aangevraagd; leeg = instelling (vooraf: weken vóór het moment, achteraf: instelling). */
     indexatieAanvraagMoment: text("indexatie_aanvraag_moment"),
+    /** CBS-kwartaal waarvan de jaarmutatie geldt (1–4); leeg = 2e kwartaal. Nieuw-Zuid: 1e kwartaal. */
+    indexatieKwartaal: integer("indexatie_kwartaal"),
     betalingstermijnDagen: integer("betalingstermijn_dagen"),
     facturatieFrequentie: text("facturatie_frequentie"),
     factuurEisen: text("factuur_eisen"),

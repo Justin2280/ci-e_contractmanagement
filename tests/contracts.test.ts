@@ -50,6 +50,11 @@ describe("effectiveContract", () => {
     expect(eff.opzegtermijnDagen).toBe(14);
     expect(eff.facturatieFrequentie).toBe("4-wekelijks");
   });
+  it("inherits the CBS quarter from the parent unless the child sets one", () => {
+    const p2 = { ...parent, indexatieKwartaal: 1 };
+    expect(effectiveContract({ ...parent, indexatie: "onbekend" as const, indexatieKwartaal: null, parent: p2 }).indexatieKwartaal).toBe(1);
+    expect(effectiveContract({ ...parent, indexatieKwartaal: 3, parent: p2 }).indexatieKwartaal).toBe(3);
+  });
   it("is a no-op without a parent", () => {
     const solo = { ...parent, indexatie: "vast" as const, parent: null };
     expect(effectiveContract(solo).indexatie).toBe("vast");

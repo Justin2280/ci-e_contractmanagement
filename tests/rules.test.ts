@@ -105,11 +105,13 @@ describe("regels-engine", () => {
 });
 
 describe("indexatie achteraf (correctie, Mobilis-praktijk)", () => {
-  const achteraf = (over: Partial<NonNullable<RegelInzet["contract"]>> = {}) =>
+  const achteraf = (over: Partial<NonNullable<RegelInzet["contract"]>> = {}, inzetOver: Partial<RegelInzet> = {}) =>
     inzet({
       einddatumType: "einde_opdracht",
       einddatum: null,
       tarief: 92.6,
+      startdatum: "2024-01-08",
+      ...inzetOver,
       contract: {
         id: "c2",
         nummer: "21116-037C",
@@ -148,6 +150,29 @@ describe("indexatie achteraf (correctie, Mobilis-praktijk)", () => {
   it("slaat het startjaar van het contract over (tarief staat vast)", () => {
     const out = evalueerRegels({ ...base, today: "2026-10-01", inzetten: [achteraf({ startdatum: "2026-03-01" })] });
     expect(out.filter((a) => a.soort === "indexatie_aanvragen")).toHaveLength(0);
+  });
+
+  it("gebruikt het CBS-kwartaal van het contract, sluit wie dit jaar startte uit en noemt de correctieperiode", () => {
+    const cbsPerKwartaal = { 1: { tekst: "CBS 7112 jaarmutatie 1e kwartaal 2026: 2,4 %", percentage: 2.4 }, 2: { tekst: "CBS 7112 jaarmutatie 2e kwartaal 2026: 3,1 %", percentage: 3.1 } };
+    const oud = achteraf({ indexatieKwartaal: 1 });
+    const nieuw = achteraf({ indexatieKwartaal: 1 }, { id: "i9", medewerkerId: "m9", medewerkerNaam: "Peter Broek", startdatum: "2026-02-01", tarief: 95 });
+    const out = evalueerRegels({ ...base, today: "2026-09-16", inzetten: [oud, nieuw], cbsPerKwartaal });
+    const a = out.find((x) => x.soort === "indexatie_aanvragen")!;
+    expect(a.omschrijving).toContain("1e kwartaal 2026: 2,4 %");
+    expect(a.omschrijving).not.toContain("3,1 %");
+    expect(a.omschrijving).toContain("week 1 t/m 38");
+    expect(a.omschrijving).toContain("Betreft: Dhr. W.S. Terpstra (€ 92.60).");
+    expect(a.omschrijving).toContain("Niet indexeren (gestart in 2026, prijspeil 2026): Peter Broek (start 2026-02-01)");
+    expect(a.inzetId).toBe("i1");
+
+    // Alleen mensen die dit jaar startten: niets aan te vragen.
+    expect(evalueerRegels({ ...base, today: "2026-09-16", inzetten: [nieuw], cbsPerKwartaal }).filter((x) => x.soort === "indexatie_aanvragen")).toHaveLength(0);
+  });
+
+  it("meldt dat het CBS-cijfer nog ontbreekt als het niet beschikbaar is", () => {
+    const out = evalueerRegels({ ...base, today: "2026-09-16", inzetten: [achteraf({ indexatieKwartaal: 1 })], cbsPerKwartaal: { 1: null } });
+    const a = out.find((x) => x.soort === "indexatie_aanvragen")!;
+    expect(a.omschrijving).toContain("1e kwartaal) is nog niet gepubliceerd");
   });
 
   it("laat de vooraf-variant ongemoeid", () => {

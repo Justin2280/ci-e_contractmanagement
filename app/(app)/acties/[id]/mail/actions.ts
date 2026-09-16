@@ -18,6 +18,7 @@ import { addDays } from "date-fns";
 import type { ActionState } from "../../../inzetten/actions";
 import { defaultRecipient, loadActieMetContext } from "@/lib/acties/context";
 import { afzenderUitThread, eerdereCorrespondentie } from "@/lib/acties/correspondentie";
+import { indexatieKwartaalVan } from "@/lib/indexatie/kwartaal";
 
 type StijlSoort = "algemeen" | "verlenging" | "indexatie" | "contract_opvragen";
 
@@ -58,7 +59,16 @@ export async function generateConcept(_prev: ActionState, formData: FormData): P
     const correspondentie = await eerdereCorrespondentie(actie, klantVoorCorrespondentie, rawContract?.bronEmailId ?? null);
     // Bij tarief-/indexatievragen het actuele CBS-cijfer (reeks 7112) meegeven als onderbouwing.
     const wilCbs = ["indexatie_aanvragen", "indexatie_voorstellen", "verlenging_uitvragen", "einde_beoordelen"].includes(actie.soort);
-    const cbsCijfer = wilCbs ? await cbsIndexcijfer(Number(todayIso().slice(0, 4)), 2) : null;
+    // Het jaar van de actie (uit de dedupe-sleutel) en het CBS-kwartaal dat het contract voorschrijft.
+    const cbsJaar = Number(actie.dedupeKey?.match(/:(\d{4})(?::|$)/)?.[1] ?? todayIso().slice(0, 4));
+    const kwartaal = indexatieKwartaalVan(contract);
+    const cbsCijfer = wilCbs ? await cbsIndexcijfer(cbsJaar, kwartaal) : null;
+    if (actie.soort === "indexatie_aanvragen" && contract?.indexatieWijze === "achteraf_correctie" && !cbsCijfer) {
+      return {
+        ok: false,
+        message: `Het CBS-cijfer voor ${cbsJaar} (reeks 7112, ${kwartaal}e kwartaal) is nog niet gepubliceerd of niet bereikbaar. Het indexatieverzoek kan pas worden opgesteld als dat cijfer beschikbaar is; probeer het later opnieuw.`,
+      };
+    }
     const huidigTarief = actie.inzet?.tarief !== null && actie.inzet?.tarief !== undefined ? Number(actie.inzet.tarief) : null;
     const nieuwTarief = actie.soort === "indexatie_voorstellen" ? voorgesteldTarief(huidigTarief, cbsCijfer?.jaarmutatie ?? null) : null;
     const draft = await generateDraftEmail(

@@ -24,6 +24,7 @@ export function IndexatieForm({
   wijze,
   defaultIngangsdatum,
   defaultPercentage,
+  kwartaal = 2,
   compact,
 }: {
   contractId: string;
@@ -33,6 +34,8 @@ export function IndexatieForm({
   defaultIngangsdatum: string;
   /** Voorgevuld percentage, bv. het CBS-cijfer bij een tariefvoorstel. */
   defaultPercentage?: number | null;
+  /** CBS-kwartaal volgens het contract (standaard 2). */
+  kwartaal?: number;
   compact?: boolean;
 }) {
   const [state, action, pending] = useActionState<ActionState, FormData>(verwerkIndexatieAction, null);
@@ -44,7 +47,7 @@ export function IndexatieForm({
   const cbsJaar = Number(defaultIngangsdatum.slice(0, 4)) || new Date().getFullYear();
   async function haalCbs() {
     setCbsBusy(true);
-    const r = await cbsPercentageAction(cbsJaar, 2);
+    const r = await cbsPercentageAction(cbsJaar, kwartaal);
     setCbs(r);
     if (r.ok && r.percentage !== undefined) setPct(String(r.percentage).replace(".", ","));
     setCbsBusy(false);
@@ -91,7 +94,7 @@ export function IndexatieForm({
           <span className="block text-xs text-muted-foreground">Akkoord klant op</span>
           <Input type="date" name="akkoordOp" className="h-8 w-40" />
         </label>
-        <Button type="button" size="sm" variant="outline" onClick={haalCbs} disabled={cbsBusy} title="CBS StatLine, CPA 7112, jaarmutatie 2e kwartaal">
+        <Button type="button" size="sm" variant="outline" onClick={haalCbs} disabled={cbsBusy} title={`CBS StatLine, CPA 7112, jaarmutatie ${kwartaal}e kwartaal`}>
           {cbsBusy ? "CBS…" : `CBS-percentage ${cbsJaar} ophalen`}
         </Button>
       </div>
