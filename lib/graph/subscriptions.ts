@@ -35,15 +35,36 @@ function expiration(): string {
   return new Date(Date.now() + LIFETIME_MS).toISOString();
 }
 
+const PREFER_IMMUTABLE = { Prefer: 'IdType="ImmutableId"' };
+
+async function deleteGraphSubscription(subscriptionId: string): Promise<void> {
+  try {
+    await graphFetch(`/subscriptions/${subscriptionId}`, { method: "DELETE" });
+  } catch (err) {
+    if (!(err instanceof GraphError && err.status === 404)) throw err;
+  }
+}
+
 /**
  * Ensures there is exactly one live subscription on the shared inbox.
  * Called from the daily cron and from lifecycle notifications.
+ *
+ * Subscriptions are created with `Prefer: IdType="ImmutableId"`: only then carry
+ * change notifications the same message id as the delta sync and `getMessage`.
+ * A stored subscription that was created without it is deleted and recreated,
+ * otherwise every mail would be ingested twice (mutable id via the webhook,
+ * immutable id via the delta sync).
  */
-export async function ensureInboxSubscription(): Promise<{ action: "created" | "renewed" | "ok"; expiration: Date }> {
+export async function ensureInboxSubscription(): Promise<{ action: "created" | "renewed" | "recreated" | "ok"; expiration: Date }> {
   const resource = inboxResource();
   const stored = await db.query.graphSubscriptions.findFirst({ where: eq(graphSubscriptions.resource, resource) });
+  let recreate = false;
 
-  if (stored) {
+  if (stored && !stored.immutableIds) {
+    await deleteGraphSubscription(stored.subscriptionId);
+    await db.delete(graphSubscriptions).where(eq(graphSubscriptions.id, stored.id));
+    recreate = true;
+  } else if (stored) {
     const remaining = stored.expiration.getTime() - Date.now();
     if (remaining > RENEW_THRESHOLD_MS) return { action: "ok", expiration: stored.expiration };
     try {
@@ -60,45 +81,38 @@ export async function ensureInboxSubscription(): Promise<{ action: "created" | "
     }
   }
 
-  // Look for an existing Graph subscription on this resource (409 on duplicate create).
+  // A Graph subscription on this resource that we don't know (or whose id type we
+  // can't tell) is replaced rather than renewed; creating a duplicate gives a 409.
   const existing = await graphFetch<{ value: GraphSubscription[] }>("/subscriptions");
-  const same = existing.value.find((s) => s.resource === resource && s.notificationUrl === notificationUrl());
-  let sub: GraphSubscription;
-  if (same) {
-    sub = await graphFetch<GraphSubscription>(`/subscriptions/${same.id}`, {
-      method: "PATCH",
-      body: { expirationDateTime: expiration() },
-    });
-  } else {
-    sub = await graphFetch<GraphSubscription>("/subscriptions", {
-      method: "POST",
-      body: {
-        changeType: "created",
-        notificationUrl: notificationUrl(),
-        lifecycleNotificationUrl: notificationUrl(),
-        resource,
-        expirationDateTime: expiration(),
-        clientState: clientState(),
-        latestSupportedTlsVersion: "v1_2",
-      },
-    });
+  for (const same of existing.value.filter((s) => s.resource === resource && s.notificationUrl === notificationUrl())) {
+    await deleteGraphSubscription(same.id);
+    recreate = true;
   }
+  const sub = await graphFetch<GraphSubscription>("/subscriptions", {
+    method: "POST",
+    headers: PREFER_IMMUTABLE,
+    body: {
+      changeType: "created",
+      notificationUrl: notificationUrl(),
+      lifecycleNotificationUrl: notificationUrl(),
+      resource,
+      expirationDateTime: expiration(),
+      clientState: clientState(),
+      latestSupportedTlsVersion: "v1_2",
+    },
+  });
   const exp = new Date(sub.expirationDateTime);
   await db
     .insert(graphSubscriptions)
-    .values({ subscriptionId: sub.id, resource, expiration: exp, clientState: clientState() })
-    .onConflictDoUpdate({ target: graphSubscriptions.subscriptionId, set: { expiration: exp, resource } });
-  return { action: "created", expiration: exp };
+    .values({ subscriptionId: sub.id, resource, expiration: exp, clientState: clientState(), immutableIds: true })
+    .onConflictDoUpdate({ target: graphSubscriptions.subscriptionId, set: { expiration: exp, resource, immutableIds: true } });
+  return { action: recreate ? "recreated" : "created", expiration: exp };
 }
 
 export async function removeInboxSubscription(): Promise<void> {
   const resource = inboxResource();
   const stored = await db.query.graphSubscriptions.findFirst({ where: and(eq(graphSubscriptions.resource, resource)) });
   if (!stored) return;
-  try {
-    await graphFetch(`/subscriptions/${stored.subscriptionId}`, { method: "DELETE" });
-  } catch (err) {
-    if (!(err instanceof GraphError && err.status === 404)) throw err;
-  }
+  await deleteGraphSubscription(stored.subscriptionId);
   await db.delete(graphSubscriptions).where(eq(graphSubscriptions.id, stored.id));
 }

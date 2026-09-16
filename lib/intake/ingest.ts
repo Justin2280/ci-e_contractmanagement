@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { eq, or } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { bijlagen, emailsIn } from "@/lib/db/schema";
 import { getMessage, listAttachments, downloadAttachment } from "@/lib/graph/mail";
@@ -21,19 +21,31 @@ function isSupported(name: string, mime?: string): boolean {
 
 /**
  * Fetches a Graph message + attachments into the database and Blob storage.
- * Idempotent on graphMessageId. Returns the emails_in row id, or null if the
- * message was already ingested.
+ * Idempotent per message, whichever id form the caller has: the webhook may
+ * deliver a mutable id while the delta sync uses immutable ids. The row is
+ * stored under the immutable id (`getMessage` asks for it) and a message that
+ * already exists under another id is recognised on its `internetMessageId`.
+ * Returns the emails_in row id and whether it was new.
  */
 export async function ingestMessage(graphMessageId: string): Promise<{ emailId: string; isNew: boolean }> {
   const existing = await db.query.emailsIn.findFirst({ where: eq(emailsIn.graphMessageId, graphMessageId) });
   if (existing) return { emailId: existing.id, isNew: false };
 
   const msg = await getMessage(graphMessageId);
+  const messageId = msg.id || graphMessageId;
+  const internetMessageId = msg.internetMessageId ?? null;
+  const known = await db.query.emailsIn.findFirst({
+    where: internetMessageId
+      ? or(eq(emailsIn.graphMessageId, messageId), eq(emailsIn.internetMessageId, internetMessageId))
+      : eq(emailsIn.graphMessageId, messageId),
+  });
+  if (known) return { emailId: known.id, isNew: false };
+
   const [row] = await db
     .insert(emailsIn)
     .values({
-      graphMessageId,
-      internetMessageId: msg.internetMessageId ?? null,
+      graphMessageId: messageId,
+      internetMessageId,
       vanEmail: msg.from?.emailAddress.address?.toLowerCase() ?? null,
       vanNaam: msg.from?.emailAddress.name ?? null,
       aan: (msg.toRecipients ?? []).map((r) => r.emailAddress.address).join(", ") || null,
@@ -45,12 +57,12 @@ export async function ingestMessage(graphMessageId: string): Promise<{ emailId: 
     .onConflictDoNothing({ target: emailsIn.graphMessageId })
     .returning();
   if (!row) {
-    const again = await db.query.emailsIn.findFirst({ where: eq(emailsIn.graphMessageId, graphMessageId) });
+    const again = await db.query.emailsIn.findFirst({ where: eq(emailsIn.graphMessageId, messageId) });
     return { emailId: again!.id, isNew: false };
   }
 
   if (msg.hasAttachments) {
-    await ingestAttachments(row.id, graphMessageId, row.bodyText);
+    await ingestAttachments(row.id, messageId, row.bodyText);
   }
   return { emailId: row.id, isNew: true };
 }

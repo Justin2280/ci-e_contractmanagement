@@ -83,7 +83,7 @@ Test-ApplicationAccessPolicy -Identity "contracten@ci-engineers.com" -AppId "<cl
 ## 5. Eerste keer
 
 1. Log in met je Microsoft-account (moet in `ALLOWED_EMAILS` staan). De eerste gebruiker wordt automatisch **beheerder**.
-2. **Instellingen → Koppelingen → Webhook-subscription (her)activeren**: controleert de Graph-koppeling en zet de webhook op de gedeelde mailbox. De dagelijkse taak houdt hem daarna in leven (subscriptions verlopen na max. 7 dagen).
+2. **Instellingen → Koppelingen → Webhook-subscription (her)activeren**: controleert de Graph-koppeling en zet de webhook op de gedeelde mailbox. De dagelijkse taak houdt hem daarna in leven (subscriptions verlopen na max. 7 dagen). De subscription wordt aangemaakt met immutable bericht-ids; een oudere subscription zonder die instelling wordt bij de eerstvolgende cron of Sync automatisch vervangen, en mails die daardoor dubbel waren binnengehaald worden op *Genegeerd* gezet met de toelichting "Dubbel ontvangen".
 3. **Excel-import**: lokaal `IMPORT_ACTIEHOUDERS="Justin=j.deweert@ci-engineers.com;Jens=jens@ci-engineers.com" DATABASE_URL=<neon-url> pnpm import:excel pad/naar/FactureerOverzicht_2026.xlsx`. Controleer daarna bij *Instellingen → Gebruikers* de e-mailadressen van de actiehouders.
 4. **Instellingen → Schrijfstijl**: vul je stijlinstructies in en importeer een paar eigen mails uit Verzonden items als voorbeeld.
 5. Stuur een testcontract door naar de gedeelde mailbox; binnen een paar minuten verschijnt hij in **Inbox** ter beoordeling.

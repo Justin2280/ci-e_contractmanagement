@@ -50,6 +50,13 @@
       "when": 1789112596342,
       "tag": "0006_inzetafspraak",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1789540515941,
+      "tag": "0007_immutable_ids",
+      "breakpoints": true
     }
   ]
 }

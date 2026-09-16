@@ -550,6 +550,8 @@ export const graphSubscriptions = pgTable("graph_subscriptions", {
   resource: text("resource").notNull(),
   expiration: timestamp("expiration", { withTimezone: true }).notNull(),
   clientState: text("client_state").notNull(),
+  /** Aangemaakt met `Prefer: IdType="ImmutableId"`, zodat notificaties hetzelfde bericht-id dragen als de delta-sync. */
+  immutableIds: boolean("immutable_ids").notNull().default(false),
   createdAt: createdAt(),
   updatedAt: updatedAt(),
 });

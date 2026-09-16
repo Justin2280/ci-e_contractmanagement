@@ -20,7 +20,7 @@ export async function syncNow(): Promise<ActionState> {
   try {
     const r = await syncInbox();
     revalidatePath("/inbox");
-    return { ok: true, message: `${r.nieuw} nieuwe mail(s) opgehaald` };
+    return { ok: true, message: `${r.nieuw} nieuwe mail(s) opgehaald${r.dubbel ? `, ${r.dubbel} dubbele gemarkeerd` : ""}` };
   } catch (err) {
     return { ok: false, message: err instanceof Error ? err.message : String(err) };
   }
