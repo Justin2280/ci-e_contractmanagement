@@ -41,6 +41,18 @@ export async function generateConcept(_prev: ActionState, formData: FormData): P
   const extraInstructie = String(formData.get("instructie") ?? "").trim() || null;
   try {
     const actie = await loadActieMetContext(actieId);
+    // Een indexatie-actie van een vorig jaar is historie (bv. ontstaan uit het verwerken van een oude bon):
+    // daar hoort geen mail meer bij. Sluit hem en verwijs naar de aanvraag van dit jaar.
+    const actieJaar = Number(actie.dedupeKey?.match(/:(\d{4})$/)?.[1] ?? NaN);
+    const ditJaar = Number(todayIso().slice(0, 4));
+    if (INDEXATIE_SOORTEN.includes(actie.soort) && Number.isFinite(actieJaar) && actieJaar < ditJaar) {
+      await db.update(acties).set({ status: "afgerond", afgerondOp: new Date() }).where(eq(acties.id, actieId));
+      revalidate(actieId);
+      return {
+        ok: false,
+        message: `Deze actie hoort bij de indexatie ${actieJaar}, die al is afgehandeld; hij is nu afgerond. Voor ${ditJaar} gebruik je de actie "Indexatie ${ditJaar} aanvragen" (verschijnt na "Regels nu uitvoeren" zodra de tarieven nog op het oude prijspeil staan).`,
+      };
+    }
     const settings = await getSettings();
     const soortKey = stijlSoort(actie.soort);
     const voorbeelden = await db.query.stijlVoorbeelden.findMany({
@@ -55,7 +67,9 @@ export async function generateConcept(_prev: ActionState, formData: FormData): P
     // in die thread de meest logische ontvanger; anders de contactpersoon van inzet/klant.
     const uitThread = actie.emailIn ? afzenderUitThread(actie.emailIn.bodyText) : null;
     const klantVoorCorrespondentie = actie.inzet?.klant ?? actie.contract?.klant ?? null;
-    const correspondentie = await eerdereCorrespondentie(actie, klantVoorCorrespondentie, rawContract?.bronEmailId ?? null);
+    const correspondentie = await eerdereCorrespondentie(actie, klantVoorCorrespondentie, rawContract?.bronEmailId ?? null, db, {
+      voorkeurOnderwerp: INDEXATIE_SOORTEN.includes(actie.soort) ? /index(atie|ering|ex)|inflatie|tarie(f|ven)/i : undefined,
+    });
     const ontvanger = uitThread
       ? { naam: uitThread.naam, email: uitThread.email, rol: null }
       : defaultRecipient(actie, { financieel: INDEXATIE_SOORTEN.includes(actie.soort), fallback: correspondentie.laatsteAfzender });

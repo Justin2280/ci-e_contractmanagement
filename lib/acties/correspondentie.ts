@@ -68,7 +68,7 @@ export async function eerdereCorrespondentie(
   klant: CorrespondentieKlant | null,
   contractBronEmailId: string | null,
   database: Db = defaultDb,
-  opts: { limiet?: number } = {},
+  opts: { limiet?: number; voorkeurOnderwerp?: RegExp } = {},
 ): Promise<Correspondentie> {
   const ids = new Set<string>();
   if (actie.emailInId) ids.add(actie.emailInId);
@@ -97,19 +97,23 @@ export async function eerdereCorrespondentie(
   }
   if (!conds.length) return LEEG;
 
-  const rows = await database.query.emailsIn.findMany({
+  const alle = await database.query.emailsIn.findMany({
     where: or(...conds),
     orderBy: [desc(emailsIn.ontvangenOp), desc(emailsIn.createdAt)],
-    limit: opts.limiet ?? 4,
+    limit: 12,
     columns: { id: true, onderwerp: true, vanNaam: true, vanEmail: true, ontvangenOp: true, bodyText: true },
   });
-  if (!rows.length) return LEEG;
+  if (!alle.length) return LEEG;
+  // Mails over het onderwerp van de actie (bv. "indexatie") gaan voor; de rest vult aan tot de limiet.
+  const voorkeur = opts.voorkeurOnderwerp;
+  const gesorteerd = voorkeur ? [...alle.filter((m) => voorkeur.test(`${m.onderwerp ?? ""}\n${m.bodyText ?? ""}`)), ...alle.filter((m) => !voorkeur.test(`${m.onderwerp ?? ""}\n${m.bodyText ?? ""}`))] : alle;
+  const rows = gesorteerd.slice(0, opts.limiet ?? 4).sort((a, b) => (b.ontvangenOp?.getTime() ?? 0) - (a.ontvangenOp?.getTime() ?? 0));
 
   // Laatste externe afzender, bij voorkeur van een domein dat bij de klant hoort (een mail van een
   // andere partij die de klantnaam noemt, telt niet). Zonder bekende domeinen geldt de eerste externe.
   const klantDomeinen = new Set((klant?.contactpersonen ?? []).map((c) => c.email?.split("@")[1]?.toLowerCase()).filter((d): d is string => Boolean(d)));
   const kandidaten: Array<{ naam: string | null; email: string }> = [];
-  for (const m of rows) {
+  for (const m of gesorteerd) {
     const uitThread = afzenderUitThread(m.bodyText);
     if (uitThread) kandidaten.push(uitThread);
     if (m.vanEmail && !interneAfzender(m.vanEmail)) kandidaten.push({ naam: m.vanNaam ?? null, email: m.vanEmail.toLowerCase() });
