@@ -85,9 +85,11 @@ export default async function InstellingenPage() {
             Op dag {settings.maandoverzichtDag} van de maand gaat dit overzicht van lopende en toekomstige inzetten vanuit de gedeelde mailbox naar {settings.maandoverzichtOntvangers || "(geen ontvangers)"}
             {settings.maandoverzichtActief ? "." : " — nu uitgeschakeld."} Zo ziet het er vandaag uit:
           </p>
-          <pre className="max-h-96 overflow-auto rounded-md border bg-muted/30 p-3 text-xs">{`${maandoverzicht.onderwerp}
-
-${maandoverzicht.tekst}`}</pre>
+          <div className="max-h-[32rem] overflow-auto rounded-md border bg-white p-3 text-black">
+            <p className="mb-2 text-xs text-muted-foreground">Onderwerp: {maandoverzicht.onderwerp}</p>
+            {/* Eigen, ge-escapete HTML uit bouwMaandoverzicht; dit is wat de directie in de mail ziet. */}
+            <div dangerouslySetInnerHTML={{ __html: maandoverzicht.html }} />
+          </div>
           <MaandoverzichtButton enabled={graphConfigured()} ontvangers={settings.maandoverzichtOntvangers} />
         </CardContent>
       </Card>

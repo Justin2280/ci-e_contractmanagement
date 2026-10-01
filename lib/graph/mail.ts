@@ -90,6 +90,8 @@ export interface OutgoingMail {
   cc?: string[];
   subject: string;
   bodyText: string;
+  /** Als gezet wordt de mail als HTML verstuurd; `bodyText` blijft de platte variant (logs/tests). */
+  bodyHtml?: string;
   replyTo?: string[];
 }
 
@@ -101,7 +103,7 @@ function toRecipients(list: string[] | undefined): GraphRecipient[] | undefined 
 function buildMessage(mail: OutgoingMail) {
   return {
     subject: mail.subject,
-    body: { contentType: "text", content: mail.bodyText },
+    body: mail.bodyHtml ? { contentType: "html", content: mail.bodyHtml } : { contentType: "text", content: mail.bodyText },
     toRecipients: toRecipients(mail.to),
     ccRecipients: toRecipients(mail.cc),
     replyTo: toRecipients(mail.replyTo),
