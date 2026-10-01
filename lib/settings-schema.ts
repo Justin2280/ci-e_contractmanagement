@@ -12,9 +12,10 @@ export const SettingsSchema = z.object({
   contractOpvragenDagenNaStart: z.number().int().min(0).max(120).default(14),
   urenbonDagenNaPeriode: z.number().int().min(0).max(28).default(3),
   einddatumControleKwartaal: z.boolean().default(true),
-  /** 1 = maandag … 7 = zondag */
+  /** Dagen na een verstreken vaste einddatum waarna "einde beoordelen" uiterlijk moet zijn beslist. */
+  eindeBeoordelenDagenNa: z.number().int().min(0).max(90).default(14),
+  /** Weekdag van de (enige) wekelijkse herinneringsmail: 1 = maandag … 7 = zondag. */
   reminderWeekdag: z.number().int().min(1).max(7).default(1),
-  reminderDagelijksBijOverTijd: z.boolean().default(true),
   stijlInstructies: z.string().default(""),
   afzenderNaam: z.string().default("CI-Engineers"),
   handtekening: z.string().default(""),

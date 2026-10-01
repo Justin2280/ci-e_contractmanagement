@@ -29,7 +29,7 @@ export async function updateRegels(_prev: ActionState, formData: FormData): Prom
     urenbonDagenNaPeriode: Number(raw.urenbonDagenNaPeriode),
     einddatumControleKwartaal: raw.einddatumControleKwartaal === "on",
     reminderWeekdag: Number(raw.reminderWeekdag),
-    reminderDagelijksBijOverTijd: raw.reminderDagelijksBijOverTijd === "on",
+    eindeBeoordelenDagenNa: Number(raw.eindeBeoordelenDagenNa),
   });
   if (!parsed.success) return { ok: false, message: parsed.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; ") };
   await saveSettings(parsed.data);

@@ -34,7 +34,15 @@ export function PlanningPanel({
   const [klantId, setKlantId] = useState<string | null>(proposal.klantId);
   const [contactToevoegen, setContactToevoegen] = useState(Boolean(proposal.afzender.email) && !proposal.afzender.alBekend);
   const [regels, setRegels] = useState<Regel[]>(
-    proposal.regels.map((r) => ({ naam: r.naam, medewerkerId: r.medewerkerId, inzetId: r.inzetId, nieuweEinddatum: r.nieuweEinddatum, toepassen: Boolean(r.inzetId && r.nieuweEinddatum) })),
+    proposal.regels.map((r) => ({
+      naam: r.naam,
+      medewerkerId: r.medewerkerId,
+      inzetId: r.inzetId,
+      nieuweEinddatum: r.nieuweEinddatum,
+      verlengingZonderDatum: r.verlengingZonderDatum,
+      eindIndicatie: r.eindIndicatie,
+      toepassen: Boolean(r.inzetId && (r.nieuweEinddatum || r.verlengingZonderDatum)),
+    })),
   );
   const str = (v: string) => (v.trim() === "" ? null : v);
   const select = "h-8 w-full rounded-md border bg-background px-2 text-xs";
@@ -46,7 +54,8 @@ export function PlanningPanel({
       contactpersoon: proposal.afzender.email
         ? { toevoegen: contactToevoegen, naam: proposal.afzender.naam ?? proposal.afzender.email, email: proposal.afzender.email, rol: "Planning" }
         : null,
-      regels: regels.map(({ naam, inzetId, nieuweEinddatum, toepassen }) => ({ naam, inzetId, nieuweEinddatum, toepassen })),
+      regels: regels.map(({ naam, inzetId, nieuweEinddatum, toepassen, verlengingZonderDatum, eindIndicatie }) => ({ naam, inzetId, nieuweEinddatum, toepassen, verlengingZonderDatum, eindIndicatie })),
+      addendumGevraagd: proposal.addendumGevraagd,
     };
     startTransition(async () => {
       const r = await applyPlanningAction(payload);
@@ -172,6 +181,10 @@ export function PlanningPanel({
                         const k = inzetKeuzes.find((i) => i.id === r.inzetId);
                         return k?.contractEinddatum && r.nieuweEinddatum && k.contractEinddatum < r.nieuweEinddatum ? (
                           <div className="text-xs text-amber-800">Contract loopt tot {k.contractEinddatum}: er komt een actie om een verlenging op te vragen.</div>
+                        ) : !r.nieuweEinddatum && r.verlengingZonderDatum ? (
+                          <div className="text-xs text-amber-800">Zonder datum: inzet op n.t.b.; actie om het verlengingscontract/addendum te bewaken.</div>
+                        ) : proposal.addendumGevraagd && r.nieuweEinddatum ? (
+                          <div className="text-xs text-amber-800">Er is om een addendum gevraagd: er komt een actie om dat te bewaken.</div>
                         ) : k?.einddatum ? (
                           <div className="text-xs text-muted-foreground">Nu: {k.einddatum}</div>
                         ) : null;

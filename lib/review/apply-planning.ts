@@ -6,6 +6,12 @@ import { effectiveContract } from "@/lib/contracts/effective";
 
 const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 
+function addDagen(iso: string, dagen: number): string {
+  const d = new Date(`${iso}T12:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + dagen);
+  return d.toISOString().slice(0, 10);
+}
+
 export const ApplyPlanningSchema = z.object({
   emailId: z.string().uuid(),
   klantId: z.string().uuid().nullable(),
@@ -16,9 +22,17 @@ export const ApplyPlanningSchema = z.object({
       inzetId: z.string().uuid().nullable(),
       nieuweEinddatum: isoDate.nullable(),
       toepassen: z.boolean(),
+      /** Verlenging bevestigd zonder datum: inzet op n.t.b., verlengingscontract bewaken. */
+      verlengingZonderDatum: z.boolean().optional(),
+      eindIndicatie: z.string().nullable().optional(),
     }),
   ),
+  /** Er is om een addendum/verlengingscontract gevraagd: ook bij een concrete datum bewaken. */
+  addendumGevraagd: z.boolean().optional(),
 });
+
+/** Na hoeveel dagen het toegezegde verlengingscontract/addendum binnen moet zijn. */
+const ADDENDUM_DAGEN = 14;
 export type ApplyPlanningPayload = z.infer<typeof ApplyPlanningSchema>;
 
 export interface ApplyPlanningResult {
@@ -41,7 +55,8 @@ export async function applyPlanning(payload: ApplyPlanningPayload, userId: strin
     const contractActies: string[] = [];
 
     for (const r of p.regels) {
-      if (!r.toepassen || !r.inzetId || !r.nieuweEinddatum) {
+      const zonderDatum = !r.nieuweEinddatum && r.verlengingZonderDatum === true;
+      if (!r.toepassen || !r.inzetId || (!r.nieuweEinddatum && !zonderDatum)) {
         overgeslagen.push(r.naam);
         continue;
       }
@@ -53,12 +68,14 @@ export async function applyPlanning(payload: ApplyPlanningPayload, userId: strin
         overgeslagen.push(r.naam);
         continue;
       }
+      const notitie = zonderDatum ? `Verlenging bevestigd per mail (${today})${r.eindIndicatie ? `: ${r.eindIndicatie}` : ""}; verlengingscontract/addendum volgt.` : null;
       await tx
         .update(inzetten)
         .set({
-          einddatum: r.nieuweEinddatum,
-          einddatumType: "vast",
+          einddatum: zonderDatum ? null : r.nieuweEinddatum,
+          einddatumType: zonderDatum ? "ntb" : "vast",
           status: ["verlengen", "in_contact"].includes(inzet.status) ? "actief" : inzet.status,
+          ...(notitie ? { notities: [inzet.notities, notitie].filter(Boolean).join("\n") } : {}),
         })
         .where(eq(inzetten.id, inzet.id));
       await tx
@@ -67,22 +84,29 @@ export async function applyPlanning(payload: ApplyPlanningPayload, userId: strin
         .where(and(eq(acties.inzetId, inzet.id), inArray(acties.status, ["open", "conceptmail_klaar"]), inArray(acties.soort, ["verlenging_uitvragen", "einde_beoordelen", "einddatum_controleren"])));
       bijgewerkt.push(inzet.id);
 
-      // Loopt de inzet nu langer dan het contract? Dan een aanvulling/verlenging opvragen.
+      // Verlengingscontract/addendum bewaken: als de inzet nu langer loopt dan het contract, als de verlenging
+      // zonder datum is bevestigd, of als er in de mail om een addendum is gevraagd.
       const c = inzet.contract ? effectiveContract(inzet.contract) : null;
-      if (c && c.einddatumType === "vast" && c.einddatum && c.einddatum < r.nieuweEinddatum) {
+      const contractTeKort = Boolean(c && c.einddatumType === "vast" && c.einddatum && r.nieuweEinddatum && c.einddatum < r.nieuweEinddatum);
+      if (contractTeKort || zonderDatum || p.addendumGevraagd) {
         const wie = `${inzet.medewerker.naam} bij ${inzet.klant?.naam ?? "?"}${inzet.project ? ` (${inzet.project.naam})` : ""}`;
+        const looptTot = r.nieuweEinddatum ?? (r.eindIndicatie ? `“${r.eindIndicatie}”` : "een nog onbekende datum");
+        const omschrijving = contractTeKort
+          ? `Volgens de planning loopt de inzet tot ${looptTot}, maar contract ${c!.nummer} loopt tot ${c!.einddatum}. Vraag een verlenging of aanvulling op.`
+          : `De opdrachtgever heeft per mail bevestigd dat de inzet doorloopt tot ${looptTot}${c ? ` (contract ${c.nummer})` : ""}. Bewaak dat het verlengingscontract/addendum wordt opgesteld en getekend; vraag ernaar als het uitblijft.`;
         const inserted = await tx
           .insert(acties)
           .values({
             soort: "contract_opvragen",
-            titel: `Aanvulling/verlenging contract opvragen: ${wie}`,
-            omschrijving: `Volgens de planning loopt de inzet tot ${r.nieuweEinddatum}, maar contract ${c.nummer} loopt tot ${c.einddatum}. Vraag een verlenging of aanvulling op.`,
-            vervaldatum: today,
-            dedupeKey: `contract_verlengen:${c.id}:${inzet.id}:${r.nieuweEinddatum}`,
+            titel: `${contractTeKort ? "Aanvulling/verlenging contract opvragen" : "Verlengingscontract/addendum bewaken"}: ${wie}`,
+            omschrijving,
+            vervaldatum: contractTeKort ? today : addDagen(today, ADDENDUM_DAGEN),
+            dedupeKey: `contract_verlengen:${c?.id ?? "geen"}:${inzet.id}:${r.nieuweEinddatum ?? "ntb"}`,
             inzetId: inzet.id,
-            contractId: c.id,
+            contractId: c?.id ?? null,
             medewerkerId: inzet.medewerkerId,
             toegewezenUserId: inzet.actiehouderUserId ?? userId,
+            emailInId: p.emailId,
           })
           .onConflictDoNothing({ target: acties.dedupeKey })
           .returning({ id: acties.id });

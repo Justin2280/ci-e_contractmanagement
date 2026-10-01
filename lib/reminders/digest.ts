@@ -12,8 +12,9 @@ interface ReminderState {
 }
 
 /**
- * Sends a digest of open acties to every actiehouder: weekly on the configured
- * weekday, and daily when something is overdue. Idempotent per day.
+ * Sends one digest of open acties per week to every actiehouder, on the configured
+ * weekday (default Monday). Overdue items are marked inside that digest; there are
+ * no extra daily mails. Idempotent per day.
  */
 export async function sendReminderDigests(opts: { today?: string; force?: boolean } = {}) {
   const today = opts.today ?? todayIso();
@@ -41,7 +42,7 @@ export async function sendReminderDigests(opts: { today?: string; force?: boolea
     const overdue = list.filter((a) => a.vervaldatum && a.vervaldatum < today);
     const state = await getSetting<ReminderState>(`reminder:${user.id}`);
     const alreadyToday = state?.lastSent === today;
-    const due = opts.force || (!alreadyToday && (isDigestDay || (settings.reminderDagelijksBijOverTijd && overdue.length > 0)));
+    const due = opts.force || (!alreadyToday && isDigestDay);
     if (!due) {
       results.push({ user: user.email, sent: false, reason: alreadyToday ? "vandaag al verstuurd" : "niet aan de beurt" });
       continue;

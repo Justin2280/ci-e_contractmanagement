@@ -45,15 +45,15 @@ export function RegelsForm({ settings }: { settings: Settings }) {
       <F label="Urenbonnen opvragen (dagen na periode-einde)">
         <Input name="urenbonDagenNaPeriode" type="number" defaultValue={settings.urenbonDagenNaPeriode} />
       </F>
-      <F label="Weekdag herinneringsmail (1 = ma … 7 = zo)">
+      <F label="Einde beoordelen: beslissen binnen (dagen na de einddatum)">
+        <Input name="eindeBeoordelenDagenNa" type="number" min={0} max={90} defaultValue={settings.eindeBeoordelenDagenNa} />
+      </F>
+      <F label="Weekdag van de wekelijkse herinneringsmail (1 = ma … 7 = zo)">
         <Input name="reminderWeekdag" type="number" min={1} max={7} defaultValue={settings.reminderWeekdag} />
       </F>
       <div className="space-y-2 pt-5 text-sm">
         <label className="flex items-center gap-2">
           <input type="checkbox" name="einddatumControleKwartaal" defaultChecked={settings.einddatumControleKwartaal} /> Kwartaalcheck bij inzet zonder vaste einddatum
-        </label>
-        <label className="flex items-center gap-2">
-          <input type="checkbox" name="reminderDagelijksBijOverTijd" defaultChecked={settings.reminderDagelijksBijOverTijd} /> Dagelijkse herinnering bij acties over tijd
         </label>
       </div>
       <div className="flex items-center gap-2 sm:col-span-2">

@@ -1,0 +1,21 @@
+{
+  "type": "planning_update",
+  "opdrachtgever": "GelreGroen Construction V.O.F.",
+  "project": "ViA15",
+  "regels": [
+    {
+      "naam": "Walter Terpstra",
+      "functie": null,
+      "eindWeek": null,
+      "einddatum": null,
+      "opmerking": "Verwachte inzet volgens Gert Visser tot ergens richting einde Q2; CI-Engineers heeft om een addendum gevraagd.",
+      "verlengingAfgesproken": true,
+      "eindIndicatie": "richting einde Q2"
+    }
+  ],
+  "addendumGevraagd": true,
+  "samenvatting": "GelreGroen geeft aan dat de inzet van Walter Terpstra doorloopt tot richting einde Q2; CI-Engineers vraagt een addendum ter verlenging.",
+  "onzekerheden": [
+    "Geen concreet weeknummer of einddatum genoemd; vermoedelijk Q2 2027."
+  ]
+}

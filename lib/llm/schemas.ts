@@ -344,12 +344,15 @@ export const PlanningRegelSchema = z.object({
   eindWeek: z.string().nullable().describe("ISO-week tot en met wanneer de inzet gepland staat, als YYYY-Www (bv. 2027-W12); null als er geen week staat"),
   einddatum: isoDate.nullable().describe("Einddatum als YYYY-MM-DD als er een datum in plaats van een week staat"),
   opmerking: z.string().nullable().describe("Bv. 'conform afspraak met Eric Doorman'"),
+  verlengingAfgesproken: z.boolean().describe("True als de opdrachtgever bevestigt dat de inzet doorloopt of wordt verlengd, ook zonder concrete datum"),
+  eindIndicatie: z.string().nullable().describe("Tekstuele indicatie van het einde als er geen week/datum is, bv. 'richting einde Q2'"),
 });
 
 export const PlanningUpdateSchema = z.object({
   opdrachtgever: z.string().nullable().describe("Organisatie van de afzender/opdrachtgever"),
   project: z.string().nullable().describe("Project of team, bv. 'OVT'"),
   regels: z.array(PlanningRegelSchema),
+  addendumGevraagd: z.boolean().describe("True als er in de mailwisseling om een addendum, verlengingscontract of nadere overeenkomst is gevraagd of dat is toegezegd"),
   samenvatting: z.string().describe("Eén of twee zinnen in het Nederlands"),
   onzekerheden: z.array(z.string()),
 });

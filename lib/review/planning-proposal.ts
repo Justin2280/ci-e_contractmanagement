@@ -25,6 +25,9 @@ export interface PlanningRegelVoorstel {
   opmerking: string | null;
   /** Voorgestelde nieuwe einddatum (uit datum of zondag van de week). */
   nieuweEinddatum: string | null;
+  /** Verlenging bevestigd zonder concrete datum: inzet gaat op n.t.b. en het verlengingscontract wordt bewaakt. */
+  verlengingZonderDatum: boolean;
+  eindIndicatie: string | null;
   medewerkerId: string | null;
   medewerkerKandidaten: Kandidaat[];
   inzetId: string | null;
@@ -39,6 +42,19 @@ export interface PlanningProposal {
   klantKandidaten: Kandidaat[];
   afzender: { naam: string | null; email: string | null; alBekend: boolean };
   regels: PlanningRegelVoorstel[];
+  /** In de mail is om een addendum/verlengingscontract gevraagd: dat wordt na toepassen bewaakt. */
+  addendumGevraagd: boolean;
+}
+
+/** Oudere extracties missen de velden over verlenging/addendum; vul ze aan vóór het parsen. */
+function normaliseer(raw: unknown): unknown {
+  if (!raw || typeof raw !== "object") return raw;
+  const o = raw as { regels?: unknown; addendumGevraagd?: unknown };
+  return {
+    addendumGevraagd: false,
+    ...o,
+    regels: Array.isArray(o.regels) ? o.regels.map((r) => ({ verlengingAfgesproken: false, eindIndicatie: null, ...(r as object) })) : o.regels,
+  };
 }
 
 interface Context {
@@ -61,7 +77,7 @@ function scoreKlantOpDomein(domain: string | null, k: Context["klanten"][number]
 }
 
 export async function buildPlanningProposal(email: EmailIn, ctx: Context, database: Db = defaultDb): Promise<PlanningProposal> {
-  const parsed = PlanningExtractionSchema.safeParse(email.extractieJson);
+  const parsed = PlanningExtractionSchema.safeParse(normaliseer(email.extractieJson));
   const planning: PlanningExtraction = parsed.success
     ? parsed.data
     : {
@@ -69,9 +85,10 @@ export async function buildPlanningProposal(email: EmailIn, ctx: Context, databa
         opdrachtgever: null,
         project: null,
         regels: [],
+        addendumGevraagd: false,
         samenvatting: "",
         onzekerheden: [],
-        ...((email.extractieJson as Partial<PlanningExtraction>) ?? {}),
+        ...((normaliseer(email.extractieJson) as Partial<PlanningExtraction>) ?? {}),
       };
 
   const domain = domainOf(email.vanEmail);
@@ -118,15 +135,18 @@ export async function buildPlanningProposal(email: EmailIn, ctx: Context, databa
       (mine.length === 1 ? mine[0] : undefined) ??
       null;
     const nieuweEinddatum = r.einddatum ?? weekLabelToEndDate(r.eindWeek);
+    const verlengingZonderDatum = !nieuweEinddatum && r.verlengingAfgesproken === true;
     const waarschuwing = !medewerkerId
       ? "Medewerker niet herkend; kies er een of sla de regel over."
       : mine.length === 0
         ? "Geen lopende inzet gevonden voor deze medewerker."
         : !gekozen && mine.length > 1
           ? "Meerdere lopende inzetten; kies de juiste."
-          : !nieuweEinddatum
-            ? "Geen einde herkend; vul een datum in."
-            : null;
+          : verlengingZonderDatum
+            ? `Verlenging bevestigd zonder concrete datum${r.eindIndicatie ? ` (“${r.eindIndicatie}”)` : ""}: de inzet gaat op n.t.b. en er komt een actie om het verlengingscontract/addendum te bewaken. Vul een datum in als die bekend is.`
+            : !nieuweEinddatum
+              ? "Geen einde herkend; vul een datum in."
+              : null;
     return {
       index,
       naam: r.naam,
@@ -134,6 +154,8 @@ export async function buildPlanningProposal(email: EmailIn, ctx: Context, databa
       eindWeek: r.eindWeek,
       opmerking: r.opmerking,
       nieuweEinddatum,
+      verlengingZonderDatum,
+      eindIndicatie: r.eindIndicatie ?? null,
       medewerkerId,
       medewerkerKandidaten: kandidaten.slice(0, 5),
       inzetId: gekozen?.id ?? null,
@@ -147,6 +169,7 @@ export async function buildPlanningProposal(email: EmailIn, ctx: Context, databa
   );
 
   return {
+    addendumGevraagd: planning.addendumGevraagd === true,
     planning,
     parseFout: parsed.success ? null : parsed.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; "),
     klantId,

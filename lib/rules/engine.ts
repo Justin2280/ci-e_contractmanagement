@@ -142,7 +142,7 @@ export function evalueerRegels(input: RegelInput): ActieVoorstel[] {
 
   // 1. Verlenging uitvragen (vaste einddatum nadert; een verstreken einddatum valt onder regel 6)
   for (const i of lopend) {
-    if (i.einddatumType !== "vast" || !i.einddatum) continue;
+    if (i.einddatumType !== "vast" || !i.einddatum || nogNietGestart(i)) continue;
     const dagenTotEinde = daysBetween(today, i.einddatum);
     if (dagenTotEinde > settings.verlengingDagenVooraf || dagenTotEinde < 0) continue;
     const opzeg = i.contract?.opzegtermijnDagen ?? 0;
@@ -163,8 +163,10 @@ export function evalueerRegels(input: RegelInput): ActieVoorstel[] {
 
   // 6. Einde beoordelen: de vaste einddatum is verstreken maar de inzet staat nog op lopend.
   // Er wordt nooit automatisch beëindigd; iemand beslist (beëindigen per einddatum / andere datum / verlengen).
+  // Loopt er nog een verlengingsverzoek (regel 1) voor dezelfde einddatum, dan neemt de run dat als de plek
+  // om te beslissen en wordt deze actie niet apart aangemaakt.
   for (const i of lopend) {
-    if (i.einddatumType !== "vast" || !i.einddatum) continue;
+    if (i.einddatumType !== "vast" || !i.einddatum || nogNietGestart(i)) continue;
     if (daysBetween(today, i.einddatum) >= 0) continue;
     const wie = `${i.medewerkerNaam} bij ${i.klantNaam ?? "?"}${i.projectNaam ? ` (${i.projectNaam})` : ""}`;
     const contractVerlopen = i.contract?.einddatum && i.contract.einddatum < today ? ` Ook het contract ${i.contract.nummer} liep af op ${i.contract.einddatum}.` : "";
@@ -172,7 +174,7 @@ export function evalueerRegels(input: RegelInput): ActieVoorstel[] {
       soort: "einde_beoordelen",
       titel: `Einde beoordelen: ${wie}`,
       omschrijving: `De inzet liep tot ${i.einddatum} en staat nog op lopend. Beëindigen per die datum, per een andere datum, of verlengen?${contractVerlopen}`,
-      vervaldatum: today,
+      vervaldatum: laterOf(today, toIsoDate(addDays(parseISO(i.einddatum), settings.eindeBeoordelenDagenNa))),
       dedupeKey: `einde_beoordelen:${i.id}:${i.einddatum}`,
       inzetId: i.id,
       contractId: i.contractId ?? undefined,
@@ -185,7 +187,7 @@ export function evalueerRegels(input: RegelInput): ActieVoorstel[] {
   if (settings.einddatumControleKwartaal) {
     const { jaar, q, start } = quarterOf(today);
     for (const i of lopend) {
-      if (i.einddatumType === "vast") continue;
+      if (i.einddatumType === "vast" || nogNietGestart(i)) continue;
       out.push({
         soort: "einddatum_controleren",
         titel: `Einddatum controleren: ${i.medewerkerNaam} bij ${i.klantNaam ?? "?"}`,
