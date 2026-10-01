@@ -1,4 +1,5 @@
 import { beforeAll, describe, expect, it } from "vitest";
+import { eq } from "drizzle-orm";
 import fs from "node:fs";
 import path from "node:path";
 
@@ -6,7 +7,7 @@ process.env.DATABASE_URL = "pglite://memory";
 
 const { db } = await import("@/lib/db");
 const { runMigrations } = await import("@/lib/db/migrate");
-const { contactpersonen, emailsIn, klanten, medewerkers, users } = await import("@/lib/db/schema");
+const { contactpersonen, emailsIn, inzetten, klanten, medewerkers, users } = await import("@/lib/db/schema");
 const { buildInzetafspraakProposal } = await import("@/lib/review/inzetafspraak-proposal");
 const { applyInzetafspraak } = await import("@/lib/review/apply-inzetafspraak");
 const { runDailyRules } = await import("@/lib/rules/run");
@@ -135,6 +136,27 @@ describe("inzetafspraak terwijl het contract nog volgt", () => {
     const opvragen = await db.query.acties.findMany({ where: (a, { eq }) => eq(a.soort, "contract_opvragen") });
     expect(opvragen).toHaveLength(1);
     expect(opvragen[0].omschrijving).toContain("per 2026-11-02 gestart");
+  });
+
+  it("does not merge the afspraak into a running inzet that ends before the new start or is on another project", async () => {
+    const mail = (await db.query.emailsIn.findFirst({ where: (e, { eq }) => eq(e.id, mailId) }))!;
+    const medewerker = (await db.query.medewerkers.findFirst())!;
+    // De afspraak-inzet uit de vorige test even parkeren, zodat alleen een oude opdracht bij VHB lopend is
+    // die al vóór 2 november afloopt (einde beoordelen staat nog open).
+    const afspraakInzet = (await db.query.inzetten.findFirst({ where: (i, { eq }) => eq(i.status, "contract_wachten") }))!;
+    await db.update(inzetten).set({ status: "beeindigd" }).where(eq(inzetten.id, afspraakInzet.id));
+    const [oud] = await db.insert(inzetten).values({ medewerkerId: medewerker.id, klantId, startdatum: "2025-03-01", einddatum: "2026-08-20", einddatumType: "vast", status: "actief", tarief: "88.00" }).returning();
+    const p = await buildInzetafspraakProposal(mail, await ctx(), db);
+    const persoon = p.personen[0];
+    expect(persoon.bestaandeInzetId).toBeNull();
+    expect(persoon.waarschuwing).toContain("andere opdracht");
+    expect(persoon.waarschuwing).toContain("tot 2026-08-20");
+
+    // Staat de echte afspraak-inzet er wél (zelfde project), dan wordt díe voorgeselecteerd en niet de oude.
+    await db.update(inzetten).set({ status: "contract_wachten" }).where(eq(inzetten.id, afspraakInzet.id));
+    const p2 = await buildInzetafspraakProposal(mail, await ctx(), db);
+    expect(p2.personen[0].bestaandeInzetId).toBe(afspraakInzet.id);
+    await db.delete(inzetten).where(eq(inzetten.id, oud.id));
   });
 
   it("applying twice does not create a second inzet or a duplicate actie", async () => {

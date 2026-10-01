@@ -4,6 +4,8 @@ Haal per medewerker de naam, eventuele functie en het einde op.
 - Staat er een jaar en weeknummer ("2027-12", "2026-44", "week 12 2027"), geef dat dan als ISO-week `YYYY-Www` in `eindWeek` (2027-12 wordt 2027-W12). Een getal boven 12 is altijd een week; bij een getal van 1 t/m 12 is het in dit soort mails ook een week, tenzij de mail expliciet over maanden spreekt.
 - Staat er een datum, geef die als `einddatum` (YYYY-MM-DD) en laat `eindWeek` null.
 - Zet opmerkingen zoals "conform afspraak met …" in `opmerking`.
+- Bevestigt de opdrachtgever dat de inzet doorloopt of verlengd wordt zonder concrete week of datum ("loopt door tot ergens richting einde Q2"), zet dan `verlengingAfgesproken` op true en de omschrijving in `eindIndicatie`; laat `eindWeek`/`einddatum` null.
+- `addendumGevraagd`: true als in de mailwisseling om een addendum, verlengingscontract of nadere overeenkomst is gevraagd of dat is toegezegd (ook als CI-Engineers dat zelf vraagt).
 - `opdrachtgever` is de organisatie van de afzender (uit handtekening of domein), `project` het project of team als dat genoemd wordt.
 - Neem alleen medewerkers van CI-Engineers op (in de mail vaak herkenbaar aan "CI-Engineers" in de tabel).
 - Noteer in `onzekerheden` wat niet zeker is, in het Nederlands.

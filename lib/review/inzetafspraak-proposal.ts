@@ -2,7 +2,7 @@ import { inArray } from "drizzle-orm";
 import { db as defaultDb, type Db } from "@/lib/db";
 import { inzetten, type EmailIn } from "@/lib/db/schema";
 import { InzetafspraakExtractionSchema, type InzetafspraakExtraction } from "@/lib/llm/schemas";
-import { normalizeCompanyName, personMatchKey } from "@/lib/normalize";
+import { normalizeCompanyName, personMatchKey, tokenOverlap } from "@/lib/normalize";
 import { LOPENDE_STATUSSEN } from "@/lib/queries/inzetten";
 import { scoreKlant, type Kandidaat } from "./proposal";
 
@@ -113,13 +113,22 @@ export async function buildInzetafspraakProposal(email: EmailIn, ctx: Context, d
       id: i.id,
       label: `${i.klant?.naam ?? "?"} · ${i.project?.naam ?? "-"} · ${i.contract?.nummer ?? i.contractnummerTekst ?? "geen contract"} · tot ${i.einddatum ?? i.einddatumType}`,
     }));
-    // Alleen voorselecteren bij dezelfde klant: dan is dit een wijziging van een lopende inzet.
-    const bijKlant = klantId ? mine.filter((i) => i.klantId === klantId) : [];
+    // Alleen voorselecteren bij dezelfde klant én als het dezelfde opdracht kan zijn: een lopende inzet die
+    // al vóór de nieuwe startdatum afloopt, of op een ander project, is een andere opdracht → nieuwe inzet.
+    const projectNaam = normalizeCompanyName(afspraak.project.naam ?? "");
+    const anderOpdracht = (i: (typeof rows)[number]) =>
+      Boolean(i.einddatumType === "vast" && i.einddatum && p.startdatum && i.einddatum < p.startdatum) ||
+      (Boolean(projectNaam) && Boolean(i.project?.naam) && tokenOverlap(normalizeCompanyName(i.project!.naam), projectNaam) === 0);
+    const alleBijKlant = klantId ? mine.filter((i) => i.klantId === klantId) : [];
+    const bijKlant = alleBijKlant.filter((i) => !anderOpdracht(i));
+    const uitgesloten = alleBijKlant.filter((i) => anderOpdracht(i));
     const bestaandeInzetId = bijKlant.length === 1 ? bijKlant[0].id : null;
     const waarschuwing = !medewerkerId
       ? `Medewerker "${p.naam}" is nog niet bekend; er wordt een nieuwe medewerker aangemaakt.`
       : bijKlant.length > 1
         ? "Meerdere lopende inzetten bij deze klant; kies of dit een nieuwe inzet is of een wijziging."
+        : bijKlant.length === 0 && uitgesloten.length > 0
+          ? `De lopende inzet bij deze klant (${uitgesloten[0].project?.naam ?? "ander project"}${uitgesloten[0].einddatum ? `, tot ${uitgesloten[0].einddatum}` : ""}) is een andere opdracht; dit wordt een nieuwe inzet.`
         : p.totaalTarief === null && p.basisTarief === null
           ? "Geen tarief herkend; vul het in."
           : !p.startdatum

@@ -90,6 +90,15 @@ export async function runDailyRules(opts: { today?: string } = {}) {
   let aangemaakt = 0;
   let heropend = 0;
   for (const v of voorstellen) {
+    // Einde beoordelen: loopt er nog een verlengingsverzoek voor dezelfde einddatum, dan wordt daar beslist
+    // (de besluitvorm staat op die actie) en komt er geen tweede actie bij.
+    if (v.soort === "einde_beoordelen" && v.inzetId) {
+      const verlenging = await db.query.acties.findFirst({
+        where: and(eq(acties.dedupeKey, v.dedupeKey.replace(/^einde_beoordelen:/, "verlenging_uitvragen:")), inArray(acties.status, ["open", "conceptmail_klaar", "verstuurd"])),
+        columns: { id: true },
+      });
+      if (verlenging) continue;
+    }
     // Een open indexatie-aanvraag krijgt de actuele omschrijving (CBS-cijfer, betrokken mensen, periode).
     if (v.soort === "indexatie_aanvragen") {
       await db
@@ -153,12 +162,6 @@ export async function runDailyRules(opts: { today?: string } = {}) {
     }
     // Verlenging- en einde-acties horen bij één einddatum: is die veranderd, dan is de actie achterhaald.
     if ((a.soort === "verlenging_uitvragen" || a.soort === "einde_beoordelen") && a.dedupeKey && a.inzet.einddatumType === "vast" && a.inzet.einddatum && !a.dedupeKey.endsWith(`:${a.inzet.einddatum}`)) {
-      await db.update(acties).set({ status: "afgerond", afgerondOp: new Date() }).where(eq(acties.id, a.id));
-      gesloten++;
-      continue;
-    }
-    // Zodra de einddatum verstreken is, neemt "einde beoordelen" het over van "verlenging uitvragen".
-    if (a.soort === "verlenging_uitvragen" && a.inzet.einddatumType === "vast" && a.inzet.einddatum && a.inzet.einddatum < today) {
       await db.update(acties).set({ status: "afgerond", afgerondOp: new Date() }).where(eq(acties.id, a.id));
       gesloten++;
       continue;

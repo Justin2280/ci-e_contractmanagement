@@ -124,7 +124,9 @@ export default async function ActiesPage({ searchParams }: PageProps<"/acties">)
                       />
                     </div>
                   ) : null}
-                  {a.soort === "einde_beoordelen" && a.inzet && ["open", "conceptmail_klaar"].includes(a.status) ? (
+                  {a.inzet &&
+                  ["open", "conceptmail_klaar", "verstuurd"].includes(a.status) &&
+                  (a.soort === "einde_beoordelen" || (a.soort === "verlenging_uitvragen" && a.inzet.einddatumType === "vast" && a.inzet.einddatum && a.inzet.einddatum < today)) ? (
                     <div className="mt-2 rounded-md border bg-muted/30 p-2">
                       <EindeBesluitForm inzetId={a.inzet.id} einddatum={a.inzet.einddatum} actieId={a.id} compact />
                     </div>

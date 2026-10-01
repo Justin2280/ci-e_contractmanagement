@@ -98,3 +98,60 @@ describe("planning-update", () => {
     expect(m?.verwerkstatus).toBe("verwerkt");
   });
 });
+
+describe("planning-update: verlenging bevestigd zonder datum, addendum bewaken", () => {
+  it("sets the inzet to n.t.b., closes the verlenging and creates an actie to chase the addendum", async () => {
+    const db2 = (await createTestDb()) as unknown as Db;
+    const fixture2 = JSON.parse(fs.readFileSync(path.join(process.cwd(), "tests", "fixtures", "planning-gelregroen-verlenging.json"), "utf8"));
+    const [k] = await db2.insert(klanten).values({ naam: "GelreGroen Construction V.O.F.", naamGenormaliseerd: "gelregroen construction" }).returning();
+    await db2.insert(contactpersonen).values({ klantId: k.id, naam: "Gert Visser", email: "gert.visser@gelregroen.nl" });
+    const [c] = await db2.insert(contracten).values({ nummer: "041802483-010594", soort: "inhuur", klantId: k.id, einddatum: "2026-09-30", einddatumType: "vast" }).returning();
+    const [pr] = await db2.insert(projecten).values({ klantId: k.id, naam: "A12/A15 Ressen – Oudbroeken (ViA15)" }).returning();
+    const [m] = await db2.insert(medewerkers).values({ naam: "Walter Terpstra", naamGenormaliseerd: "walter terpstra" }).returning();
+    const [i] = await db2
+      .insert(inzetten)
+      .values({ medewerkerId: m.id, klantId: k.id, projectId: pr.id, contractId: c.id, startdatum: "2026-03-10", einddatum: "2026-09-30", einddatumType: "vast", status: "verlengen" })
+      .returning();
+    await db2.insert(acties).values({ soort: "verlenging_uitvragen", titel: "Verlenging Walter", inzetId: i.id, status: "verstuurd", dedupeKey: `verlenging_uitvragen:${i.id}:2026-09-30` });
+    const [mail] = await db2
+      .insert(emailsIn)
+      .values({ graphMessageId: "planning-gg", vanEmail: "j.deweert@ci-engineers.com", onderwerp: "RE: Voltooid: 041802483-010594 CI Engineers Walter Terpstra", classificatie: "planning_update", verwerkstatus: "te_beoordelen", extractieJson: fixture2 })
+      .returning();
+
+    const ctx = { klanten: await db2.query.klanten.findMany({ with: { contactpersonen: true } }), medewerkers: await db2.query.medewerkers.findMany() };
+    const p = await buildPlanningProposal(mail, ctx, db2);
+    expect(p.addendumGevraagd).toBe(true);
+    const regel = p.regels[0];
+    expect(regel.inzetId).toBe(i.id);
+    expect(regel.nieuweEinddatum).toBeNull();
+    expect(regel.verlengingZonderDatum).toBe(true);
+    expect(regel.waarschuwing).toContain("richting einde Q2");
+
+    const r = await applyPlanning(
+      {
+        emailId: mail.id,
+        klantId: p.klantId,
+        contactpersoon: null,
+        addendumGevraagd: p.addendumGevraagd,
+        regels: p.regels.map((x) => ({ naam: x.naam, inzetId: x.inzetId, nieuweEinddatum: x.nieuweEinddatum, toepassen: true, verlengingZonderDatum: x.verlengingZonderDatum, eindIndicatie: x.eindIndicatie })),
+      },
+      null,
+      db2,
+    );
+    expect(r.bijgewerkt).toEqual([i.id]);
+    expect(r.contractActies).toHaveLength(1);
+
+    const inzet = (await db2.query.inzetten.findFirst({ where: (x, { eq }) => eq(x.id, i.id) }))!;
+    expect(inzet.einddatumType).toBe("ntb");
+    expect(inzet.einddatum).toBeNull();
+    expect(inzet.status).toBe("actief");
+    expect(inzet.notities).toContain("richting einde Q2");
+    expect((await db2.query.acties.findFirst({ where: (a, { eq }) => eq(a.soort, "verlenging_uitvragen") }))!.status).toBe("verstuurd");
+    const bewaking = (await db2.query.acties.findFirst({ where: (a, { eq }) => eq(a.soort, "contract_opvragen") }))!;
+    expect(bewaking.titel).toContain("Verlengingscontract/addendum bewaken: Walter Terpstra");
+    expect(bewaking.omschrijving).toContain("richting einde Q2");
+    expect(bewaking.contractId).toBe(c.id);
+    expect(bewaking.emailInId).toBe(mail.id);
+    expect(bewaking.vervaldatum! > new Date().toISOString().slice(0, 10)).toBe(true);
+  });
+});
