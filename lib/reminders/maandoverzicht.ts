@@ -1,4 +1,4 @@
-import { and, inArray } from "drizzle-orm";
+import { and, eq, gte, inArray, or } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { acties, inzetten } from "@/lib/db/schema";
 import { getSettings, getSetting, setSetting } from "@/lib/settings";
@@ -44,12 +44,19 @@ export interface OverzichtInput {
   baseUrl?: string | null;
 }
 
+/** Hoe een inzet in het overzicht wordt ingedeeld. */
+export type InzetFase = "lopend" | "gepland" | "eindigt";
+
 function geld(n: number | null): string {
   return n === null ? "—" : `€ ${n.toFixed(2).replace(".", ",")}`;
 }
 
 function dagenTussen(a: string, b: string): number {
   return Math.round((Date.parse(`${b}T12:00:00Z`) - Date.parse(`${a}T12:00:00Z`)) / 86_400_000);
+}
+
+export function escapeHtml(s: string): string {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }
 
 const EINDTYPE: Record<string, string> = { ntb: "n.t.b.", onbepaald: "onbepaald", einde_opdracht: "tot einde opdracht" };
@@ -62,13 +69,18 @@ export function contractStatus(i: OverzichtInzet): string {
 }
 
 function einde(i: OverzichtInzet): string {
-  return i.einddatumType === "vast" && i.einddatum ? fmtDateShort(i.einddatum) : (EINDTYPE[i.einddatumType] ?? i.einddatumType);
+  return (i.einddatumType === "vast" || i.status === "beeindigd") && i.einddatum ? fmtDateShort(i.einddatum) : (EINDTYPE[i.einddatumType] ?? i.einddatumType);
 }
 
-function regel(i: OverzichtInzet, today: string): string {
-  const start = i.startdatum ? `${fmtDateShort(i.startdatum)}${i.startdatumVoorlopig ? " (nog niet definitief)" : ""}` : "?";
-  const toekomstig = i.startdatum && i.startdatum > today;
-  return `  - ${i.medewerkerNaam}${i.functie ? ` (${i.functie})` : ""} · ${i.projectNaam ?? "project onbekend"} · ${toekomstig ? "start " : ""}${start} → ${einde(i)} · ${geld(i.tarief)}/uur · ${contractStatus(i)}`;
+function start(i: OverzichtInzet): string {
+  return i.startdatum ? `${fmtDateShort(i.startdatum)}${i.startdatumVoorlopig ? " (nog niet definitief)" : ""}` : "?";
+}
+
+/** Lopend, gepland (start in de toekomst) of eindigt (beëindigd aangekondigd, einddatum nog niet bereikt). */
+export function fase(i: OverzichtInzet, today: string): InzetFase {
+  if (i.status === "beeindigd") return "eindigt";
+  if (i.startdatum && i.startdatum > today) return "gepland";
+  return "lopend";
 }
 
 /** Wat er voor een aflopende inzet al is uitgezet, afgeleid uit de open acties. */
@@ -83,49 +95,148 @@ export function uitgezet(i: OverzichtInzet, lijst: OverzichtActie[]): string {
   return "nog niets uitgezet";
 }
 
-/** Pure opbouw van de maandmail; gegroepeerd per klant, lopend eerst en daarna toekomstig. */
-export function bouwMaandoverzicht(input: OverzichtInput): { onderwerp: string; tekst: string } {
-  const { today } = input;
-  const lijst = [...input.inzetten].sort((a, b) => (a.klantNaam ?? "").localeCompare(b.klantNaam ?? "") || a.medewerkerNaam.localeCompare(b.medewerkerNaam));
-  const lopend = lijst.filter((i) => !(i.startdatum && i.startdatum > today));
-  const toekomstig = lijst.filter((i) => i.startdatum && i.startdatum > today);
-  const zonderContract = lijst.filter((i) => !i.contractGetekend);
-  const datum = fmtDateShort(today);
-
-  const r: string[] = [];
-  r.push(`Overzicht inzetten per ${datum}`, "");
-  r.push(`${lopend.length} lopende inzet(ten), ${toekomstig.length} nog te starten; ${zonderContract.length} zonder getekend contract.`, "");
-
-  const klanten = Array.from(new Set(lijst.map((i) => i.klantNaam ?? "Klant onbekend")));
-  for (const klant of klanten) {
-    const l = lopend.filter((i) => (i.klantNaam ?? "Klant onbekend") === klant);
-    const t = toekomstig.filter((i) => (i.klantNaam ?? "Klant onbekend") === klant);
-    r.push(`${klant} — ${l.length} lopend${t.length ? `, ${t.length} nog te starten` : ""}`);
-    for (const i of l) r.push(regel(i, today));
-    if (t.length) {
-      r.push("  Nog te starten:");
-      for (const i of t) r.push(regel(i, today));
-    }
-    r.push("");
-  }
-
-  const binnenkort = lopend
-    .filter((i) => i.einddatumType === "vast" && i.einddatum && i.einddatum >= today && dagenTussen(today, i.einddatum) <= BINNENKORT_DAGEN)
-    .sort((a, b) => a.einddatum!.localeCompare(b.einddatum!));
-  r.push(`Loopt binnen ${BINNENKORT_DAGEN} dagen af`);
-  if (binnenkort.length === 0) r.push("  - geen");
-  for (const i of binnenkort) r.push(`  - ${fmtDateShort(i.einddatum)} ${i.medewerkerNaam} bij ${i.klantNaam ?? "?"}${i.projectNaam ? ` (${i.projectNaam})` : ""} — ${uitgezet(i, input.acties)}`);
-  r.push("");
-  if (input.baseUrl) r.push(`Details en wijzigingen: ${input.baseUrl.replace(/\/$/, "")}/inzetten`, "");
-  r.push("Dit overzicht is automatisch verstuurd door Contractbeheer.");
-
-  return { onderwerp: `Contractbeheer: inzetten per ${datum} (${lopend.length} lopend, ${toekomstig.length} nog te starten)`, tekst: r.join("\n") };
+function looptBinnenkortAf(i: OverzichtInzet, today: string): boolean {
+  return fase(i, today) === "lopend" && i.einddatumType === "vast" && Boolean(i.einddatum) && i.einddatum! >= today && dagenTussen(today, i.einddatum!) <= BINNENKORT_DAGEN;
 }
 
-/** Laadt lopende en toekomstige inzetten plus de relevante open acties uit de database. */
+/** Statuskolom: Loopt / Gepland / Eindigt (aangekondigd) / Loopt af … met wat er is uitgezet. */
+export function statusTekst(i: OverzichtInzet, input: OverzichtInput): string {
+  const f = fase(i, input.today);
+  if (f === "gepland") return `Gepland, start ${start(i)}`;
+  if (f === "eindigt") return `Eindigt ${i.einddatum ? fmtDateShort(i.einddatum) : "?"} (aangekondigd)`;
+  if (looptBinnenkortAf(i, input.today)) return `Loopt af ${fmtDateShort(i.einddatum)} — ${uitgezet(i, input.acties)}`;
+  return "Loopt";
+}
+
+const KOLOMMEN = ["Medewerker", "Functie", "Project", "Start", "Einde", "Tarief", "Contract", "Status"] as const;
+
+function cellen(i: OverzichtInzet, input: OverzichtInput): string[] {
+  return [i.medewerkerNaam, i.functie ?? "—", i.projectNaam ?? "project onbekend", start(i), einde(i), i.tarief === null ? "—" : `${geld(i.tarief)}/uur`, contractStatus(i), statusTekst(i, input)];
+}
+
+const CSS = {
+  table: "border-collapse:collapse;width:100%;margin:6px 0 18px 0;font-family:Segoe UI,Arial,sans-serif;font-size:13px;",
+  th: "text-align:left;padding:6px 8px;border:1px solid #cfd4da;background:#eef1f4;font-weight:600;white-space:nowrap;",
+  td: "padding:6px 8px;border:1px solid #cfd4da;vertical-align:top;",
+  tdGeld: "padding:6px 8px;border:1px solid #cfd4da;vertical-align:top;text-align:right;white-space:nowrap;",
+  tdDatum: "padding:6px 8px;border:1px solid #cfd4da;vertical-align:top;white-space:nowrap;",
+  rijGepland: "background:#f1f7ff;",
+  rijEindigt: "background:#fff6e5;",
+  rijLooptAf: "background:#fffbe6;",
+  h1: "font-family:Segoe UI,Arial,sans-serif;font-size:18px;margin:0 0 8px 0;",
+  h2: "font-family:Segoe UI,Arial,sans-serif;font-size:15px;margin:18px 0 4px 0;",
+  p: "font-family:Segoe UI,Arial,sans-serif;font-size:13px;margin:0 0 8px 0;",
+  klein: "font-family:Segoe UI,Arial,sans-serif;font-size:12px;color:#5f6b7a;margin:14px 0 0 0;",
+};
+
+function rijStijl(i: OverzichtInzet, input: OverzichtInput): string {
+  const f = fase(i, input.today);
+  if (f === "gepland") return CSS.rijGepland;
+  if (f === "eindigt") return CSS.rijEindigt;
+  if (looptBinnenkortAf(i, input.today)) return CSS.rijLooptAf;
+  return "";
+}
+
+function celStijl(idx: number, opts: { geldKolom?: number; datumKolommen?: number[] }): string {
+  if (idx === opts.geldKolom) return CSS.tdGeld;
+  if (opts.datumKolommen?.includes(idx)) return CSS.tdDatum;
+  return CSS.td;
+}
+
+function tabel(koppen: readonly string[], rijen: Array<{ cellen: string[]; stijl?: string }>, opts: { geldKolom?: number; datumKolommen?: number[] } = {}): string {
+  const head = `<tr>${koppen.map((k) => `<th style="${CSS.th}">${escapeHtml(k)}</th>`).join("")}</tr>`;
+  const body = rijen
+    .map((r) => `<tr${r.stijl ? ` style="${r.stijl}"` : ""}>${r.cellen.map((c, idx) => `<td style="${celStijl(idx, opts)}">${escapeHtml(c)}</td>`).join("")}</tr>`)
+    .join("");
+  return `<table style="${CSS.table}" cellpadding="0" cellspacing="0">${head}${body}</table>`;
+}
+
+function sorteer(lijst: OverzichtInzet[], today: string): OverzichtInzet[] {
+  const volgorde: Record<InzetFase, number> = { lopend: 0, gepland: 1, eindigt: 2 };
+  return [...lijst].sort(
+    (a, b) =>
+      (a.klantNaam ?? "").localeCompare(b.klantNaam ?? "") ||
+      volgorde[fase(a, today)] - volgorde[fase(b, today)] ||
+      a.medewerkerNaam.localeCompare(b.medewerkerNaam),
+  );
+}
+
+/**
+ * Pure opbouw van de maandmail: per klant één tabel (lopend, dan gepland, dan aangekondigde
+ * beëindigingen), daarna een tabel met wat binnen 90 dagen afloopt. Levert HTML voor de mail en een
+ * platte tekstvariant voor logs/tests.
+ */
+export function bouwMaandoverzicht(input: OverzichtInput): { onderwerp: string; html: string; tekst: string } {
+  const { today } = input;
+  const lijst = sorteer(input.inzetten, today);
+  const lopend = lijst.filter((i) => fase(i, today) === "lopend");
+  const gepland = lijst.filter((i) => fase(i, today) === "gepland");
+  const eindigt = lijst.filter((i) => fase(i, today) === "eindigt");
+  const zonderContract = lijst.filter((i) => fase(i, today) !== "eindigt" && !i.contractGetekend);
+  const datum = fmtDateShort(today);
+  const samenvatting = `${lopend.length} lopend, ${gepland.length} gepland, ${eindigt.length} aangekondigd einde; ${zonderContract.length} zonder getekend contract.`;
+  const link = input.baseUrl ? `${input.baseUrl.replace(/\/$/, "")}/inzetten` : null;
+
+  const binnenkort = lopend.filter((i) => looptBinnenkortAf(i, today)).sort((a, b) => a.einddatum!.localeCompare(b.einddatum!));
+  const klanten = Array.from(new Set(lijst.map((i) => i.klantNaam ?? "Klant onbekend")));
+
+  const h: string[] = [];
+  const t: string[] = [];
+  h.push(`<h1 style="${CSS.h1}">Overzicht inzetten per ${datum}</h1>`, `<p style="${CSS.p}">${escapeHtml(samenvatting)}</p>`);
+  t.push(`Overzicht inzetten per ${datum}`, "", samenvatting, "");
+
+  for (const klant of klanten) {
+    const van = lijst.filter((i) => (i.klantNaam ?? "Klant onbekend") === klant);
+    const telling = [
+      `${van.filter((i) => fase(i, today) === "lopend").length} lopend`,
+      ...(van.some((i) => fase(i, today) === "gepland") ? [`${van.filter((i) => fase(i, today) === "gepland").length} gepland`] : []),
+      ...(van.some((i) => fase(i, today) === "eindigt") ? [`${van.filter((i) => fase(i, today) === "eindigt").length} aangekondigd einde`] : []),
+    ].join(", ");
+    h.push(`<h2 style="${CSS.h2}">${escapeHtml(klant)} <span style="font-weight:normal;color:#5f6b7a;">— ${escapeHtml(telling)}</span></h2>`);
+    h.push(tabel(KOLOMMEN, van.map((i) => ({ cellen: cellen(i, input), stijl: rijStijl(i, input) })), { geldKolom: 5, datumKolommen: [3, 4] }));
+    t.push(`${klant} — ${telling}`);
+    for (const i of van) t.push(`  - ${cellen(i, input).join(" · ")}`);
+    t.push("");
+  }
+
+  h.push(`<h2 style="${CSS.h2}">Loopt binnen ${BINNENKORT_DAGEN} dagen af</h2>`);
+  t.push(`Loopt binnen ${BINNENKORT_DAGEN} dagen af`);
+  if (binnenkort.length === 0) {
+    h.push(`<p style="${CSS.p}">Geen.</p>`);
+    t.push("  - geen");
+  } else {
+    h.push(
+      tabel(
+        ["Einde", "Medewerker", "Klant", "Project", "Uitgezet"],
+        binnenkort.map((i) => ({ cellen: [fmtDateShort(i.einddatum), i.medewerkerNaam, i.klantNaam ?? "?", i.projectNaam ?? "—", uitgezet(i, input.acties)] })),
+        { datumKolommen: [0] },
+      ),
+    );
+    for (const i of binnenkort) t.push(`  - ${fmtDateShort(i.einddatum)} ${i.medewerkerNaam} bij ${i.klantNaam ?? "?"}${i.projectNaam ? ` (${i.projectNaam})` : ""} — ${uitgezet(i, input.acties)}`);
+  }
+  t.push("");
+
+  if (link) {
+    h.push(`<p style="${CSS.p}">Details en wijzigingen: <a href="${escapeHtml(link)}">${escapeHtml(link)}</a></p>`);
+    t.push(`Details en wijzigingen: ${link}`, "");
+  }
+  h.push(`<p style="${CSS.klein}">Dit overzicht is automatisch verstuurd door Contractbeheer.</p>`);
+  t.push("Dit overzicht is automatisch verstuurd door Contractbeheer.");
+
+  return {
+    onderwerp: `Contractbeheer: inzetten per ${datum} (${lopend.length} lopend, ${gepland.length} gepland${eindigt.length ? `, ${eindigt.length} aangekondigd einde` : ""})`,
+    html: `<div style="max-width:1100px;">${h.join("")}</div>`,
+    tekst: t.join("\n"),
+  };
+}
+
+/**
+ * Laadt lopende en geplande inzetten plus de al aangekondigde beëindigingen (status beëindigd met een
+ * einddatum op of na vandaag) en de relevante open acties uit de database.
+ */
 export async function laadOverzichtInput(today: string = todayIso()): Promise<OverzichtInput> {
   const rows = await db.query.inzetten.findMany({
-    where: inArray(inzetten.status, LOPENDE_STATUSSEN),
+    where: or(inArray(inzetten.status, LOPENDE_STATUSSEN), and(eq(inzetten.status, "beeindigd"), gte(inzetten.einddatum, today))),
     with: { medewerker: true, klant: true, project: true, contract: true },
   });
   const actieRows = await db.query.acties.findMany({
@@ -184,8 +295,8 @@ export async function sendMaandoverzicht(opts: { today?: string; force?: boolean
   if (aan.length === 0) return { sent: false, reason: "geen ontvangers ingesteld", maand };
   if (!graphConfigured()) return { sent: false, reason: "Graph niet geconfigureerd", maand };
 
-  const { onderwerp, tekst } = bouwMaandoverzicht(await laadOverzichtInput(today));
-  await sendMail(sharedMailbox(), { to: aan, subject: onderwerp, bodyText: tekst });
+  const { onderwerp, html, tekst } = bouwMaandoverzicht(await laadOverzichtInput(today));
+  await sendMail(sharedMailbox(), { to: aan, subject: onderwerp, bodyText: tekst, bodyHtml: html });
   await setSetting(`maandoverzicht:${maand}`, { verstuurdOp: today, aan } satisfies MaandState);
   return { sent: true, reason: `naar ${aan.join(", ")}`, maand };
 }
