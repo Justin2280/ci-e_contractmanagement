@@ -30,6 +30,9 @@ export async function updateRegels(_prev: ActionState, formData: FormData): Prom
     einddatumControleKwartaal: raw.einddatumControleKwartaal === "on",
     reminderWeekdag: Number(raw.reminderWeekdag),
     eindeBeoordelenDagenNa: Number(raw.eindeBeoordelenDagenNa),
+    maandoverzichtActief: raw.maandoverzichtActief === "on",
+    maandoverzichtOntvangers: String(raw.maandoverzichtOntvangers ?? "").trim(),
+    maandoverzichtDag: Number(raw.maandoverzichtDag),
   });
   if (!parsed.success) return { ok: false, message: parsed.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; ") };
   await saveSettings(parsed.data);
@@ -149,6 +152,17 @@ export async function updateUser(_prev: ActionState, formData: FormData): Promis
     .where(eq(users.id, d.id));
   rev();
   return { ok: true, message: "Opgeslagen" };
+}
+
+export async function verstuurMaandoverzicht(): Promise<ActionState> {
+  await requireUser();
+  try {
+    const { sendMaandoverzicht } = await import("@/lib/reminders/maandoverzicht");
+    const r = await sendMaandoverzicht({ force: true });
+    return r.sent ? { ok: true, message: `Verstuurd ${r.reason}` } : { ok: false, message: r.reason };
+  } catch (err) {
+    return { ok: false, message: err instanceof Error ? err.message : String(err) };
+  }
 }
 
 export async function renewSubscription(): Promise<ActionState> {

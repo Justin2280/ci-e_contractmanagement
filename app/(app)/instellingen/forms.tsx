@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import type { Settings } from "@/lib/settings";
-import { addVoorbeeld, fetchSentCandidates, importSentAsVoorbeelden, renewSubscription, updateRegels, updateStijl, updateUser, type SentCandidate } from "./actions";
+import { addVoorbeeld, fetchSentCandidates, importSentAsVoorbeelden, renewSubscription, updateRegels, updateStijl, updateUser, verstuurMaandoverzicht, type SentCandidate } from "./actions";
 import type { ActionState } from "../inzetten/actions";
 
 const Msg = ({ state }: { state: ActionState }) => (state ? <span className={state.ok ? "text-xs text-emerald-700" : "text-xs text-destructive"}>{state.message}</span> : null);
@@ -51,9 +51,18 @@ export function RegelsForm({ settings }: { settings: Settings }) {
       <F label="Weekdag van de wekelijkse herinneringsmail (1 = ma … 7 = zo)">
         <Input name="reminderWeekdag" type="number" min={1} max={7} defaultValue={settings.reminderWeekdag} />
       </F>
+      <F label="Maandoverzicht inzetten: ontvangers (komma-gescheiden)">
+        <Input name="maandoverzichtOntvangers" defaultValue={settings.maandoverzichtOntvangers} placeholder="directie@ci-engineers.com" />
+      </F>
+      <F label="Maandoverzicht: dag van de maand">
+        <Input name="maandoverzichtDag" type="number" min={1} max={28} defaultValue={settings.maandoverzichtDag} />
+      </F>
       <div className="space-y-2 pt-5 text-sm">
         <label className="flex items-center gap-2">
           <input type="checkbox" name="einddatumControleKwartaal" defaultChecked={settings.einddatumControleKwartaal} /> Kwartaalcheck bij inzet zonder vaste einddatum
+        </label>
+        <label className="flex items-center gap-2">
+          <input type="checkbox" name="maandoverzichtActief" defaultChecked={settings.maandoverzichtActief} /> Maandoverzicht van lopende en toekomstige inzetten mailen
         </label>
       </div>
       <div className="flex items-center gap-2 sm:col-span-2">
@@ -223,6 +232,18 @@ export function UserForm({ user, canEdit }: { user: { id: string; naam: string |
         </Button>
         <Msg state={state} />
       </div>
+    </form>
+  );
+}
+
+export function MaandoverzichtButton({ enabled, ontvangers }: { enabled: boolean; ontvangers: string }) {
+  const [state, action, pending] = useActionState<ActionState, FormData>(verstuurMaandoverzicht, null);
+  return (
+    <form action={action} className="flex flex-wrap items-center gap-2">
+      <Button type="submit" size="sm" variant="outline" disabled={!enabled || pending}>
+        {pending ? "Versturen…" : `Maandoverzicht nu versturen naar ${ontvangers || "(geen ontvangers)"}`}
+      </Button>
+      <Msg state={state} />
     </form>
   );
 }

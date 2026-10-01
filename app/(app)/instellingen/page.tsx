@@ -9,20 +9,23 @@ import { graphConfigured } from "@/lib/graph/client";
 import { llmConfigured, LLM_MODEL } from "@/lib/llm/client";
 import { fmtDate } from "@/lib/format";
 import { getCurrentUser } from "@/lib/auth/current-user";
-import { RegelsForm, StijlForm, VoorbeeldForm, UserForm, RenewButton, SentImport } from "./forms";
+import { RegelsForm, StijlForm, VoorbeeldForm, UserForm, RenewButton, SentImport, MaandoverzichtButton } from "./forms";
+import { bouwMaandoverzicht, laadOverzichtInput } from "@/lib/reminders/maandoverzicht";
 import { deleteVoorbeeld, toggleVoorbeeld } from "./actions";
 
 export const metadata = { title: "Instellingen" };
 
 export default async function InstellingenPage() {
-  const [settings, voorbeelden, userRows, subs, delta, me] = await Promise.all([
+  const [settings, voorbeelden, userRows, subs, delta, me, overzichtInput] = await Promise.all([
     getSettings(),
     db.query.stijlVoorbeelden.findMany({ orderBy: [desc(stijlVoorbeelden.createdAt)] }),
     db.query.users.findMany({ orderBy: [asc(users.naam)] }),
     db.query.graphSubscriptions.findMany(),
     db.query.deltaLinks.findMany(),
     getCurrentUser(),
+    laadOverzichtInput(),
   ]);
+  const maandoverzicht = bouwMaandoverzicht(overzichtInput);
 
   return (
     <div className="space-y-6">
@@ -72,6 +75,22 @@ export default async function InstellingenPage() {
           </CardContent>
         </Card>
       </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Maandoverzicht voor de directie</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <p className="text-sm text-muted-foreground">
+            Op dag {settings.maandoverzichtDag} van de maand gaat dit overzicht van lopende en toekomstige inzetten vanuit de gedeelde mailbox naar {settings.maandoverzichtOntvangers || "(geen ontvangers)"}
+            {settings.maandoverzichtActief ? "." : " — nu uitgeschakeld."} Zo ziet het er vandaag uit:
+          </p>
+          <pre className="max-h-96 overflow-auto rounded-md border bg-muted/30 p-3 text-xs">{`${maandoverzicht.onderwerp}
+
+${maandoverzicht.tekst}`}</pre>
+          <MaandoverzichtButton enabled={graphConfigured()} ontvangers={settings.maandoverzichtOntvangers} />
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>

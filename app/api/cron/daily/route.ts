@@ -4,6 +4,7 @@ import { ensureInboxSubscription } from "@/lib/graph/subscriptions";
 import { syncInbox } from "@/lib/intake/sync";
 import { runDailyRules } from "@/lib/rules/run";
 import { sendReminderDigests } from "@/lib/reminders/digest";
+import { sendMaandoverzicht } from "@/lib/reminders/maandoverzicht";
 
 export const maxDuration = 300;
 
@@ -48,6 +49,12 @@ export async function GET(request: NextRequest) {
     report.reminders = await sendReminderDigests();
   } catch (err) {
     report.remindersError = err instanceof Error ? err.message : String(err);
+  }
+
+  try {
+    report.maandoverzicht = await sendMaandoverzicht();
+  } catch (err) {
+    report.maandoverzichtError = err instanceof Error ? err.message : String(err);
   }
 
   report.finished = new Date().toISOString();
