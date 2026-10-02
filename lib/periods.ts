@@ -64,3 +64,15 @@ export function inzetActiefInPeriode(
   const eind = inzet.einddatum ?? "9999-12-31";
   return start <= periode.einddatum && eind >= periode.startdatum;
 }
+
+/**
+ * Tot en met welke periode een indexatie-correctie loopt als het verzoek nu uitgaat. Loopt de lopende
+ * periode binnen `marge` dagen af, dan is die afgesloten tegen de tijd dat de klant de bon opmaakt
+ * (Nieuw-Zuid: "correctie t/m week 40", nieuw tarief vanaf week 41); anders de laatst afgesloten periode.
+ */
+export function correctieEindPeriode(today: Date | string, marge = 7): Periode & { eindWeek: number; lopend: boolean } {
+  const lopend = periodeVoorDatum(today);
+  const dagenTotEinde = differenceInCalendarDays(parseISO(lopend.einddatum), typeof today === "string" ? parseISO(today) : today);
+  if (dagenTotEinde <= marge) return { ...lopend, eindWeek: lopend.nummer * 4, lopend: true };
+  return { ...laatstAfgeslotenPeriode(today), lopend: false };
+}

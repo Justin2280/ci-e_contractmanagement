@@ -1,3 +1,4 @@
+import { behoudIndexatieInstellingen } from "@/lib/contracts/behoud-indexatie";
 import { and, eq, inArray, isNull, ne } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/lib/db";
@@ -193,6 +194,8 @@ export async function approveExtraction(payload: ApprovePayload, userId: string)
       const current = await tx.query.contracten.findFirst({ where: eq(contracten.id, contractId) });
       // Only overwrite with non-null values so a tarievenbrief does not wipe known data.
       const patch: Record<string, unknown> = Object.fromEntries(Object.entries(contractValues).filter(([, v]) => v !== null && v !== undefined));
+      // Een gekozen indexatiewijze/-kwartaal en een bekende clausule blijven staan als het model of het formulier alleen de standaard meegeeft.
+      behoudIndexatieInstellingen(patch, current, { indexatieToelichting: p.contract.indexatieToelichting, indexatieKwartaal: p.contract.indexatieKwartaal });
       // Alternatieve kenmerken samenvoegen met wat al bekend is.
       const bekend = current?.nummerAlternatieven ?? [];
       patch.nummerAlternatieven = [...bekend, ...alternatieven.filter((a) => !bekend.some((b) => normalizeContractNumber(b) === normalizeContractNumber(a)))];

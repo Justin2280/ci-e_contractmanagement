@@ -64,6 +64,13 @@
       "when": 1789543260548,
       "tag": "0008_indexatie_kwartaal",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1790944069858,
+      "tag": "0009_nieuw_zuid_achteraf",
+      "breakpoints": true
     }
   ]
 }
