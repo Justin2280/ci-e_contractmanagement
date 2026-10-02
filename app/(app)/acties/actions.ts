@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/lib/db";
-import { acties, actieSoort, auditLog } from "@/lib/db/schema";
+import { acties, actieSoort, auditLog, contracten, indexatieWijze } from "@/lib/db/schema";
 import { requireUser } from "@/lib/auth/current-user";
 import { runDailyRules } from "@/lib/rules/run";
 import { verwerkIndexatie } from "@/lib/indexatie/verwerk";
@@ -122,4 +122,30 @@ export async function cbsPercentageAction(jaar: number, kwartaal: number): Promi
   } catch (err) {
     return { ok: false, message: err instanceof Error ? err.message : String(err), url: CBS_STATLINE_URL };
   }
+}
+
+const IndexatieAfspraakSchema = z.object({
+  contractId: z.string().uuid(),
+  wijze: z.enum(indexatieWijze.enumValues),
+  kwartaal: z.preprocess((v) => (v === "" || v === null || v === undefined ? null : Number(v)), z.number().int().min(1).max(4).nullable()),
+});
+
+/**
+ * Stelt per contract de indexatiewijze (vooraf/achteraf) en het CBS-kwartaal in, vanuit de bewaking op Acties,
+ * en voert daarna de regels uit zodat een aanvraag-actie meteen verschijnt als het cijfer bekend is.
+ */
+export async function updateIndexatieAfspraak(formData: FormData) {
+  const user = await requireUser();
+  const parsed = IndexatieAfspraakSchema.safeParse({ contractId: formData.get("contractId"), wijze: formData.get("wijze"), kwartaal: formData.get("kwartaal") });
+  if (!parsed.success) return;
+  const { contractId, wijze, kwartaal } = parsed.data;
+  await db.update(contracten).set({ indexatieWijze: wijze, indexatieKwartaal: kwartaal }).where(eq(contracten.id, contractId));
+  await db.insert(auditLog).values({ userId: user.id, actie: "contract.indexatie_afspraak", entiteit: "contract", entiteitId: contractId, details: { wijze, kwartaal } });
+  try {
+    await runDailyRules();
+  } catch (err) {
+    console.error("Regels uitvoeren na het instellen van de indexatie-afspraak mislukt", err);
+  }
+  revalidate();
+  revalidatePath(`/contracten/${contractId}`);
 }

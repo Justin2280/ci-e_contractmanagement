@@ -177,4 +177,64 @@ describe("indexatie achteraf: aanvraag-actie en verwerking", () => {
     expect(hersteld.status).toBe("open");
     expect(hersteld.inzetId).toBe(i2.id);
   });
+
+  it("Nieuw-Zuid 2026 (mailwisseling 2023-2025): aanvraag met 1e kwartaal, correctie t/m week 40, juiste mensen", async () => {
+    const [k] = await db.insert(klanten).values({ naam: "Bouwcombinatie Nieuw-Zuid (2026)", naamGenormaliseerd: "bouwcombinatie nieuw zuid 2026" }).returning();
+    const [c] = await db
+      .insert(contracten)
+      .values({
+        nummer: "21116-037C-T",
+        soort: "overeenkomst_van_opdracht",
+        klantId: k.id,
+        startdatum: "2022-07-01",
+        einddatumType: "einde_opdracht",
+        indexatie: "jaarlijks_cbs",
+        indexatieMoment: "01-01",
+        indexatieWijze: "achteraf_correctie",
+        indexatieKwartaal: 1,
+        indexatieToelichting: "CBS 71121 (sinds 2024 7112)",
+      })
+      .returning();
+    const vindOfMaak = async (naam: string) =>
+      (await db.query.medewerkers.findFirst({ where: (m, { eq }) => eq(m.naamGenormaliseerd, normalizePersonName(naam)) })) ??
+      (await db.insert(medewerkers).values({ naam, naamGenormaliseerd: normalizePersonName(naam) }).returning())[0];
+    // Tarieven op prijspeil 01-01-2025 (de bon van december 2025), zoals in de mails.
+    const mensen: Array<[string, string]> = [
+      ["Jelle Schenk", "92.47"],
+      ["Klaes van Dulst", "94.74"],
+      ["Paul van Apeldoorn", "116.30"],
+      ["Sander van Dalen", "116.30"],
+      ["Robert Rier", "94.74"],
+      ["Ramkishoor Badloe", "81.68"],
+      ["Semere Fisseha", "115.88"],
+    ];
+    const basis = { klantId: k.id, contractId: c.id, einddatumType: "einde_opdracht" as const, tariefGeldigVanaf: "2025-01-01", startdatum: "2024-01-08" };
+    for (const [naam, tarief] of mensen) {
+      const m = await vindOfMaak(naam);
+      await db.insert(inzetten).values({ ...basis, medewerkerId: m.id, status: "actief", tarief });
+    }
+    // Boris: loopt t/m 1 november (beëindigd, aangekondigd) en heeft een nieuwe inzet per 12 oktober 2026.
+    const boris = await vindOfMaak("Boris Prins");
+    await db.insert(inzetten).values({ ...basis, medewerkerId: boris.id, status: "beeindigd", einddatum: "2026-11-01", einddatumType: "vast", tarief: "87.93" });
+    // Zijn nieuwe inzet per 12 oktober is bij Van Hattum en Blankevoort, een ander project en contract: dat raakt de Nieuw-Zuid-indexatie niet.
+    const [vhb] = await db.insert(klanten).values({ naam: "Van Hattum en Blankevoort (Boris)", naamGenormaliseerd: "van hattum en blankevoort boris" }).returning();
+    const [vhbContract] = await db.insert(contracten).values({ nummer: "VHB-BORIS-1", soort: "overeenkomst_van_opdracht", klantId: vhb.id, einddatumType: "ntb", indexatie: "geen" }).returning();
+    await db.insert(inzetten).values({ klantId: vhb.id, contractId: vhbContract.id, medewerkerId: boris.id, status: "contract_wachten", startdatum: "2026-10-12", startdatumVoorlopig: true, einddatumType: "ntb", tarief: "98.00", tariefGeldigVanaf: "2026-10-12" });
+
+    await runDailyRules({ today: "2026-10-02" });
+    const a = (await db.query.acties.findFirst({ where: (x, { eq }) => eq(x.dedupeKey, `indexatie_aanvragen:${c.id}:2026`) }))!;
+    expect(a.status).toBe("open");
+    expect(a.titel).toContain("Indexatie 2026 aanvragen: 21116-037C-T");
+    expect(a.vervaldatum).toBe("2026-10-07"); // einde periode 10
+    expect(a.omschrijving).toContain("CBS 7112 jaarmutatie 1e kwartaal 2026: 4,6 %"); // het contractkwartaal, niet K2
+    expect(a.omschrijving).not.toContain("5,0 %");
+    expect(a.omschrijving).toContain("Tarieven staan op prijspeil 01-01-2025; indexeren naar 01-01-2026.");
+    expect(a.omschrijving).toContain("week 1 t/m week 40 (periode 10, loopt t/m 2026-10-07) en vanaf periode 11 (week 41)");
+    for (const [naam] of mensen) expect(a.omschrijving).toContain(naam);
+    expect(a.omschrijving).toContain("Boris Prins (€ 87.93) [eindigt 01-11-2026]");
+    // Boris werkt al langer op dit project en wordt geïndexeerd; zijn nieuwe inzet elders komt niet in deze actie voor.
+    expect(a.omschrijving).not.toContain("Niet indexeren");
+    expect(a.omschrijving).not.toContain("2026-10-12");
+    expect((a.omschrijving ?? "").match(/Boris Prins/g)).toHaveLength(1);
+  });
 });

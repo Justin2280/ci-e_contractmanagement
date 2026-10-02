@@ -9,7 +9,7 @@ import { acties } from "@/lib/db/schema";
 import { listUsers } from "@/lib/queries/master";
 import { fmtDateShort, todayIso } from "@/lib/format";
 import { ACTIE_SOORT_LABELS } from "@/lib/labels";
-import { assignActie, setActieStatus } from "./actions";
+import { assignActie, setActieStatus, updateIndexatieAfspraak } from "./actions";
 import { NieuweActieForm, RunRulesButton } from "./forms";
 import { cn } from "@/lib/utils";
 import { EindeBesluitForm } from "@/components/app/einde-besluit-form";
@@ -246,7 +246,30 @@ export default async function ActiesPage({ searchParams }: PageProps<"/acties">)
                               {r.cijfer === null ? <span className="text-muted-foreground">nog niet gepubliceerd</span> : <span className="font-medium">{r.cijfer.toFixed(1).replace(".", ",")} %</span>}
                               {r.bekendSinds ? <span className="text-xs text-muted-foreground"> (bekend sinds {fmtDateShort(r.bekendSinds)})</span> : null}
                             </td>
-                            <td className="py-1.5 pr-4 whitespace-nowrap">{r.wijze === "achteraf_correctie" ? "achteraf (correctie)" : "vooraf"}</td>
+                            <td className="py-1.5 pr-4 whitespace-nowrap">
+                              <details>
+                                <summary className="cursor-pointer">{r.wijze === "achteraf_correctie" ? "achteraf (correctie)" : "vooraf"} · {r.kwartaal}e kwartaal
+                                  {r.kwartaalBron === "standaard" ? <span className="text-amber-700"> (standaard, controleer)</span> : null}
+                                </summary>
+                                <form action={updateIndexatieAfspraak} className="mt-2 flex flex-wrap items-center gap-1">
+                                  <input type="hidden" name="contractId" value={r.contractId} />
+                                  <select name="wijze" defaultValue={r.wijze} className="h-8 rounded-md border bg-background px-2 text-xs">
+                                    <option value="vooraf">Vooraf aanvragen</option>
+                                    <option value="achteraf_correctie">Achteraf (correctie met terugwerkende kracht)</option>
+                                  </select>
+                                  <select name="kwartaal" defaultValue={String(r.kwartaal)} className="h-8 rounded-md border bg-background px-2 text-xs">
+                                    {[1, 2, 3, 4].map((k) => (
+                                      <option key={k} value={k}>
+                                        {k}e kwartaal
+                                      </option>
+                                    ))}
+                                  </select>
+                                  <Button type="submit" size="sm" variant="secondary" className="h-8 px-2 text-xs">
+                                    Opslaan
+                                  </Button>
+                                </form>
+                              </details>
+                            </td>
                             <td className={cn("py-1.5", r.status === "kan_worden_uitgevraagd" && "font-medium text-amber-800")}>
                               {r.actieId && r.status === "kan_worden_uitgevraagd" ? (
                                 <Link href={`/acties?focus=${r.actieId}#${r.actieId}`} className="underline">

@@ -66,3 +66,24 @@ describe("indexatie-bewaking", () => {
     expect((await indexatieMonitor("2026-10-10", { database: db, cbs }))[0]).toMatchObject({ status: "kan_worden_uitgevraagd", bekendSinds: "2026-10-02" });
   });
 });
+
+describe("migratie 0009: Nieuw-Zuid achteraf, 1e kwartaal", () => {
+  it("zet alleen de standaardwaarden om en laat een bewuste keuze staan", async () => {
+    const fs = await import("node:fs");
+    const sqlText = fs.readFileSync("lib/db/migrations/0009_nieuw_zuid_achteraf.sql", "utf8");
+    const statements = sqlText.split("--> statement-breakpoint").map((s) => s.replace(/^--.*$/gm, "").trim()).filter(Boolean);
+    const { sql } = await import("drizzle-orm");
+    const [k] = await db.insert(klanten).values({ naam: "Nieuw-Zuid migratie", naamGenormaliseerd: "nieuw zuid migratie" }).returning();
+    await db.insert(contracten).values({ nummer: "21116-037C", soort: "overeenkomst_van_opdracht", klantId: k.id, einddatumType: "einde_opdracht", indexatie: "jaarlijks_cbs" }).returning();
+    await db.insert(contracten).values({ nummer: "99999-001", soort: "overeenkomst_van_opdracht", klantId: k.id, einddatumType: "einde_opdracht", indexatie: "jaarlijks_cbs" }).returning();
+    for (const s of statements) await db.execute(sql.raw(s));
+    const rijen = await db.query.contracten.findMany({ where: (c, { eq }) => eq(c.nummer, "21116-037C") });
+    expect(rijen.length).toBeGreaterThanOrEqual(1);
+    for (const r of rijen) {
+      expect(r.indexatieWijze).toBe("achteraf_correctie");
+      expect(r.indexatieKwartaal).toBe(1);
+    }
+    const ander = await db.query.contracten.findFirst({ where: (c, { eq }) => eq(c.nummer, "99999-001") });
+    expect([ander?.indexatieWijze, ander?.indexatieKwartaal]).toEqual(["vooraf", null]);
+  });
+});

@@ -153,7 +153,8 @@ describe("indexatie achteraf (correctie, Mobilis-praktijk)", () => {
     expect(a.vervaldatum).toBe(periodeVoorDatum("2026-10-02").einddatum);
     expect(a.vervaldatum).toBe("2026-10-07");
     expect(a.omschrijving).toContain("Stuur het verzoek voor 07-10-2026");
-    expect(a.omschrijving).toContain("week 1 t/m week 36 (periode 9");
+    // Periode 10 loopt over 5 dagen af: de bon wordt opgemaakt als die is afgesloten (zoals 2024/2025: t/m week 40).
+    expect(a.omschrijving).toContain("week 1 t/m week 40 (periode 10, loopt t/m 2026-10-07) en vanaf periode 11 (week 41)");
   });
 
   it("gebruikt het vaste aanvraagmoment alleen bij indexatie in overleg (geen CBS-reeks om op te wachten)", () => {

@@ -1,5 +1,5 @@
 import { addDays, addMonths, differenceInCalendarDays, parseISO } from "date-fns";
-import { laatstAfgeslotenPeriode, periodeVoorDatum } from "@/lib/periods";
+import { correctieEindPeriode, periodeVoorDatum } from "@/lib/periods";
 import type { Settings } from "@/lib/settings-schema";
 import { toIsoDate } from "@/lib/format";
 
@@ -246,7 +246,7 @@ export function evalueerRegels(input: RegelInput): ActieVoorstel[] {
       const teIndexeren = list.filter((i) => !ditJaarGestart.includes(i) && !alGeindexeerd.includes(i));
       if (teIndexeren.length === 0) continue;
       const anker = teIndexeren.find((i) => i.status !== "beeindigd") ?? teIndexeren[0];
-      const periode = laatstAfgeslotenPeriode(today);
+      const periode = correctieEindPeriode(today);
       const peilOud = `${momentMmdd.slice(3)}-${momentMmdd.slice(0, 2)}-${jaar - 1}`;
       const peilNieuw = `${momentMmdd.slice(3)}-${momentMmdd.slice(0, 2)}-${jaar}`;
       const kwartaal = c.indexatieKwartaal && c.indexatieKwartaal >= 1 && c.indexatieKwartaal <= 4 ? c.indexatieKwartaal : 2;
@@ -268,7 +268,7 @@ export function evalueerRegels(input: RegelInput): ActieVoorstel[] {
       out.push({
         soort: "indexatie_aanvragen",
         titel: `Indexatie ${jaar} aanvragen: ${c.nummer} (${list[0].klantNaam ?? "?"}) — achteraf, correctie vanaf ${momentMmdd.slice(3)}-${momentMmdd.slice(0, 2)}`,
-        omschrijving: `Tarieven staan op prijspeil ${peilOud}; indexeren naar ${peilNieuw}. ${cbsZin} Mail de financiële contactpersoon van de klant met het percentage en de betrokken medewerkers en vraag akkoord en een indexatiebon; daarna één correctiefactuur voor week 1 t/m week ${periode.eindWeek} (periode ${periode.nummer}, afgesloten ${periode.einddatum}) en vanaf periode ${periode.nummer + 1} (week ${periode.eindWeek + 1}) het nieuwe tarief. Stuur het verzoek voor ${dmy(eindeLopendePeriode)} (einde lopende periode); daarna schuift de correctie één periode op. Betreft: ${tarieven}.${uitgesloten}`,
+        omschrijving: `Tarieven staan op prijspeil ${peilOud}; indexeren naar ${peilNieuw}. ${cbsZin} Mail de financiële contactpersoon van de klant met het percentage en de betrokken medewerkers en vraag akkoord en een indexatiebon; daarna één correctiefactuur voor week 1 t/m week ${periode.eindWeek} (periode ${periode.nummer}, ${periode.lopend ? "loopt t/m" : "afgesloten"} ${periode.einddatum}) en vanaf periode ${periode.nummer + 1} (week ${periode.eindWeek + 1}) het nieuwe tarief. Stuur het verzoek voor ${dmy(eindeLopendePeriode)} (einde lopende periode); daarna schuift de correctie één periode op. Betreft: ${tarieven}.${uitgesloten}`,
         vervaldatum: c.indexatie === "jaarlijks_cbs" ? eindeLopendePeriode : laterOf(today, aanvraagdatum),
         dedupeKey: `indexatie_aanvragen:${contractId}:${jaar}`,
         inzetId: anker.id,

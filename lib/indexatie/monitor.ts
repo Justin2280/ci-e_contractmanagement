@@ -5,7 +5,7 @@ import { effectiveContract } from "@/lib/contracts/effective";
 import { LOPENDE_STATUSSEN } from "@/lib/queries/inzetten";
 import { getSetting, setSetting } from "@/lib/settings";
 import { cbsIndexcijfer, type CbsJaarmutatie } from "./cbs";
-import { indexatieReferentie } from "./kwartaal";
+import { indexatieKwartaalBron, indexatieReferentie } from "./kwartaal";
 
 export type MonitorStatus = "wacht_op_cbs" | "bekend" | "kan_worden_uitgevraagd" | "uitgevraagd" | "verwerkt";
 
@@ -24,6 +24,8 @@ export interface MonitorRij {
   wijze: "vooraf" | "achteraf_correctie";
   jaar: number;
   kwartaal: number;
+  /** Ingesteld, uit de clausule afgeleid of de standaard (dan is het kwartaal een gok en moet het worden gecontroleerd). */
+  kwartaalBron: "ingesteld" | "clausule" | "standaard";
   /** Jaarmutatie in procenten, null zolang het CBS het cijfer niet heeft gepubliceerd. */
   cijfer: number | null;
   /** Datum waarop de dagelijkse controle het cijfer voor het eerst zag. */
@@ -90,6 +92,7 @@ export async function indexatieMonitor(
       wijze,
       jaar: ref.jaar,
       kwartaal: ref.kwartaal,
+      kwartaalBron: indexatieKwartaalBron(c.eff),
       cijfer,
       bekendSinds,
       status: monitorStatus(cijfer, actie?.status ?? null),
