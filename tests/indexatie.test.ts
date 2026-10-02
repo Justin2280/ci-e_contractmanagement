@@ -13,7 +13,7 @@ const { db } = await import("@/lib/db");
 const { runMigrations } = await import("@/lib/db/migrate");
 const { verwerkIndexatie, lopendeInzettenVanContract } = await import("@/lib/indexatie/verwerk");
 const { indexeerBedrag } = await import("@/lib/indexatie/bereken");
-const { runDailyRules } = await import("@/lib/rules/run");
+const { runDailyRules, ververseIndexatieAanvraag } = await import("@/lib/rules/run");
 const { acties, contracten, inzetten, klanten, medewerkers, users } = await import("@/lib/db/schema");
 const { normalizeCompanyName, normalizePersonName } = await import("@/lib/normalize");
 
@@ -220,7 +220,7 @@ describe("indexatie achteraf: aanvraag-actie en verwerking", () => {
     // als beëindigd met een einddatum op of na 1 januari in de database staat, horen ze niet in de aanvraag.
     for (const [naam, tarief] of [["Glenn Jadoenathmisier", "77.50"], ["Peter Broek", "83.50"]]) {
       const m = await vindOfMaak(naam);
-      await db.insert(inzetten).values({ ...basis, medewerkerId: m.id, status: "beeindigd", einddatum: "2027-03-28", einddatumType: "vast", tarief });
+      await db.insert(inzetten).values({ ...basis, medewerkerId: m.id, status: "beeindigd", einddatum: "2026-09-10", einddatumType: "vast", tarief });
     }
     // Zijn nieuwe inzet per 12 oktober is bij Van Hattum en Blankevoort, een ander project en contract: dat raakt de Nieuw-Zuid-indexatie niet.
     const [vhb] = await db.insert(klanten).values({ naam: "Van Hattum en Blankevoort (Boris)", naamGenormaliseerd: "van hattum en blankevoort boris" }).returning();
@@ -241,6 +241,22 @@ describe("indexatie achteraf: aanvraag-actie en verwerking", () => {
     // Wie niet meer op het project werkt (beëindigd) wordt niet genoemd, ook niet met een einddatum later dit jaar of daarna.
     expect(a.omschrijving).not.toContain("Glenn");
     expect(a.omschrijving).not.toContain("Broek");
+
+    // Zoals na een deploy: de opgeslagen omschrijving is nog van de oude versie en noemt Glenn en Peter "[eindigt 10-09-2026]".
+    // Het conceptmail-pad ververst de aanvraag eerst, zodat die lijst nooit in een mail komt.
+    await db
+      .update(acties)
+      .set({ omschrijving: "Betreft: Jelle Schenk (€ 92.47), Glenn Jadoenathmisier (€ 77.50) [eindigt 10-09-2026], Peter Broek (€ 83.50) [eindigt 10-09-2026]." })
+      .where(eq(acties.id, a.id));
+    expect(await ververseIndexatieAanvraag(a.id, { today: "2026-10-02" })).toBe(true);
+    const vers = (await db.query.acties.findFirst({ where: (x, { eq: gelijk }) => gelijk(x.id, a.id) }))!;
+    expect(vers.omschrijving).toContain("Jelle Schenk (€ 92.47)");
+    expect(vers.omschrijving).not.toContain("Glenn");
+    expect(vers.omschrijving).not.toContain("Broek");
+    expect(vers.omschrijving).not.toContain("eindigt");
+    // Een afgesloten actie of een andere soort wordt niet aangeraakt.
+    await db.update(acties).set({ status: "afgerond" }).where(eq(acties.id, a.id));
+    expect(await ververseIndexatieAanvraag(a.id, { today: "2026-10-02" })).toBe(false);
     // Boris werkt al langer op dit project en wordt geïndexeerd; zijn nieuwe inzet elders komt niet in deze actie voor.
     expect(a.omschrijving).not.toContain("Niet indexeren");
     expect(a.omschrijving).not.toContain("2026-10-12");

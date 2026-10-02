@@ -20,6 +20,7 @@ import { defaultRecipient, INDEXATIE_SOORTEN, loadActieMetContext } from "@/lib/
 import { afzenderUitThread, eerdereCorrespondentie } from "@/lib/acties/correspondentie";
 import { indexatieKwartaalVan, indexatieReferentie } from "@/lib/indexatie/kwartaal";
 import { dagdeel, effectieveStijl } from "@/lib/llm/default-stijl";
+import { ververseIndexatieAanvraag } from "@/lib/rules/run";
 
 type StijlSoort = "algemeen" | "verlenging" | "indexatie" | "contract_opvragen";
 
@@ -41,7 +42,11 @@ export async function generateConcept(_prev: ActionState, formData: FormData): P
   const actieId = String(formData.get("actieId"));
   const extraInstructie = String(formData.get("instructie") ?? "").trim() || null;
   try {
-    const actie = await loadActieMetContext(actieId);
+    // Een indexatieverzoek noemt de medewerkers uit de omschrijving van de actie. Die wordt dagelijks ververst, maar kan
+    // tot de volgende run verouderd zijn (bv. net na een deploy): ververs hem eerst, zodat er niemand in staat die niet meer werkt.
+    const eerste = await loadActieMetContext(actieId);
+    if (eerste.soort === "indexatie_aanvragen") await ververseIndexatieAanvraag(actieId);
+    const actie = eerste.soort === "indexatie_aanvragen" ? await loadActieMetContext(actieId) : eerste;
     // Een indexatie-actie van een vorig jaar is historie (bv. ontstaan uit het verwerken van een oude bon):
     // daar hoort geen mail meer bij. Sluit hem en verwijs naar de aanvraag van dit jaar.
     const actieJaar = Number(actie.dedupeKey?.match(/:(\d{4})$/)?.[1] ?? NaN);

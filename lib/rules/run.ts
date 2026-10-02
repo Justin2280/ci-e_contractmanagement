@@ -12,18 +12,9 @@ import { cbsIndexcijfer, cbsPercentage, cbsTekst } from "@/lib/indexatie/cbs";
 import { indexatieKwartaalVan } from "@/lib/indexatie/kwartaal";
 import { indexatieMonitor } from "@/lib/indexatie/monitor";
 
-/**
- * Loads state, runs the pure rules engine and upserts acties on dedupe_key.
- * Also closes acties that are no longer relevant.
- */
-export async function runDailyRules(opts: { today?: string } = {}) {
-  const today = opts.today ?? todayIso();
+/** Laadt de actuele stand uit de database en laat de pure regels-engine bepalen welke acties er horen te zijn. */
+async function bepaalVoorstellen(today: string) {
   const settings = await getSettings();
-
-  await ensurePeriodesEnRegels(today);
-  // Tarieven die volgens de historie vandaag ingaan (werkopdracht met een toekomstige wijziging).
-  const geactiveerd = await activeerGeplandeTarieven({ today });
-
   const rows = await db.query.inzetten.findMany({
     where: inArray(inzetten.status, LOPENDE_STATUSSEN),
     with: { medewerker: true, klant: true, project: true, contract: { with: { parent: true } } },
@@ -87,6 +78,39 @@ export async function runDailyRules(opts: { today?: string } = {}) {
     cbsPerKwartaal[k] = t && cbsPercentage(c) !== null ? { tekst: t, percentage: cbsPercentage(c)! } : null;
   }
   const voorstellen = evalueerRegels({ today, inzetten: regelInzetten, periodes, settings, cbs, cbsPerKwartaal });
+  return { voorstellen, standen };
+}
+
+/**
+ * Ververst één open indexatie-aanvraag met de actuele stand (omschrijving met de betrokken medewerkers, uiterste
+ * datum, ankerinzet). De omschrijving wordt anders pas bij de volgende dagelijkse run bijgewerkt; een conceptmail
+ * mag nooit op een verouderde lijst leunen. Geeft true terug als de actie is bijgewerkt.
+ */
+export async function ververseIndexatieAanvraag(actieId: string, opts: { today?: string } = {}): Promise<boolean> {
+  const today = opts.today ?? todayIso();
+  const actie = await db.query.acties.findFirst({ where: eq(acties.id, actieId), columns: { dedupeKey: true, soort: true, status: true } });
+  if (!actie?.dedupeKey || actie.soort !== "indexatie_aanvragen" || !["open", "conceptmail_klaar"].includes(actie.status)) return false;
+  const { voorstellen } = await bepaalVoorstellen(today);
+  const v = voorstellen.find((x) => x.dedupeKey === actie.dedupeKey);
+  if (!v) return false;
+  await db
+    .update(acties)
+    .set({ omschrijving: v.omschrijving, vervaldatum: v.vervaldatum, inzetId: v.inzetId ?? null, medewerkerId: v.medewerkerId ?? null })
+    .where(eq(acties.id, actieId));
+  return true;
+}
+
+/**
+ * Loads state, runs the pure rules engine and upserts acties on dedupe_key.
+ * Also closes acties that are no longer relevant.
+ */
+export async function runDailyRules(opts: { today?: string } = {}) {
+  const today = opts.today ?? todayIso();
+
+  await ensurePeriodesEnRegels(today);
+  // Tarieven die volgens de historie vandaag ingaan (werkopdracht met een toekomstige wijziging).
+  const geactiveerd = await activeerGeplandeTarieven({ today });
+  const { voorstellen, standen } = await bepaalVoorstellen(today);
 
   let aangemaakt = 0;
   let heropend = 0;
