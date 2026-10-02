@@ -204,7 +204,7 @@ describe("indexatie achteraf (correctie, Mobilis-praktijk)", () => {
     expect(out.filter((x) => x.soort === "indexatie_aanvragen")).toHaveLength(0);
   });
 
-  it("telt beëindigde inzetten niet mee, ook niet als hun einddatum nog dit jaar of later ligt", () => {
+  it("telt beëindigde inzetten niet mee, ook niet als hun einddatum op of na 1 januari staat", () => {
     const glenn = achteraf({}, { id: "i5", medewerkerId: "m5", medewerkerNaam: "Glenn Jadoenathmisier", status: "beeindigd", einddatum: "2027-03-28", einddatumType: "vast", tarief: 77.5 });
     const broek = achteraf({}, { id: "i6", medewerkerId: "m6", medewerkerNaam: "Peter Broek", status: "beeindigd", einddatum: "2026-11-01", einddatumType: "vast" });
     const lopend = achteraf({}, { id: "i7", medewerkerId: "m7", medewerkerNaam: "Walter Terpstra" });

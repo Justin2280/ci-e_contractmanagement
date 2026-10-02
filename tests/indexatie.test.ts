@@ -216,7 +216,8 @@ describe("indexatie achteraf: aanvraag-actie en verwerking", () => {
     // Boris: actief op Nieuw-Zuid t/m 1 november (zoals op het scherm Inzetten) en heeft een nieuwe inzet per 12 oktober 2026.
     const boris = await vindOfMaak("Boris Prins");
     await db.insert(inzetten).values({ ...basis, medewerkerId: boris.id, status: "actief", einddatum: "2026-11-01", einddatumType: "vast", tarief: "87.93" });
-    // Glenn en Peter Broek werkten eerder op dit contract en zijn beëindigd; hun einddatum staat nog op het einde van de aanvulling.
+    // Glenn (gestopt per 31-12-2025) en Peter Broek (overleden in 2025) werkten in 2026 niet meer op dit contract. Ook als hun inzet
+    // als beëindigd met een einddatum op of na 1 januari in de database staat, horen ze niet in de aanvraag.
     for (const [naam, tarief] of [["Glenn Jadoenathmisier", "77.50"], ["Peter Broek", "83.50"]]) {
       const m = await vindOfMaak(naam);
       await db.insert(inzetten).values({ ...basis, medewerkerId: m.id, status: "beeindigd", einddatum: "2027-03-28", einddatumType: "vast", tarief });
