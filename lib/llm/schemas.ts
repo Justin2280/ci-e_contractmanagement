@@ -528,7 +528,7 @@ export function isInzetafspraakExtraction(v: unknown): v is InzetafspraakExtract
 
 export const DraftEmailSchema = z.object({
   onderwerp: z.string(),
-  body: z.string().describe("Platte tekst, Nederlandse e-mail inclusief aanhef en afsluiting"),
+  body: z.string().describe("Platte tekst, Nederlandse e-mail met aanhef en afsluiter, zonder handtekening (die wordt automatisch toegevoegd)"),
 });
 export type DraftEmail = z.infer<typeof DraftEmailSchema>;
 

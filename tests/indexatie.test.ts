@@ -1,7 +1,13 @@
-import { beforeAll, describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it, vi } from "vitest";
 import { eq } from "drizzle-orm";
 
 process.env.DATABASE_URL = "pglite://memory";
+
+// Het CBS-cijfer is bekend (K1: 4,6 %, K2: 5,0 %); zonder cijfer maakt de engine geen aanvraag-actie.
+vi.mock("@/lib/indexatie/cbs", async (orig) => ({
+  ...(await orig<typeof import("@/lib/indexatie/cbs")>()),
+  cbsIndexcijfer: async (jaar: number, kwartaal = 2) => ({ jaar, kwartaal, periode: `${jaar}KW0${kwartaal}`, prijsindex: 100, jaarmutatie: kwartaal === 1 ? 4.6 : 5.0, bron: "test" }),
+}));
 
 const { db } = await import("@/lib/db");
 const { runMigrations } = await import("@/lib/db/migrate");
@@ -133,5 +139,42 @@ describe("indexatie achteraf: aanvraag-actie en verwerking", () => {
     await db.update(acties).set({ status: "genegeerd" }).where(eq(acties.id, aanvraag.id));
     await runDailyRules({ today: "2026-09-18" });
     expect((await db.query.acties.findFirst({ where: (a, { eq }) => eq(a.id, aanvraag.id) }))!.status).toBe("genegeerd");
+  });
+
+  it("sluit de aanvraag niet omdat de ankerinzet beëindigd wordt en herstelt een eerder zo gesloten actie", async () => {
+    const [k] = await db.insert(klanten).values({ naam: "Combinatie Noordhaven", naamGenormaliseerd: "combinatie noordhaven" }).returning();
+    const [c] = await db
+      .insert(contracten)
+      .values({ nummer: "21300-001C", soort: "overeenkomst_van_opdracht", klantId: k.id, startdatum: "2023-01-01", einddatumType: "einde_opdracht", indexatie: "jaarlijks_cbs", indexatieMoment: "01-01", indexatieWijze: "achteraf_correctie" })
+      .returning();
+    const [m1] = await db.insert(medewerkers).values({ naam: "Anker Eerste", naamGenormaliseerd: "anker eerste" }).returning();
+    const [m2] = await db.insert(medewerkers).values({ naam: "Tweede Blijft", naamGenormaliseerd: "tweede blijft" }).returning();
+    const nieuw = { klantId: k.id, contractId: c.id, einddatumType: "einde_opdracht" as const, tarief: "90.00", tariefGeldigVanaf: "2025-01-01", startdatum: "2024-01-01" };
+    const [i1] = await db.insert(inzetten).values({ ...nieuw, medewerkerId: m1.id, status: "actief" }).returning();
+    const [i2] = await db.insert(inzetten).values({ ...nieuw, medewerkerId: m2.id, status: "actief" }).returning();
+
+    await runDailyRules({ today: "2026-10-02" });
+    const key = `indexatie_aanvragen:${c.id}:2026`;
+    const eerste = (await db.query.acties.findFirst({ where: (a, { eq }) => eq(a.dedupeKey, key) }))!;
+    expect(eerste.status).toBe("open");
+    expect(eerste.vervaldatum).toBe("2026-10-07"); // einde periode 10
+    expect(eerste.omschrijving).toContain("5,0 %");
+
+    // De ankerinzet wordt beëindigd (einde in de toekomst): de actie blijft open en schuift naar een lopende inzet.
+    await db.update(inzetten).set({ status: "beeindigd", einddatum: "2026-11-01", einddatumType: "vast" }).where(eq(inzetten.id, i1.id));
+    await db.update(acties).set({ inzetId: i1.id }).where(eq(acties.id, eerste.id));
+    await runDailyRules({ today: "2026-10-03" });
+    const na = (await db.query.acties.findFirst({ where: (a, { eq }) => eq(a.id, eerste.id) }))!;
+    expect(na.status).toBe("open");
+    expect(na.inzetId).toBe(i2.id);
+    expect(na.omschrijving).toContain("Anker Eerste (€ 90.00) [eindigt 01-11-2026]");
+
+    // Zoals in productie gebeurde: automatisch op genegeerd gezet met een beëindigde ankerinzet.
+    await db.update(acties).set({ status: "genegeerd", afgerondOp: new Date(), inzetId: i1.id }).where(eq(acties.id, eerste.id));
+    const r = await runDailyRules({ today: "2026-10-04" });
+    expect(r.heropend).toBe(1);
+    const hersteld = (await db.query.acties.findFirst({ where: (a, { eq }) => eq(a.id, eerste.id) }))!;
+    expect(hersteld.status).toBe("open");
+    expect(hersteld.inzetId).toBe(i2.id);
   });
 });

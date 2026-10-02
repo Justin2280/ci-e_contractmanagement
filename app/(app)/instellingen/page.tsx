@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { db } from "@/lib/db";
 import { stijlVoorbeelden, users } from "@/lib/db/schema";
 import { getSettings } from "@/lib/settings";
+import { effectieveStijl } from "@/lib/llm/default-stijl";
 import { graphConfigured } from "@/lib/graph/client";
 import { llmConfigured, LLM_MODEL } from "@/lib/llm/client";
 import { fmtDate } from "@/lib/format";
@@ -99,7 +100,7 @@ export default async function InstellingenPage() {
           <CardTitle>Schrijfstijl</CardTitle>
         </CardHeader>
         <CardContent className="space-y-6">
-          <StijlForm settings={settings} />
+          <StijlForm settings={{ ...settings, ...effectieveStijl(settings) }} />
           <div>
             <h3 className="mb-2 text-sm font-medium">Voorbeeldmails ({voorbeelden.length})</h3>
             <p className="mb-3 text-xs text-muted-foreground">

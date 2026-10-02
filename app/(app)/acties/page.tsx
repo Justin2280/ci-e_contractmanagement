@@ -17,7 +17,9 @@ import { IndexatieForm, type IndexatieInzetOptie } from "@/components/app/indexa
 import { lopendeInzettenVanContract } from "@/lib/indexatie/verwerk";
 import { cbsIndexcijfer } from "@/lib/indexatie/cbs";
 import { effectiveContract } from "@/lib/contracts/effective";
-import { indexatieKwartaalVan } from "@/lib/indexatie/kwartaal";
+import { indexatieKwartaalVan, indexatieReferentie } from "@/lib/indexatie/kwartaal";
+import { GROEP_LABELS, GROEP_TOELICHTING, groepeerActies, type ActieGroep } from "@/lib/acties/groepen";
+import { indexatieMonitor, MONITOR_LABELS } from "@/lib/indexatie/monitor";
 
 export const metadata = { title: "Acties" };
 
@@ -37,7 +39,15 @@ export default async function ActiesPage({ searchParams }: PageProps<"/acties">)
   ]);
 
   // Voor indexatie-acties: de lopende inzetten van het contract (en zijn NOVK's) om de indexatie op te verwerken.
-  const cbsCijfer = rows.some((a) => a.soort === "indexatie_aanvragen" || a.soort === "indexatie_voorstellen") ? await cbsIndexcijfer(Number(today.slice(0, 4)), 2, { today }) : null;
+  const cbsCijfer = rows.some((a) => a.soort === "indexatie_voorstellen") ? await cbsIndexcijfer(Number(today.slice(0, 4)), 2, { today }) : null;
+  const monitor = view === "open" ? await indexatieMonitor(today) : [];
+  // Standaardpercentage in het indexatieformulier: het cijfer van het eigen contractkwartaal.
+  const percentagePerContract = new Map<string, number | null>();
+  for (const a of rows) {
+    if (a.soort !== "indexatie_aanvragen" || !a.contract || percentagePerContract.has(a.contract.id)) continue;
+    const ref = indexatieReferentie(effectiveContract(a.contract), today);
+    percentagePerContract.set(a.contract.id, (await cbsIndexcijfer(ref.jaar, ref.kwartaal, { today }))?.jaarmutatie ?? null);
+  }
   const indexatieInzetten = new Map<string, IndexatieInzetOptie[]>();
   for (const a of rows) {
     if (!["indexatie_aanvragen", "indexatie_voorstellen"].includes(a.soort) || !a.contract || !["open", "conceptmail_klaar", "verstuurd"].includes(a.status) || indexatieInzetten.has(a.contract.id)) continue;
@@ -48,28 +58,9 @@ export default async function ActiesPage({ searchParams }: PageProps<"/acties">)
     );
   }
 
-  return (
-    <div className="space-y-6">
-      <PageHeader
-        title="Acties"
-        description="Verlengingen, indexaties, ontbrekende contracten en urenbonnen. Wordt dagelijks bijgewerkt door de regels-engine."
-        actions={
-          <div className="flex items-center gap-2">
-            <Link href="/acties?view=open" className={cn("text-sm", view === "open" ? "font-medium" : "text-muted-foreground")}>
-              Open
-            </Link>
-            <span className="text-muted-foreground">·</span>
-            <Link href="/acties?view=alle" className={cn("text-sm", view === "alle" ? "font-medium" : "text-muted-foreground")}>
-              Alle
-            </Link>
-            <RunRulesButton />
-          </div>
-        }
-      />
+  const groepen = groepeerActies(rows, today);
 
-      <div className="space-y-2">
-        {rows.length === 0 ? <p className="text-sm text-muted-foreground">Geen acties.</p> : null}
-        {rows.map((a) => {
+  const kaart = (a: (typeof rows)[number]) => {
           const late = a.vervaldatum && a.vervaldatum < today && ["open", "conceptmail_klaar"].includes(a.status);
           const opvolgen = a.status === "verstuurd" && a.opvolgenOp && a.opvolgenOp <= today;
           const indexatieJaar = a.dedupeKey?.match(/:(\d{4})$/)?.[1] ?? today.slice(0, 4);
@@ -118,7 +109,7 @@ export default async function ActiesPage({ searchParams }: PageProps<"/acties">)
                         inzetten={indexatieInzetten.get(a.contract.id) ?? []}
                         wijze={effectiveContract(a.contract).indexatieWijze ?? "vooraf"}
                         defaultIngangsdatum={`${indexatieJaar}-${(effectiveContract(a.contract).indexatieMoment ?? "01-01").replace(/^(\d{2})-(\d{2})$/, "$1-$2")}`}
-                        defaultPercentage={a.soort === "indexatie_voorstellen" ? (cbsCijfer?.jaarmutatie ?? null) : null}
+                        defaultPercentage={a.soort === "indexatie_voorstellen" ? (cbsCijfer?.jaarmutatie ?? null) : (percentagePerContract.get(a.contract.id) ?? null)}
                         kwartaal={indexatieKwartaalVan(effectiveContract(a.contract))}
                         compact
                       />
@@ -187,7 +178,99 @@ export default async function ActiesPage({ searchParams }: PageProps<"/acties">)
               </CardContent>
             </Card>
           );
-        })}
+  };
+
+  return (
+    <div className="space-y-6">
+      <PageHeader
+        title="Acties"
+        description="Verlengingen, indexaties, ontbrekende contracten en urenbonnen. Wordt dagelijks bijgewerkt door de regels-engine."
+        actions={
+          <div className="flex items-center gap-2">
+            <Link href="/acties?view=open" className={cn("text-sm", view === "open" ? "font-medium" : "text-muted-foreground")}>
+              Open
+            </Link>
+            <span className="text-muted-foreground">·</span>
+            <Link href="/acties?view=alle" className={cn("text-sm", view === "alle" ? "font-medium" : "text-muted-foreground")}>
+              Alle
+            </Link>
+            <RunRulesButton />
+          </div>
+        }
+      />
+
+      <div className="space-y-2">
+        {view === "open" ? (
+          <>
+            {(Object.keys(GROEP_LABELS) as ActieGroep[]).map((g) => (
+              <section key={g} className="space-y-2">
+                <div className="flex items-baseline gap-2 pt-2">
+                  <h2 className="text-sm font-semibold">{GROEP_LABELS[g]}</h2>
+                  <span className="text-xs text-muted-foreground">
+                    {groepen[g].length} · {GROEP_TOELICHTING[g]}
+                  </span>
+                </div>
+                {groepen[g].length === 0 ? <p className="text-sm text-muted-foreground">Niets.</p> : groepen[g].map(kaart)}
+              </section>
+            ))}
+            <section className="space-y-2">
+              <div className="flex items-baseline gap-2 pt-2">
+                <h2 className="text-sm font-semibold">Bewaking: indexatie en CBS</h2>
+                <span className="text-xs text-muted-foreground">Controleert dagelijks of het cijfer dat bij het contract hoort is gepubliceerd.</span>
+              </div>
+              {monitor.length === 0 ? (
+                <p className="text-sm text-muted-foreground">Geen contracten met een CBS-indexatieclausule.</p>
+              ) : (
+                <Card>
+                  <CardContent className="overflow-x-auto py-3">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="text-left text-xs text-muted-foreground">
+                          <th className="py-1 pr-4 font-medium">Contract</th>
+                          <th className="py-1 pr-4 font-medium">Cijfer</th>
+                          <th className="py-1 pr-4 font-medium">Wijze</th>
+                          <th className="py-1 font-medium">Status</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {monitor.map((r) => (
+                          <tr key={r.contractId} className="border-t">
+                            <td className="py-1.5 pr-4">
+                              <Link href={`/contracten/${r.contractId}`} className="hover:underline">
+                                {r.contractNummer}
+                              </Link>
+                              <span className="text-muted-foreground"> · {r.klant ?? "?"}</span>
+                            </td>
+                            <td className="py-1.5 pr-4 whitespace-nowrap">
+                              {r.kwartaal}e kwartaal {r.jaar}:{" "}
+                              {r.cijfer === null ? <span className="text-muted-foreground">nog niet gepubliceerd</span> : <span className="font-medium">{r.cijfer.toFixed(1).replace(".", ",")} %</span>}
+                              {r.bekendSinds ? <span className="text-xs text-muted-foreground"> (bekend sinds {fmtDateShort(r.bekendSinds)})</span> : null}
+                            </td>
+                            <td className="py-1.5 pr-4 whitespace-nowrap">{r.wijze === "achteraf_correctie" ? "achteraf (correctie)" : "vooraf"}</td>
+                            <td className={cn("py-1.5", r.status === "kan_worden_uitgevraagd" && "font-medium text-amber-800")}>
+                              {r.actieId && r.status === "kan_worden_uitgevraagd" ? (
+                                <Link href={`/acties?focus=${r.actieId}#${r.actieId}`} className="underline">
+                                  {MONITOR_LABELS[r.status]}
+                                </Link>
+                              ) : (
+                                MONITOR_LABELS[r.status]
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </CardContent>
+                </Card>
+              )}
+            </section>
+          </>
+        ) : (
+          <>
+            {rows.length === 0 ? <p className="text-sm text-muted-foreground">Geen acties.</p> : null}
+            {rows.map(kaart)}
+          </>
+        )}
       </div>
 
       <Card>

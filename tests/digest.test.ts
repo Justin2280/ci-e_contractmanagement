@@ -35,6 +35,7 @@ describe("wekelijkse herinneringsmail", () => {
     const mail = sendMail.mock.calls[0][1];
     expect(mail.subject).toContain("2 open actie(s) (1 over tijd)");
     expect(mail.bodyText).toContain("(over tijd)");
+    expect(mail.bodyText).toContain("Nu doen:");
 
     // Dezelfde dag nog eens: niet opnieuw.
     await sendReminderDigests({ today: "2026-09-21" });

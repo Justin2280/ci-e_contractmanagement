@@ -1,3 +1,4 @@
+import { periodeVoorDatum } from "@/lib/periods";
 import { describe, expect, it } from "vitest";
 import { evalueerRegels, volgendIndexatieMoment, type RegelInzet } from "@/lib/rules/engine";
 import { DEFAULT_SETTINGS } from "@/lib/settings-schema";
@@ -128,21 +129,37 @@ describe("indexatie achteraf (correctie, Mobilis-praktijk)", () => {
       },
     });
 
-  it("vraagt de indexatie van het lopende jaar aan vanaf een week vóór het aanvraagmoment", () => {
+  const cbs2 = { tekst: "CBS 7112 jaarmutatie 2e kwartaal 2026: 5,0 %", percentage: 5 };
+
+  it("vraagt de indexatie aan zodra het CBS-cijfer bekend is, niet eerder", () => {
+    // Zonder gepubliceerd cijfer is er niets uit te vragen.
     expect(evalueerRegels({ ...base, today: "2026-09-01", inzetten: [achteraf()] }).filter((a) => a.soort === "indexatie_aanvragen")).toHaveLength(0);
-    const out = evalueerRegels({ ...base, today: "2026-09-08", inzetten: [achteraf()] });
+    const out = evalueerRegels({ ...base, today: "2026-09-01", inzetten: [achteraf()], cbs: cbs2 });
     const a = out.find((x) => x.soort === "indexatie_aanvragen")!;
     expect(a).toBeTruthy();
     expect(a.dedupeKey).toBe("indexatie_aanvragen:c2:2026");
-    expect(a.vervaldatum).toBe("2026-09-15");
+    // Uiterlijk het einde van de lopende 4-wekenperiode (periode 9 loopt t/m 09-09).
+    expect(a.vervaldatum).toBe(periodeVoorDatum("2026-09-01").einddatum);
+    expect(a.vervaldatum).toBe("2026-09-09");
+    expect(a.omschrijving).toContain("Stuur het verzoek voor 09-09-2026");
     expect(a.titel).toContain("Indexatie 2026");
     expect(a.omschrijving).toContain("CBS 7112");
     expect(a.omschrijving).toContain("€ 92.60");
   });
 
-  it("blijft open na het aanvraagmoment en gebruikt een eigen aanvraagmoment van het contract", () => {
-    const out = evalueerRegels({ ...base, today: "2026-11-17", inzetten: [achteraf({ indexatieAanvraagMoment: "10-01" })] });
-    const a = out.find((x) => x.soort === "indexatie_aanvragen")!;
+  it("schuift de uiterlijke datum mee met de lopende periode", () => {
+    const a = evalueerRegels({ ...base, today: "2026-10-02", inzetten: [achteraf()], cbs: cbs2 }).find((x) => x.soort === "indexatie_aanvragen")!;
+    expect(periodeVoorDatum("2026-10-02").nummer).toBe(10);
+    expect(a.vervaldatum).toBe(periodeVoorDatum("2026-10-02").einddatum);
+    expect(a.vervaldatum).toBe("2026-10-07");
+    expect(a.omschrijving).toContain("Stuur het verzoek voor 07-10-2026");
+    expect(a.omschrijving).toContain("week 1 t/m week 36 (periode 9");
+  });
+
+  it("gebruikt het vaste aanvraagmoment alleen bij indexatie in overleg (geen CBS-reeks om op te wachten)", () => {
+    const overleg = achteraf({ indexatie: "jaarlijks_overleg", indexatieAanvraagMoment: "10-01" });
+    expect(evalueerRegels({ ...base, today: "2026-09-01", inzetten: [overleg] }).filter((x) => x.soort === "indexatie_aanvragen")).toHaveLength(0);
+    const a = evalueerRegels({ ...base, today: "2026-11-17", inzetten: [overleg] }).find((x) => x.soort === "indexatie_aanvragen")!;
     expect(a.vervaldatum).toBe("2026-11-17");
     expect(a.dedupeKey).toBe("indexatie_aanvragen:c2:2026");
   });
@@ -174,17 +191,26 @@ describe("indexatie achteraf (correctie, Mobilis-praktijk)", () => {
   it("laat wie al op het nieuwe prijspeil staat weg en stopt als iedereen is verwerkt", () => {
     const verwerkt = achteraf({}, { id: "i2", medewerkerId: "m2", medewerkerNaam: "Jelle Schenk", laatsteTariefwijziging: "2026-01-01", tarief: 95.24 });
     const nog = achteraf({}, { laatsteTariefwijziging: "2025-01-01" });
-    const out = evalueerRegels({ ...base, today: "2026-09-16", inzetten: [verwerkt, nog] });
+    const out = evalueerRegels({ ...base, today: "2026-09-16", inzetten: [verwerkt, nog], cbs: cbs2 });
     const a = out.find((x) => x.soort === "indexatie_aanvragen")!;
     expect(a.omschrijving).toContain("Betreft: Dhr. W.S. Terpstra (€ 92.60).");
     expect(a.omschrijving).toContain("Al op prijspeil 2026: Jelle Schenk.");
-    expect(evalueerRegels({ ...base, today: "2026-09-16", inzetten: [verwerkt] }).filter((x) => x.soort === "indexatie_aanvragen")).toHaveLength(0);
+    expect(evalueerRegels({ ...base, today: "2026-09-16", inzetten: [verwerkt], cbs: cbs2 }).filter((x) => x.soort === "indexatie_aanvragen")).toHaveLength(0);
   });
 
-  it("meldt dat het CBS-cijfer nog ontbreekt als het niet beschikbaar is", () => {
-    const out = evalueerRegels({ ...base, today: "2026-09-16", inzetten: [achteraf({ indexatieKwartaal: 1 })], cbsPerKwartaal: { 1: null } });
-    const a = out.find((x) => x.soort === "indexatie_aanvragen")!;
-    expect(a.omschrijving).toContain("1e kwartaal) is nog niet gepubliceerd");
+  it("maakt geen actie zolang het CBS-cijfer van het contractkwartaal ontbreekt", () => {
+    const out = evalueerRegels({ ...base, today: "2026-09-16", inzetten: [achteraf({ indexatieKwartaal: 1 })], cbsPerKwartaal: { 1: null }, cbs: cbs2 });
+    expect(out.filter((x) => x.soort === "indexatie_aanvragen")).toHaveLength(0);
+  });
+
+  it("neemt een beëindigde inzet die nog in het correctievenster werkte mee, verankert de actie aan een lopende inzet en laat eerder vertrokken mensen weg", () => {
+    const boris = achteraf({}, { id: "i5", medewerkerId: "m5", medewerkerNaam: "Boris Prins", status: "beeindigd", einddatum: "2026-11-01", einddatumType: "vast", tarief: 88 });
+    const weg = achteraf({}, { id: "i6", medewerkerId: "m6", medewerkerNaam: "Kees Vertrokken", status: "beeindigd", einddatum: "2025-12-31", einddatumType: "vast" });
+    const lopend = achteraf({}, { id: "i7", medewerkerId: "m7", medewerkerNaam: "Walter Terpstra" });
+    const a = evalueerRegels({ ...base, today: "2026-10-02", inzetten: [boris, weg, lopend], cbs: cbs2 }).find((x) => x.soort === "indexatie_aanvragen")!;
+    expect(a.omschrijving).toContain("Boris Prins (€ 88.00) [eindigt 01-11-2026]");
+    expect(a.omschrijving).not.toContain("Kees Vertrokken");
+    expect(a.inzetId).toBe("i7");
   });
 
   it("laat de vooraf-variant ongemoeid", () => {

@@ -76,7 +76,7 @@ export async function runRulesNow(): Promise<ActionState> {
   try {
     const r = await runDailyRules();
     revalidate();
-    return { ok: true, message: `${r.aangemaakt} nieuwe actie(s), ${r.gesloten} gesloten` };
+    return { ok: true, message: `${r.aangemaakt} nieuwe actie(s), ${r.heropend} heropend, ${r.gesloten} gesloten; CBS-cijfer bekend voor ${r.cbsBekend} indexatiecontract(en)` };
   } catch (err) {
     return { ok: false, message: err instanceof Error ? err.message : String(err) };
   }

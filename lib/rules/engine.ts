@@ -1,5 +1,5 @@
 import { addDays, addMonths, differenceInCalendarDays, parseISO } from "date-fns";
-import { laatstAfgeslotenPeriode } from "@/lib/periods";
+import { laatstAfgeslotenPeriode, periodeVoorDatum } from "@/lib/periods";
 import type { Settings } from "@/lib/settings-schema";
 import { toIsoDate } from "@/lib/format";
 
@@ -210,7 +210,17 @@ export function evalueerRegels(input: RegelInput): ActieVoorstel[] {
     const key = i.contract.indexatieContractId ?? i.contract.id;
     perContract.set(key, [...(perContract.get(key) ?? []), i]);
   }
-  for (const [contractId, list] of perContract) {
+  // Beëindigde inzetten die in het correctievenster nog hebben gewerkt (bv. einde per 1 november): hun uren
+  // t/m de laatst afgesloten periode horen bij de indexatie-correctie, maar ze lopen zelf niet meer.
+  const beeindigdPerContract = new Map<string, RegelInzet[]>();
+  for (const i of input.inzetten) {
+    if (i.status !== "beeindigd" || !i.contract || !i.einddatum) continue;
+    if (!["jaarlijks_cbs", "jaarlijks_overleg"].includes(i.contract.indexatie)) continue;
+    const key = i.contract.indexatieContractId ?? i.contract.id;
+    beeindigdPerContract.set(key, [...(beeindigdPerContract.get(key) ?? []), i]);
+  }
+  for (const [contractId, lopendeList] of perContract) {
+    let list = lopendeList;
     const c = { ...list[0].contract!, nummer: list[0].contract!.indexatieContractNummer ?? list[0].contract!.nummer };
     const namen = Array.from(new Set(list.map((i) => i.medewerkerNaam))).join(", ");
     const formule = c.indexatie === "jaarlijks_cbs" ? "indexformule" : "in overleg";
@@ -222,22 +232,31 @@ export function evalueerRegels(input: RegelInput): ActieVoorstel[] {
       if (startJaar !== null && jaar <= startJaar) continue; // eerste jaar: tarief staat vast
       const mmdd = /^\d{2}-\d{2}$/.test(c.indexatieAanvraagMoment ?? "") ? c.indexatieAanvraagMoment! : settings.indexatieAchterafAanvraagMoment;
       const aanvraagdatum = `${jaar}-${mmdd}`;
-      if (daysBetween(today, aanvraagdatum) > 7) continue;
+      // Bij een CBS-reeks bepaalt de publicatie van het cijfer het moment (zie hieronder); alleen bij "in overleg"
+      // (geen reeks om op te wachten) geldt de vaste aanvraagdatum.
+      if (c.indexatie !== "jaarlijks_cbs" && daysBetween(today, aanvraagdatum) > 7) continue;
       const momentMmdd = /^\d{2}-\d{2}$/.test(c.indexatieMoment ?? "") ? c.indexatieMoment! : "01-01";
       // Te indexeren: tarief op prijspeil van vóór het indexatiemoment (laatste tariefwijziging ervoor) én
       // gestart vóór dat moment. Wie in het jaar zelf startte heeft al het actuele prijspeil (Mobilis 2023:
       // Broek en Schenk niet geïndexeerd); wie al is geïndexeerd valt weg zodra het tarief is verwerkt.
       const indexatiemoment = `${jaar}-${momentMmdd.slice(0, 2)}-${momentMmdd.slice(3)}`;
+      list = [...list, ...(beeindigdPerContract.get(contractId) ?? []).filter((i) => i.einddatum! >= indexatiemoment)];
       const ditJaarGestart = list.filter((i) => i.startdatum && i.startdatum >= indexatiemoment);
       const alGeindexeerd = list.filter((i) => !ditJaarGestart.includes(i) && i.laatsteTariefwijziging && i.laatsteTariefwijziging >= indexatiemoment);
       const teIndexeren = list.filter((i) => !ditJaarGestart.includes(i) && !alGeindexeerd.includes(i));
       if (teIndexeren.length === 0) continue;
+      const anker = teIndexeren.find((i) => i.status !== "beeindigd") ?? teIndexeren[0];
       const periode = laatstAfgeslotenPeriode(today);
       const peilOud = `${momentMmdd.slice(3)}-${momentMmdd.slice(0, 2)}-${jaar - 1}`;
       const peilNieuw = `${momentMmdd.slice(3)}-${momentMmdd.slice(0, 2)}-${jaar}`;
       const kwartaal = c.indexatieKwartaal && c.indexatieKwartaal >= 1 && c.indexatieKwartaal <= 4 ? c.indexatieKwartaal : 2;
       const cbs = input.cbsPerKwartaal?.[kwartaal] ?? (kwartaal === 2 ? (input.cbs ?? null) : null);
-      const naamMetTarief = (i: RegelInzet) => `${i.medewerkerNaam}${i.tarief !== null && i.tarief !== undefined ? ` (€ ${i.tarief.toFixed(2)})` : ""}`;
+      // CBS-reeks: zonder gepubliceerd cijfer is er niets uit te vragen; de bewaking toont "wacht op CBS".
+      if (c.indexatie === "jaarlijks_cbs" && !cbs) continue;
+      const eindeLopendePeriode = periodeVoorDatum(today).einddatum;
+      const dmy = (iso: string) => `${iso.slice(8, 10)}-${iso.slice(5, 7)}-${iso.slice(0, 4)}`;
+      const naamMetTarief = (i: RegelInzet) =>
+        `${i.medewerkerNaam}${i.tarief !== null && i.tarief !== undefined ? ` (€ ${i.tarief.toFixed(2)})` : ""}${i.status === "beeindigd" && i.einddatum ? ` [eindigt ${dmy(i.einddatum)}]` : ""}`;
       const uniek = (arr: string[]) => arr.filter((v, idx) => arr.indexOf(v) === idx).join(", ");
       const tarieven = uniek(teIndexeren.map(naamMetTarief));
       const uitgesloten =
@@ -249,13 +268,13 @@ export function evalueerRegels(input: RegelInput): ActieVoorstel[] {
       out.push({
         soort: "indexatie_aanvragen",
         titel: `Indexatie ${jaar} aanvragen: ${c.nummer} (${list[0].klantNaam ?? "?"}) — achteraf, correctie vanaf ${momentMmdd.slice(3)}-${momentMmdd.slice(0, 2)}`,
-        omschrijving: `Tarieven staan op prijspeil ${peilOud}; indexeren naar ${peilNieuw}. ${cbsZin} Mail de financiële contactpersoon van de klant met het percentage en de betrokken medewerkers en vraag akkoord en een indexatiebon; daarna één correctiefactuur voor week 1 t/m week ${periode.eindWeek} (periode ${periode.nummer}, afgesloten ${periode.einddatum}) en vanaf periode ${periode.nummer + 1} (week ${periode.eindWeek + 1}) het nieuwe tarief. Betreft: ${tarieven}.${uitgesloten}`,
-        vervaldatum: laterOf(today, aanvraagdatum),
+        omschrijving: `Tarieven staan op prijspeil ${peilOud}; indexeren naar ${peilNieuw}. ${cbsZin} Mail de financiële contactpersoon van de klant met het percentage en de betrokken medewerkers en vraag akkoord en een indexatiebon; daarna één correctiefactuur voor week 1 t/m week ${periode.eindWeek} (periode ${periode.nummer}, afgesloten ${periode.einddatum}) en vanaf periode ${periode.nummer + 1} (week ${periode.eindWeek + 1}) het nieuwe tarief. Stuur het verzoek voor ${dmy(eindeLopendePeriode)} (einde lopende periode); daarna schuift de correctie één periode op. Betreft: ${tarieven}.${uitgesloten}`,
+        vervaldatum: c.indexatie === "jaarlijks_cbs" ? eindeLopendePeriode : laterOf(today, aanvraagdatum),
         dedupeKey: `indexatie_aanvragen:${contractId}:${jaar}`,
-        inzetId: teIndexeren[0].id,
+        inzetId: anker.id,
         contractId,
-        medewerkerId: teIndexeren[0].medewerkerId,
-        toegewezenUserId: teIndexeren[0].actiehouderUserId,
+        medewerkerId: anker.medewerkerId,
+        toegewezenUserId: anker.actiehouderUserId,
         // Zolang niemand op het nieuwe prijspeil staat, is een "afgeronde" aanvraag niet echt afgehandeld
         // (bv. per ongeluk gesloten door het verwerken van de bon van vorig jaar).
         heropenen: alGeindexeerd.length === 0,

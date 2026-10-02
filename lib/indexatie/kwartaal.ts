@@ -22,3 +22,21 @@ export function indexatieKwartaalVan(contract: { indexatieKwartaal?: number | nu
   if (contract.indexatieKwartaal && contract.indexatieKwartaal >= 1 && contract.indexatieKwartaal <= 4) return contract.indexatieKwartaal;
   return kwartaalUitToelichting(contract.indexatieToelichting) ?? STANDAARD_KWARTAAL;
 }
+
+/**
+ * Welk CBS-cijfer (jaar + kwartaal) bij de indexatie van een contract hoort.
+ * - achteraf_correctie: het cijfer van het lopende jaar (indexatie over het jaar dat loopt, bv. 1e kwartaal 2026).
+ * - vooraf: het cijfer van het jaar vóór het eerstvolgende indexatiemoment (bv. 2e kwartaal 2026 voor 1 januari 2027,
+ *   "twee kwartalen vertraagd").
+ */
+export function indexatieReferentie(
+  contract: { indexatieKwartaal?: number | null; indexatieToelichting?: string | null; indexatieWijze?: string | null; indexatieMoment?: string | null } | null | undefined,
+  today: string,
+): { jaar: number; kwartaal: number } {
+  const kwartaal = indexatieKwartaalVan(contract);
+  const jaarNu = Number(today.slice(0, 4));
+  if ((contract?.indexatieWijze ?? "vooraf") === "achteraf_correctie") return { jaar: jaarNu, kwartaal };
+  const mmdd = /^\d{2}-\d{2}$/.test(contract?.indexatieMoment ?? "") ? contract!.indexatieMoment! : "01-01";
+  const momentJaar = `${jaarNu}-${mmdd}` >= today ? jaarNu : jaarNu + 1;
+  return { jaar: momentJaar - 1, kwartaal };
+}

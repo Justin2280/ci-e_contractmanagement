@@ -79,10 +79,10 @@ export function StijlForm({ settings }: { settings: Settings }) {
   const [state, action, pending] = useActionState<ActionState, FormData>(updateStijl, null);
   return (
     <form action={action} className="grid gap-3">
-      <F label="Stijlinstructies (hoe schrijf jij? aanhef, toon, lengte, wat je nooit doet)">
+      <F label="Stijlinstructies (hoe schrijf jij? aanhef, toon, lengte, wat je nooit doet; leeg laten = standaardstijl van Justin)">
         <Textarea
           name="stijlInstructies"
-          rows={5}
+          rows={14}
           defaultValue={settings.stijlInstructies}
           placeholder={"Bv. Informeel maar zakelijk. Aanhef 'Hoi <voornaam>,' bij bekende contacten, anders 'Beste <voornaam>,'. Korte alinea's, geen bullets. Afsluiten met 'Met vriendelijke groet, Justin'."}
         />
@@ -92,7 +92,7 @@ export function StijlForm({ settings }: { settings: Settings }) {
           <Input name="afzenderNaam" defaultValue={settings.afzenderNaam} />
         </F>
         <F label="Handtekening (wordt onderaan gebruikt)">
-          <Textarea name="handtekening" rows={3} defaultValue={settings.handtekening} placeholder={"Met vriendelijke groet,\nJustin de Weert\nCI-Engineers B.V. · 06 …"} />
+          <Textarea name="handtekening" rows={8} defaultValue={settings.handtekening} placeholder={"Met vriendelijke groet,\nJustin de Weert\nCI-Engineers B.V. · 06 …"} />
         </F>
         <F label="Standaard cc bij externe mails (optioneel)">
           <Input name="standaardCc" defaultValue={settings.standaardCc} placeholder="directie@ci-engineers.com" />
