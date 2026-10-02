@@ -14,6 +14,8 @@ export interface CbsJaarmutatie {
   periode: string;
   prijsindex: number | null;
   jaarmutatie: number | null;
+  /** Prijsindex van hetzelfde kwartaal een jaar eerder (het prijspeil waarop de tarieven staan); null als onbekend. */
+  basisPrijsindex?: number | null;
   bron: string;
 }
 
@@ -32,14 +34,57 @@ export async function cbsJaarmutatie(jaar: number, kwartaal = 2, fetchImpl: type
   const data = (await res.json()) as { value: CbsRow[] };
   const row = data.value?.[0];
   if (!row) throw new Error(`Geen CBS-cijfer gevonden voor ${kwartaal}e kwartaal ${jaar} (nog niet gepubliceerd?)`);
+  // Prijsindex van hetzelfde kwartaal een jaar eerder: daarmee volgt de indexverhouding (zie gehanteerdPercentage).
+  let basisPrijsindex: number | null = null;
+  try {
+    const basisUrl = `https://opendata.cbs.nl/ODataApi/odata/${CBS_TABEL}/TypedDataSet?$filter=CPA2015%20eq%20'${CBS_CPA_7112}'%20and%20Perioden%20eq%20'${jaar - 1}KW${String(kwartaal).padStart(2, "0")}'&$format=json`;
+    const basisRes = await fetchImpl(basisUrl, { headers: { Accept: "application/json" }, signal: AbortSignal.timeout(15_000) });
+    if (basisRes.ok) basisPrijsindex = ((await basisRes.json()) as { value: CbsRow[] }).value?.[0]?.Prijsindex_1 ?? null;
+  } catch {
+    basisPrijsindex = null;
+  }
   return {
     jaar,
     kwartaal,
     periode,
     prijsindex: row.Prijsindex_1,
     jaarmutatie: row.Jaarmutaties_3,
+    basisPrijsindex,
     bron: `CBS StatLine ${CBS_TABEL}, CPA 7112, jaarmutatie ${kwartaal}e kwartaal ${jaar}`,
   };
+}
+
+const komma = (n: number, d: number) => n.toFixed(d).replace(".", ",");
+
+/** Verhouding van de gepubliceerde indexcijfers (nieuw / prijspeil) in procenten, op 2 decimalen; null als een cijfer ontbreekt. */
+export function indexverhouding(c: Pick<CbsJaarmutatie, "prijsindex" | "basisPrijsindex"> | null): number | null {
+  if (!c?.prijsindex || !c.basisPrijsindex) return null;
+  return Math.round((c.prijsindex / c.basisPrijsindex - 1) * 10_000) / 100;
+}
+
+export interface GehanteerdPercentage {
+  percentage: number;
+  methode: "jaarmutatie" | "indexverhouding";
+  jaarmutatie: number | null;
+  indexverhouding: number | null;
+}
+
+/**
+ * Het contract (Nieuw-Zuid 21116-037C artikel 11: "CBS-norm 71121, prijspeil januari") zegt niet of de CBS-jaarmutatie
+ * of de verhouding van de indexcijfers geldt. Afgesproken met Justin: altijd het hoogste van de twee.
+ */
+export function gehanteerdPercentage(c: CbsJaarmutatie | null): GehanteerdPercentage | null {
+  if (!c) return null;
+  const jm = c.jaarmutatie;
+  const iv = indexverhouding(c);
+  if (jm === null && iv === null) return null;
+  if (iv !== null && (jm === null || iv > jm)) return { percentage: iv, methode: "indexverhouding", jaarmutatie: jm, indexverhouding: iv };
+  return { percentage: jm!, methode: "jaarmutatie", jaarmutatie: jm, indexverhouding: iv };
+}
+
+/** Het te gebruiken percentage (hoogste van jaarmutatie en indexverhouding), of null als er geen cijfer is. */
+export function cbsPercentage(c: CbsJaarmutatie | null): number | null {
+  return gehanteerdPercentage(c)?.percentage ?? null;
 }
 
 const CACHE_DAGEN = 7;
@@ -76,10 +121,19 @@ export async function cbsIndexcijfer(
   }
 }
 
-/** Korte tekst voor in een actie-omschrijving of conceptmail. */
+/** Korte tekst voor in een actie-omschrijving of conceptmail; noemt het gehanteerde (hoogste) percentage en de andere variant. */
 export function cbsTekst(c: CbsJaarmutatie | null): string | null {
-  if (!c || c.jaarmutatie === null) return null;
-  return `CBS 7112 jaarmutatie ${c.kwartaal}e kwartaal ${c.jaar}: ${c.jaarmutatie.toFixed(1).replace(".", ",")} %`;
+  const g = gehanteerdPercentage(c);
+  if (!c || !g) return null;
+  const kw = `${c.kwartaal}e kwartaal ${c.jaar}`;
+  if (g.indexverhouding === null || c.prijsindex === null || c.prijsindex === undefined || !c.basisPrijsindex) {
+    return `CBS 7112 jaarmutatie ${kw}: ${komma(g.percentage, 1)} %`;
+  }
+  const verhouding = `${komma(c.prijsindex, 1)} / ${komma(c.basisPrijsindex, 1)}`;
+  if (g.methode === "indexverhouding") {
+    return `CBS 7112 indexverhouding ${kw}: ${komma(g.percentage, 2)} % (index ${verhouding}; hoger dan de jaarmutatie ${g.jaarmutatie === null ? "—" : `${komma(g.jaarmutatie, 1)} %`})`;
+  }
+  return `CBS 7112 jaarmutatie ${kw}: ${komma(g.percentage, 1)} % (hoger dan of gelijk aan de indexverhouding ${verhouding} = ${komma(g.indexverhouding, 2)} %)`;
 }
 
 /** Voorgesteld nieuw tarief bij een percentage, afgerond op de cent. */

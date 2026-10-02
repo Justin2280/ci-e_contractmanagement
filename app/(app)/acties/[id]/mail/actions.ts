@@ -13,7 +13,7 @@ import { generateDraftEmail } from "@/lib/llm/draft-email";
 import { createDraft, sendMail } from "@/lib/graph/mail";
 import { graphConfigured } from "@/lib/graph/client";
 import { fmtDateShort, toIsoDate, todayIso } from "@/lib/format";
-import { cbsIndexcijfer, cbsTekst, voorgesteldTarief } from "@/lib/indexatie/cbs";
+import { cbsIndexcijfer, cbsPercentage, cbsTekst, voorgesteldTarief } from "@/lib/indexatie/cbs";
 import { addDays } from "date-fns";
 import type { ActionState } from "../../../inzetten/actions";
 import { defaultRecipient, INDEXATIE_SOORTEN, loadActieMetContext } from "@/lib/acties/context";
@@ -89,7 +89,7 @@ export async function generateConcept(_prev: ActionState, formData: FormData): P
       };
     }
     const huidigTarief = actie.inzet?.tarief !== null && actie.inzet?.tarief !== undefined ? Number(actie.inzet.tarief) : null;
-    const nieuwTarief = actie.soort === "indexatie_voorstellen" ? voorgesteldTarief(huidigTarief, cbsCijfer?.jaarmutatie ?? null) : null;
+    const nieuwTarief = actie.soort === "indexatie_voorstellen" ? voorgesteldTarief(huidigTarief, cbsPercentage(cbsCijfer)) : null;
     const draft = await generateDraftEmail(
       {
         soort: actie.soort,

@@ -8,7 +8,7 @@ import { ensurePeriodesEnRegels, periodesMetOntbrekendeUrenbonnen } from "@/lib/
 import { evalueerRegels, type RegelInzet } from "./engine";
 import { effectiveContract } from "@/lib/contracts/effective";
 import { activeerGeplandeTarieven, tariefStanden } from "@/lib/inzetten/tarieven";
-import { cbsIndexcijfer, cbsTekst } from "@/lib/indexatie/cbs";
+import { cbsIndexcijfer, cbsPercentage, cbsTekst } from "@/lib/indexatie/cbs";
 import { indexatieKwartaalVan } from "@/lib/indexatie/kwartaal";
 import { indexatieMonitor } from "@/lib/indexatie/monitor";
 
@@ -79,13 +79,13 @@ export async function runDailyRules(opts: { today?: string } = {}) {
   // CBS-cijfer (reeks 7112) van het 2e kwartaal; gecachet, zodat de omschrijvingen een percentage kunnen noemen.
   const cbsCijfer = await cbsIndexcijfer(Number(today.slice(0, 4)), 2, { today });
   const cbsTxt = cbsTekst(cbsCijfer);
-  const cbs = cbsTxt && cbsCijfer?.jaarmutatie !== null && cbsCijfer ? { tekst: cbsTxt, percentage: cbsCijfer.jaarmutatie! } : null;
+  const cbs = cbsTxt && cbsPercentage(cbsCijfer) !== null ? { tekst: cbsTxt, percentage: cbsPercentage(cbsCijfer)! } : null;
   // Contracten met een afwijkend CBS-kwartaal (bv. Nieuw-Zuid: 1e kwartaal) krijgen hun eigen cijfer.
   const cbsPerKwartaal: Partial<Record<number, { tekst: string; percentage: number } | null>> = { 2: cbs };
   for (const k of new Set(regelInzetten.map((i) => i.contract?.indexatieKwartaal).filter((k): k is number => typeof k === "number" && k !== 2))) {
     const c = await cbsIndexcijfer(Number(today.slice(0, 4)), k, { today });
     const t = cbsTekst(c);
-    cbsPerKwartaal[k] = t && c && c.jaarmutatie !== null ? { tekst: t, percentage: c.jaarmutatie } : null;
+    cbsPerKwartaal[k] = t && cbsPercentage(c) !== null ? { tekst: t, percentage: cbsPercentage(c)! } : null;
   }
   const voorstellen = evalueerRegels({ today, inzetten: regelInzetten, periodes, settings, cbs, cbsPerKwartaal });
 
