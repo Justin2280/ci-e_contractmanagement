@@ -216,7 +216,10 @@ describe("indexatie achteraf: aanvraag-actie en verwerking", () => {
     // Boris: loopt t/m 1 november (beëindigd, aangekondigd) en heeft een nieuwe inzet per 12 oktober 2026.
     const boris = await vindOfMaak("Boris Prins");
     await db.insert(inzetten).values({ ...basis, medewerkerId: boris.id, status: "beeindigd", einddatum: "2026-11-01", einddatumType: "vast", tarief: "87.93" });
-    await db.insert(inzetten).values({ ...basis, medewerkerId: boris.id, status: "contract_wachten", startdatum: "2026-10-12", startdatumVoorlopig: true, tarief: "98.00", tariefGeldigVanaf: "2026-10-12" });
+    // Zijn nieuwe inzet per 12 oktober is bij Van Hattum en Blankevoort, een ander project en contract: dat raakt de Nieuw-Zuid-indexatie niet.
+    const [vhb] = await db.insert(klanten).values({ naam: "Van Hattum en Blankevoort (Boris)", naamGenormaliseerd: "van hattum en blankevoort boris" }).returning();
+    const [vhbContract] = await db.insert(contracten).values({ nummer: "VHB-BORIS-1", soort: "overeenkomst_van_opdracht", klantId: vhb.id, einddatumType: "ntb", indexatie: "geen" }).returning();
+    await db.insert(inzetten).values({ klantId: vhb.id, contractId: vhbContract.id, medewerkerId: boris.id, status: "contract_wachten", startdatum: "2026-10-12", startdatumVoorlopig: true, einddatumType: "ntb", tarief: "98.00", tariefGeldigVanaf: "2026-10-12" });
 
     await runDailyRules({ today: "2026-10-02" });
     const a = (await db.query.acties.findFirst({ where: (x, { eq }) => eq(x.dedupeKey, `indexatie_aanvragen:${c.id}:2026`) }))!;
@@ -229,6 +232,9 @@ describe("indexatie achteraf: aanvraag-actie en verwerking", () => {
     expect(a.omschrijving).toContain("week 1 t/m week 40 (periode 10, loopt t/m 2026-10-07) en vanaf periode 11 (week 41)");
     for (const [naam] of mensen) expect(a.omschrijving).toContain(naam);
     expect(a.omschrijving).toContain("Boris Prins (€ 87.93) [eindigt 01-11-2026]");
-    expect(a.omschrijving).toContain("Niet indexeren (gestart in 2026, prijspeil 2026): Boris Prins (start 2026-10-12)");
+    // Boris werkt al langer op dit project en wordt geïndexeerd; zijn nieuwe inzet elders komt niet in deze actie voor.
+    expect(a.omschrijving).not.toContain("Niet indexeren");
+    expect(a.omschrijving).not.toContain("2026-10-12");
+    expect((a.omschrijving ?? "").match(/Boris Prins/g)).toHaveLength(1);
   });
 });

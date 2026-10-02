@@ -248,7 +248,9 @@ export default async function ActiesPage({ searchParams }: PageProps<"/acties">)
                             </td>
                             <td className="py-1.5 pr-4 whitespace-nowrap">
                               <details>
-                                <summary className="cursor-pointer">{r.wijze === "achteraf_correctie" ? "achteraf (correctie)" : "vooraf"} · {r.kwartaal}e kwartaal</summary>
+                                <summary className="cursor-pointer">{r.wijze === "achteraf_correctie" ? "achteraf (correctie)" : "vooraf"} · {r.kwartaal}e kwartaal
+                                  {r.kwartaalBron === "standaard" ? <span className="text-amber-700"> (standaard, controleer)</span> : null}
+                                </summary>
                                 <form action={updateIndexatieAfspraak} className="mt-2 flex flex-wrap items-center gap-1">
                                   <input type="hidden" name="contractId" value={r.contractId} />
                                   <select name="wijze" defaultValue={r.wijze} className="h-8 rounded-md border bg-background px-2 text-xs">
