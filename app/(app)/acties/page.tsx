@@ -15,7 +15,7 @@ import { cn } from "@/lib/utils";
 import { EindeBesluitForm } from "@/components/app/einde-besluit-form";
 import { IndexatieForm, type IndexatieInzetOptie } from "@/components/app/indexatie-form";
 import { lopendeInzettenVanContract } from "@/lib/indexatie/verwerk";
-import { cbsIndexcijfer } from "@/lib/indexatie/cbs";
+import { cbsIndexcijfer, cbsPercentage } from "@/lib/indexatie/cbs";
 import { effectiveContract } from "@/lib/contracts/effective";
 import { indexatieKwartaalVan, indexatieReferentie } from "@/lib/indexatie/kwartaal";
 import { GROEP_LABELS, GROEP_TOELICHTING, groepeerActies, type ActieGroep } from "@/lib/acties/groepen";
@@ -46,7 +46,7 @@ export default async function ActiesPage({ searchParams }: PageProps<"/acties">)
   for (const a of rows) {
     if (a.soort !== "indexatie_aanvragen" || !a.contract || percentagePerContract.has(a.contract.id)) continue;
     const ref = indexatieReferentie(effectiveContract(a.contract), today);
-    percentagePerContract.set(a.contract.id, (await cbsIndexcijfer(ref.jaar, ref.kwartaal, { today }))?.jaarmutatie ?? null);
+    percentagePerContract.set(a.contract.id, cbsPercentage(await cbsIndexcijfer(ref.jaar, ref.kwartaal, { today })));
   }
   const indexatieInzetten = new Map<string, IndexatieInzetOptie[]>();
   for (const a of rows) {
@@ -109,7 +109,7 @@ export default async function ActiesPage({ searchParams }: PageProps<"/acties">)
                         inzetten={indexatieInzetten.get(a.contract.id) ?? []}
                         wijze={effectiveContract(a.contract).indexatieWijze ?? "vooraf"}
                         defaultIngangsdatum={`${indexatieJaar}-${(effectiveContract(a.contract).indexatieMoment ?? "01-01").replace(/^(\d{2})-(\d{2})$/, "$1-$2")}`}
-                        defaultPercentage={a.soort === "indexatie_voorstellen" ? (cbsCijfer?.jaarmutatie ?? null) : (percentagePerContract.get(a.contract.id) ?? null)}
+                        defaultPercentage={a.soort === "indexatie_voorstellen" ? cbsPercentage(cbsCijfer) : (percentagePerContract.get(a.contract.id) ?? null)}
                         kwartaal={indexatieKwartaalVan(effectiveContract(a.contract))}
                         compact
                       />

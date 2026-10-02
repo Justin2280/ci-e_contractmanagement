@@ -8,7 +8,7 @@ import { acties, actieSoort, auditLog, contracten, indexatieWijze } from "@/lib/
 import { requireUser } from "@/lib/auth/current-user";
 import { runDailyRules } from "@/lib/rules/run";
 import { verwerkIndexatie } from "@/lib/indexatie/verwerk";
-import { cbsJaarmutatie, CBS_STATLINE_URL } from "@/lib/indexatie/cbs";
+import { cbsJaarmutatie, CBS_STATLINE_URL, cbsTekst, gehanteerdPercentage } from "@/lib/indexatie/cbs";
 import type { ActionState } from "../inzetten/actions";
 
 function revalidate() {
@@ -117,8 +117,9 @@ export async function cbsPercentageAction(jaar: number, kwartaal: number): Promi
   await requireUser();
   try {
     const r = await cbsJaarmutatie(jaar, kwartaal);
-    if (r.jaarmutatie === null) return { ok: false, message: `CBS heeft voor ${kwartaal}e kwartaal ${jaar} nog geen jaarmutatie gepubliceerd.`, url: CBS_STATLINE_URL };
-    return { ok: true, percentage: r.jaarmutatie, message: `${r.bron}: ${r.jaarmutatie.toFixed(1).replace(".", ",")} % (prijsindex ${r.prijsindex ?? "?"}). Cijfers kunnen later door CBS worden bijgesteld.`, url: CBS_STATLINE_URL };
+    const g = gehanteerdPercentage(r);
+    if (!g) return { ok: false, message: `CBS heeft voor ${kwartaal}e kwartaal ${jaar} nog geen jaarmutatie gepubliceerd.`, url: CBS_STATLINE_URL };
+    return { ok: true, percentage: g.percentage, message: `${cbsTekst(r)} (prijsindex ${r.prijsindex ?? "?"}). Het hoogste van jaarmutatie en indexverhouding is ingevuld. Cijfers kunnen later door CBS worden bijgesteld.`, url: CBS_STATLINE_URL };
   } catch (err) {
     return { ok: false, message: err instanceof Error ? err.message : String(err), url: CBS_STATLINE_URL };
   }

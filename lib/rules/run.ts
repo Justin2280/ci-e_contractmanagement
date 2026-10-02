@@ -1,4 +1,4 @@
-import { and, eq, gte, inArray, or } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { acties, inzetten } from "@/lib/db/schema";
 import { getSettings } from "@/lib/settings";
@@ -8,7 +8,7 @@ import { ensurePeriodesEnRegels, periodesMetOntbrekendeUrenbonnen } from "@/lib/
 import { evalueerRegels, type RegelInzet } from "./engine";
 import { effectiveContract } from "@/lib/contracts/effective";
 import { activeerGeplandeTarieven, tariefStanden } from "@/lib/inzetten/tarieven";
-import { cbsIndexcijfer, cbsTekst } from "@/lib/indexatie/cbs";
+import { cbsIndexcijfer, cbsPercentage, cbsTekst } from "@/lib/indexatie/cbs";
 import { indexatieKwartaalVan } from "@/lib/indexatie/kwartaal";
 import { indexatieMonitor } from "@/lib/indexatie/monitor";
 
@@ -24,9 +24,8 @@ export async function runDailyRules(opts: { today?: string } = {}) {
   // Tarieven die volgens de historie vandaag ingaan (werkopdracht met een toekomstige wijziging).
   const geactiveerd = await activeerGeplandeTarieven({ today });
 
-  // Lopende inzetten, plus beëindigde die dit jaar nog hebben gewerkt (voor de indexatie-correctie achteraf).
   const rows = await db.query.inzetten.findMany({
-    where: or(inArray(inzetten.status, LOPENDE_STATUSSEN), and(eq(inzetten.status, "beeindigd"), gte(inzetten.einddatum, `${today.slice(0, 4)}-01-01`))),
+    where: inArray(inzetten.status, LOPENDE_STATUSSEN),
     with: { medewerker: true, klant: true, project: true, contract: { with: { parent: true } } },
   });
   const standen = await tariefStanden(
@@ -79,13 +78,13 @@ export async function runDailyRules(opts: { today?: string } = {}) {
   // CBS-cijfer (reeks 7112) van het 2e kwartaal; gecachet, zodat de omschrijvingen een percentage kunnen noemen.
   const cbsCijfer = await cbsIndexcijfer(Number(today.slice(0, 4)), 2, { today });
   const cbsTxt = cbsTekst(cbsCijfer);
-  const cbs = cbsTxt && cbsCijfer?.jaarmutatie !== null && cbsCijfer ? { tekst: cbsTxt, percentage: cbsCijfer.jaarmutatie! } : null;
+  const cbs = cbsTxt && cbsPercentage(cbsCijfer) !== null ? { tekst: cbsTxt, percentage: cbsPercentage(cbsCijfer)! } : null;
   // Contracten met een afwijkend CBS-kwartaal (bv. Nieuw-Zuid: 1e kwartaal) krijgen hun eigen cijfer.
   const cbsPerKwartaal: Partial<Record<number, { tekst: string; percentage: number } | null>> = { 2: cbs };
   for (const k of new Set(regelInzetten.map((i) => i.contract?.indexatieKwartaal).filter((k): k is number => typeof k === "number" && k !== 2))) {
     const c = await cbsIndexcijfer(Number(today.slice(0, 4)), k, { today });
     const t = cbsTekst(c);
-    cbsPerKwartaal[k] = t && c && c.jaarmutatie !== null ? { tekst: t, percentage: c.jaarmutatie } : null;
+    cbsPerKwartaal[k] = t && cbsPercentage(c) !== null ? { tekst: t, percentage: cbsPercentage(c)! } : null;
   }
   const voorstellen = evalueerRegels({ today, inzetten: regelInzetten, periodes, settings, cbs, cbsPerKwartaal });
 

@@ -4,7 +4,7 @@ import { acties, inzetten } from "@/lib/db/schema";
 import { effectiveContract } from "@/lib/contracts/effective";
 import { LOPENDE_STATUSSEN } from "@/lib/queries/inzetten";
 import { getSetting, setSetting } from "@/lib/settings";
-import { cbsIndexcijfer, type CbsJaarmutatie } from "./cbs";
+import { cbsIndexcijfer, cbsPercentage, type CbsJaarmutatie } from "./cbs";
 import { indexatieKwartaalBron, indexatieReferentie } from "./kwartaal";
 
 export type MonitorStatus = "wacht_op_cbs" | "bekend" | "kan_worden_uitgevraagd" | "uitgevraagd" | "verwerkt";
@@ -26,7 +26,7 @@ export interface MonitorRij {
   kwartaal: number;
   /** Ingesteld, uit de clausule afgeleid of de standaard (dan is het kwartaal een gok en moet het worden gecontroleerd). */
   kwartaalBron: "ingesteld" | "clausule" | "standaard";
-  /** Jaarmutatie in procenten, null zolang het CBS het cijfer niet heeft gepubliceerd. */
+  /** Te gebruiken percentage (hoogste van jaarmutatie en indexverhouding), null zolang het CBS het cijfer niet heeft gepubliceerd. */
   cijfer: number | null;
   /** Datum waarop de dagelijkse controle het cijfer voor het eerst zag. */
   bekendSinds: string | null;
@@ -73,7 +73,7 @@ export async function indexatieMonitor(
     const ref = indexatieReferentie(c.eff, today);
     const wijze = c.eff.indexatieWijze === "achteraf_correctie" ? "achteraf_correctie" : "vooraf";
     const cbs = await haalCbs(ref.jaar, ref.kwartaal);
-    const cijfer = cbs?.jaarmutatie ?? null;
+    const cijfer = cbsPercentage(cbs);
 
     const sleutel = `cbs:gezien:${ref.jaar}Q${ref.kwartaal}`;
     let bekendSinds = (await getSetting<{ datum: string }>(sleutel))?.datum ?? null;

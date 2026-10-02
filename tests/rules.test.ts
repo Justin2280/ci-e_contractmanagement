@@ -204,14 +204,17 @@ describe("indexatie achteraf (correctie, Mobilis-praktijk)", () => {
     expect(out.filter((x) => x.soort === "indexatie_aanvragen")).toHaveLength(0);
   });
 
-  it("neemt een beëindigde inzet die nog in het correctievenster werkte mee, verankert de actie aan een lopende inzet en laat eerder vertrokken mensen weg", () => {
-    const boris = achteraf({}, { id: "i5", medewerkerId: "m5", medewerkerNaam: "Boris Prins", status: "beeindigd", einddatum: "2026-11-01", einddatumType: "vast", tarief: 88 });
-    const weg = achteraf({}, { id: "i6", medewerkerId: "m6", medewerkerNaam: "Kees Vertrokken", status: "beeindigd", einddatum: "2025-12-31", einddatumType: "vast" });
+  it("telt beëindigde inzetten niet mee, ook niet als hun einddatum op of na 1 januari staat", () => {
+    const glenn = achteraf({}, { id: "i5", medewerkerId: "m5", medewerkerNaam: "Glenn Jadoenathmisier", status: "beeindigd", einddatum: "2027-03-28", einddatumType: "vast", tarief: 77.5 });
+    const broek = achteraf({}, { id: "i6", medewerkerId: "m6", medewerkerNaam: "Peter Broek", status: "beeindigd", einddatum: "2026-11-01", einddatumType: "vast" });
     const lopend = achteraf({}, { id: "i7", medewerkerId: "m7", medewerkerNaam: "Walter Terpstra" });
-    const a = evalueerRegels({ ...base, today: "2026-10-02", inzetten: [boris, weg, lopend], cbs: cbs2 }).find((x) => x.soort === "indexatie_aanvragen")!;
-    expect(a.omschrijving).toContain("Boris Prins (€ 88.00) [eindigt 01-11-2026]");
-    expect(a.omschrijving).not.toContain("Kees Vertrokken");
+    const a = evalueerRegels({ ...base, today: "2026-10-02", inzetten: [glenn, broek, lopend], cbs: cbs2 }).find((x) => x.soort === "indexatie_aanvragen")!;
+    expect(a.omschrijving).toContain("Betreft: Walter Terpstra (€ 92.60).");
+    expect(a.omschrijving).not.toContain("Glenn");
+    expect(a.omschrijving).not.toContain("Broek");
     expect(a.inzetId).toBe("i7");
+    // Alleen beëindigde inzetten: niets om te indexeren.
+    expect(evalueerRegels({ ...base, today: "2026-10-02", inzetten: [glenn, broek], cbs: cbs2 }).filter((x) => x.soort === "indexatie_aanvragen")).toHaveLength(0);
   });
 
   it("laat de vooraf-variant ongemoeid", () => {
