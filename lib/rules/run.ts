@@ -1,4 +1,4 @@
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, gte, inArray, or } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { acties, inzetten } from "@/lib/db/schema";
 import { getSettings } from "@/lib/settings";
@@ -10,6 +10,7 @@ import { effectiveContract } from "@/lib/contracts/effective";
 import { activeerGeplandeTarieven, tariefStanden } from "@/lib/inzetten/tarieven";
 import { cbsIndexcijfer, cbsTekst } from "@/lib/indexatie/cbs";
 import { indexatieKwartaalVan } from "@/lib/indexatie/kwartaal";
+import { indexatieMonitor } from "@/lib/indexatie/monitor";
 
 /**
  * Loads state, runs the pure rules engine and upserts acties on dedupe_key.
@@ -23,8 +24,9 @@ export async function runDailyRules(opts: { today?: string } = {}) {
   // Tarieven die volgens de historie vandaag ingaan (werkopdracht met een toekomstige wijziging).
   const geactiveerd = await activeerGeplandeTarieven({ today });
 
+  // Lopende inzetten, plus beëindigde die dit jaar nog hebben gewerkt (voor de indexatie-correctie achteraf).
   const rows = await db.query.inzetten.findMany({
-    where: inArray(inzetten.status, LOPENDE_STATUSSEN),
+    where: or(inArray(inzetten.status, LOPENDE_STATUSSEN), and(eq(inzetten.status, "beeindigd"), gte(inzetten.einddatum, `${today.slice(0, 4)}-01-01`))),
     with: { medewerker: true, klant: true, project: true, contract: { with: { parent: true } } },
   });
   const standen = await tariefStanden(
@@ -101,18 +103,26 @@ export async function runDailyRules(opts: { today?: string } = {}) {
     }
     // Een open indexatie-aanvraag krijgt de actuele omschrijving (CBS-cijfer, betrokken mensen, periode).
     if (v.soort === "indexatie_aanvragen") {
+      // Open aanvraag: actuele omschrijving, uiterlijke datum (einde lopende periode) en een lopende ankerinzet.
       await db
         .update(acties)
-        .set({ omschrijving: v.omschrijving })
-        .where(and(eq(acties.dedupeKey, v.dedupeKey), eq(acties.status, "open")));
-      // Afgerond terwijl er nog niets is verwerkt: weer openzetten ("genegeerd" blijft een bewuste keuze).
+        .set({ omschrijving: v.omschrijving, vervaldatum: v.vervaldatum, inzetId: v.inzetId ?? null, medewerkerId: v.medewerkerId ?? null })
+        .where(and(eq(acties.dedupeKey, v.dedupeKey), inArray(acties.status, ["open", "conceptmail_klaar"])));
       if (v.heropenen) {
-        const r = await db
-          .update(acties)
-          .set({ status: "open", afgerondOp: null, omschrijving: v.omschrijving, vervaldatum: v.vervaldatum })
-          .where(and(eq(acties.dedupeKey, v.dedupeKey), eq(acties.status, "afgerond")))
-          .returning({ id: acties.id });
-        heropend += r.length;
+        // Afgerond terwijl er nog niets is verwerkt: weer openzetten. "Genegeerd" blijft een bewuste keuze, behalve
+        // wanneer de opruimronde hem sloot omdat de ankerinzet beëindigd werd (die actie hoort bij het contract).
+        const bestaand = await db.query.acties.findMany({
+          where: and(eq(acties.dedupeKey, v.dedupeKey), inArray(acties.status, ["afgerond", "genegeerd"])),
+          with: { inzet: { columns: { status: true } } },
+        });
+        for (const b of bestaand) {
+          if (b.status === "genegeerd" && b.inzet?.status !== "beeindigd") continue;
+          await db
+            .update(acties)
+            .set({ status: "open", afgerondOp: null, omschrijving: v.omschrijving, vervaldatum: v.vervaldatum, inzetId: v.inzetId ?? null, medewerkerId: v.medewerkerId ?? null })
+            .where(eq(acties.id, b.id));
+          heropend++;
+        }
       }
     }
     const inserted = await db
@@ -155,6 +165,8 @@ export async function runDailyRules(opts: { today?: string } = {}) {
   });
   for (const a of open) {
     if (!a.inzet) continue;
+    // Indexatie-acties horen bij het contract, niet bij hun ankerinzet: die sluiten via verwerkIndexatie en de jaargrens.
+    if (a.soort === "indexatie_aanvragen" || a.soort === "indexatie_verwerken") continue;
     if (a.inzet.status === "beeindigd") {
       await db.update(acties).set({ status: "genegeerd", afgerondOp: new Date() }).where(eq(acties.id, a.id));
       gesloten++;
@@ -186,5 +198,13 @@ export async function runDailyRules(opts: { today?: string } = {}) {
     }
   }
 
-  return { voorstellen: voorstellen.length, aangemaakt, heropend, gesloten, tarievenGeactiveerd: geactiveerd.bijgewerkt.length };
+  // Periodieke controle: is het CBS-cijfer dat bij elk indexatiecontract hoort al gepubliceerd? (Legt de eerste waarneming vast.)
+  let cbsBekend = 0;
+  try {
+    cbsBekend = (await indexatieMonitor(today, { registreer: true })).filter((r) => r.cijfer !== null).length;
+  } catch (err) {
+    console.error("Indexatie-bewaking mislukt", err);
+  }
+
+  return { voorstellen: voorstellen.length, aangemaakt, heropend, gesloten, tarievenGeactiveerd: geactiveerd.bijgewerkt.length, cbsBekend };
 }

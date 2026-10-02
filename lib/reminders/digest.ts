@@ -4,6 +4,7 @@ import { acties } from "@/lib/db/schema";
 import { getSettings, getSetting, setSetting } from "@/lib/settings";
 import { fmtDateShort, todayIso } from "@/lib/format";
 import { ACTIE_SOORT_LABELS } from "@/lib/labels";
+import { GROEP_LABELS, groepeerActies } from "@/lib/acties/groepen";
 import { graphConfigured, sharedMailbox } from "@/lib/graph/client";
 import { sendMail } from "@/lib/graph/mail";
 
@@ -56,16 +57,14 @@ export async function sendReminderDigests(opts: { today?: string; force?: boolea
     const lines: string[] = [];
     lines.push(`Hoi ${user.naam?.split(" ")[0] ?? ""},`, "");
     lines.push(`Er staan ${list.length} actie(s) open in Contractbeheer${overdue.length ? `, waarvan ${overdue.length} over tijd` : ""}.`, "");
-    const groups = new Map<string, typeof list>();
-    for (const a of list) {
-      const key = a.status === "verstuurd" ? "opvolgen" : a.soort;
-      groups.set(key, [...(groups.get(key) ?? []), a]);
-    }
-    for (const [soort, items] of groups) {
-      lines.push(soort === "opvolgen" ? "Geen reactie ontvangen (herinnering sturen?):" : `${ACTIE_SOORT_LABELS[soort] ?? soort}:`);
-      for (const a of items.sort((x, y) => (x.vervaldatum ?? "").localeCompare(y.vervaldatum ?? ""))) {
+    // Zelfde indeling als de Acties-pagina: eerst wat nu moet, dan wat binnenkort komt, dan wat wacht op een reactie.
+    const groepen = groepeerActies(list, today);
+    for (const g of ["nu", "binnenkort", "wacht"] as const) {
+      if (groepen[g].length === 0) continue;
+      lines.push(g === "wacht" ? "Wacht op reactie (herinnering sturen?):" : `${GROEP_LABELS[g]}:`);
+      for (const a of groepen[g]) {
         const late = a.vervaldatum && a.vervaldatum < today ? " (over tijd)" : "";
-        lines.push(`  - ${a.titel} — uiterlijk ${fmtDateShort(a.vervaldatum)}${late}`);
+        lines.push(`  - ${ACTIE_SOORT_LABELS[a.soort] ?? a.soort}: ${a.titel} — uiterlijk ${fmtDateShort(a.vervaldatum)}${late}`);
       }
       lines.push("");
     }

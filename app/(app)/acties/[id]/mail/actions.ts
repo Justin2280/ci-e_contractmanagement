@@ -18,7 +18,7 @@ import { addDays } from "date-fns";
 import type { ActionState } from "../../../inzetten/actions";
 import { defaultRecipient, INDEXATIE_SOORTEN, loadActieMetContext } from "@/lib/acties/context";
 import { afzenderUitThread, eerdereCorrespondentie } from "@/lib/acties/correspondentie";
-import { indexatieKwartaalVan } from "@/lib/indexatie/kwartaal";
+import { indexatieKwartaalVan, indexatieReferentie } from "@/lib/indexatie/kwartaal";
 import { dagdeel, effectieveStijl } from "@/lib/llm/default-stijl";
 
 type StijlSoort = "algemeen" | "verlenging" | "indexatie" | "contract_opvragen";
@@ -78,7 +78,8 @@ export async function generateConcept(_prev: ActionState, formData: FormData): P
     // Bij tarief-/indexatievragen het actuele CBS-cijfer (reeks 7112) meegeven als onderbouwing.
     const wilCbs = ["indexatie_aanvragen", "indexatie_voorstellen", "verlenging_uitvragen", "einde_beoordelen"].includes(actie.soort);
     // Het jaar van de actie (uit de dedupe-sleutel) en het CBS-kwartaal dat het contract voorschrijft.
-    const cbsJaar = Number(actie.dedupeKey?.match(/:(\d{4})(?::|$)/)?.[1] ?? todayIso().slice(0, 4));
+    const referentie = contract ? indexatieReferentie(contract, todayIso()) : null;
+    const cbsJaar = actie.soort === "indexatie_aanvragen" && referentie ? referentie.jaar : Number(actie.dedupeKey?.match(/:(\d{4})(?::|$)/)?.[1] ?? todayIso().slice(0, 4));
     const kwartaal = indexatieKwartaalVan(contract);
     const cbsCijfer = wilCbs ? await cbsIndexcijfer(cbsJaar, kwartaal) : null;
     if (actie.soort === "indexatie_aanvragen" && contract?.indexatieWijze === "achteraf_correctie" && !cbsCijfer) {
