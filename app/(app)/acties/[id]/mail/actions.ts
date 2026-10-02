@@ -19,6 +19,7 @@ import type { ActionState } from "../../../inzetten/actions";
 import { defaultRecipient, INDEXATIE_SOORTEN, loadActieMetContext } from "@/lib/acties/context";
 import { afzenderUitThread, eerdereCorrespondentie } from "@/lib/acties/correspondentie";
 import { indexatieKwartaalVan } from "@/lib/indexatie/kwartaal";
+import { dagdeel, effectieveStijl } from "@/lib/llm/default-stijl";
 
 type StijlSoort = "algemeen" | "verlenging" | "indexatie" | "contract_opvragen";
 
@@ -54,6 +55,7 @@ export async function generateConcept(_prev: ActionState, formData: FormData): P
       };
     }
     const settings = await getSettings();
+    const stijl = effectieveStijl(settings);
     const soortKey = stijlSoort(actie.soort);
     const voorbeelden = await db.query.stijlVoorbeelden.findMany({
       where: and(eq(stijlVoorbeelden.actief, true), inArray(stijlVoorbeelden.soort, [soortKey, "algemeen"])),
@@ -112,8 +114,9 @@ export async function generateConcept(_prev: ActionState, formData: FormData): P
         cbs: cbsTekst(cbsCijfer),
         tariefVoorstel: nieuwTarief !== null ? `€ ${nieuwTarief.toFixed(2)} per uur (nu € ${huidigTarief!.toFixed(2)})` : null,
         correspondentie: correspondentie.tekst,
+        dagdeel: dagdeel(),
       },
-      { instructies: settings.stijlInstructies, handtekening: settings.handtekening, voorbeelden: voorbeelden.map((v) => ({ titel: v.titel, tekst: v.tekst })) },
+      { instructies: stijl.stijlInstructies, handtekening: stijl.handtekening, voorbeelden: voorbeelden.map((v) => ({ titel: v.titel, tekst: v.tekst })) },
     );
     await db.insert(emailsUit).values({
       actieId,

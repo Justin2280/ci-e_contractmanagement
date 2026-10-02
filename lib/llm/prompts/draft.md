@@ -17,4 +17,4 @@ Is er eerdere correspondentie meegegeven, dan is dat context over hoe het met de
 
 Krijg je een CBS-indexcijfer en/of een voorgesteld nieuw tarief in de context, noem die dan concreet (percentage, reeks en het nieuwe uurtarief) en vermeld dat CBS-cijfers naderhand kunnen worden bijgesteld. Staat er geen cijfer bij, noem dan geen percentage.
 
-Houd het kort en concreet: aanhef, één alinea context, één alinea vraag, afsluiting met de naam van de afzender.
+Lengte, regelopbouw, begroeting en afsluiter volg je uit de stijlinstructies van de afzender (kort, korte regels los onder elkaar, verzoek als vriendelijke vraag). Kies bij de begroeting Goedemorgen of Goedemiddag volgens het meegegeven dagdeel. Schrijf geen handtekening en geen "Met vriendelijke groet": de handtekening wordt automatisch onder de mail gezet. Sluit af met de afsluiter uit de stijlinstructies (meestal "Bij voorbaat dank!"), behalve bij een puur informerende mail.

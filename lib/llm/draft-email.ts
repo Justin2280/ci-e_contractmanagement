@@ -4,6 +4,7 @@ import path from "node:path";
 import { getAnthropic, LLM_MODEL } from "./client";
 import { FALLBACK_PARAMS } from "./pipeline";
 import { DraftEmailSchema, type DraftEmail } from "./schemas";
+import { metHandtekening } from "./default-stijl";
 
 export interface DraftContext {
   soort: string;
@@ -31,10 +32,13 @@ export interface DraftContext {
   tariefVoorstel?: string | null;
   /** Eerdere mails met deze klant (oud → nieuw): werkwijze en toon. */
   correspondentie?: string | null;
+  /** Dagdeel nu (Nederland), voor de begroeting. */
+  dagdeel?: "ochtend" | "middag" | "avond" | null;
 }
 
 export interface StyleProfile {
   instructies: string;
+  /** Wordt niet aan het model gegeven maar na het genereren onder de mail geplaatst. */
   handtekening: string;
   voorbeelden: Array<{ titel: string | null; tekst: string }>;
 }
@@ -47,7 +51,6 @@ export async function generateDraftEmail(ctx: DraftContext, style: StyleProfile)
   const client = getAnthropic();
   const styleBlock = [
     style.instructies ? `Stijlinstructies van de afzender:\n${style.instructies}` : "",
-    style.handtekening ? `Handtekening/afsluiting:\n${style.handtekening}` : "",
     style.voorbeelden.length
       ? `Voorbeeldmails van de afzender (toon en opbouw):\n\n${style.voorbeelden.map((v, i) => `--- Voorbeeld ${i + 1}${v.titel ? ` (${v.titel})` : ""} ---\n${v.tekst}`).join("\n\n")}`
       : "",
@@ -76,6 +79,7 @@ export async function generateDraftEmail(ctx: DraftContext, style: StyleProfile)
     Verlengingsafspraak: ctx.verlengingAfspraak,
     "CBS-indexcijfer": ctx.cbs,
     "Voorgesteld nieuw tarief": ctx.tariefVoorstel,
+    "Dagdeel nu (kies Goedemorgen of Goedemiddag passend)": ctx.dagdeel,
     "Extra instructie van de afzender": ctx.extraInstructie,
   })
     .filter(([, v]) => v !== null && v !== undefined && v !== "")
@@ -104,5 +108,5 @@ export async function generateDraftEmail(ctx: DraftContext, style: StyleProfile)
   });
   if (res.stop_reason === "refusal") throw new Error("Model weigerde de conceptmail");
   if (!res.parsed_output) throw new Error("Conceptmail kon niet worden geparsed");
-  return res.parsed_output;
+  return { ...res.parsed_output, body: metHandtekening(res.parsed_output.body, style.handtekening) };
 }
