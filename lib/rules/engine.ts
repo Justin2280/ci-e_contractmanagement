@@ -210,17 +210,8 @@ export function evalueerRegels(input: RegelInput): ActieVoorstel[] {
     const key = i.contract.indexatieContractId ?? i.contract.id;
     perContract.set(key, [...(perContract.get(key) ?? []), i]);
   }
-  // Beëindigde inzetten die in het correctievenster nog hebben gewerkt (bv. einde per 1 november): hun uren
-  // t/m de laatst afgesloten periode horen bij de indexatie-correctie, maar ze lopen zelf niet meer.
-  const beeindigdPerContract = new Map<string, RegelInzet[]>();
-  for (const i of input.inzetten) {
-    if (i.status !== "beeindigd" || !i.contract || !i.einddatum) continue;
-    if (!["jaarlijks_cbs", "jaarlijks_overleg"].includes(i.contract.indexatie)) continue;
-    const key = i.contract.indexatieContractId ?? i.contract.id;
-    beeindigdPerContract.set(key, [...(beeindigdPerContract.get(key) ?? []), i]);
-  }
   for (const [contractId, lopendeList] of perContract) {
-    let list = lopendeList;
+    const list = lopendeList;
     const c = { ...list[0].contract!, nummer: list[0].contract!.indexatieContractNummer ?? list[0].contract!.nummer };
     const namen = Array.from(new Set(list.map((i) => i.medewerkerNaam))).join(", ");
     const formule = c.indexatie === "jaarlijks_cbs" ? "indexformule" : "in overleg";
@@ -240,12 +231,11 @@ export function evalueerRegels(input: RegelInput): ActieVoorstel[] {
       // gestart vóór dat moment. Wie in het jaar zelf startte heeft al het actuele prijspeil (Mobilis 2023:
       // Broek en Schenk niet geïndexeerd); wie al is geïndexeerd valt weg zodra het tarief is verwerkt.
       const indexatiemoment = `${jaar}-${momentMmdd.slice(0, 2)}-${momentMmdd.slice(3)}`;
-      list = [...list, ...(beeindigdPerContract.get(contractId) ?? []).filter((i) => i.einddatum! >= indexatiemoment)];
       const ditJaarGestart = list.filter((i) => i.startdatum && i.startdatum >= indexatiemoment);
       const alGeindexeerd = list.filter((i) => !ditJaarGestart.includes(i) && i.laatsteTariefwijziging && i.laatsteTariefwijziging >= indexatiemoment);
       const teIndexeren = list.filter((i) => !ditJaarGestart.includes(i) && !alGeindexeerd.includes(i));
       if (teIndexeren.length === 0) continue;
-      const anker = teIndexeren.find((i) => i.status !== "beeindigd") ?? teIndexeren[0];
+      const anker = teIndexeren[0];
       const periode = correctieEindPeriode(today);
       const peilOud = `${momentMmdd.slice(3)}-${momentMmdd.slice(0, 2)}-${jaar - 1}`;
       const peilNieuw = `${momentMmdd.slice(3)}-${momentMmdd.slice(0, 2)}-${jaar}`;
@@ -256,7 +246,7 @@ export function evalueerRegels(input: RegelInput): ActieVoorstel[] {
       const eindeLopendePeriode = periodeVoorDatum(today).einddatum;
       const dmy = (iso: string) => `${iso.slice(8, 10)}-${iso.slice(5, 7)}-${iso.slice(0, 4)}`;
       const naamMetTarief = (i: RegelInzet) =>
-        `${i.medewerkerNaam}${i.tarief !== null && i.tarief !== undefined ? ` (€ ${i.tarief.toFixed(2)})` : ""}${i.status === "beeindigd" && i.einddatum ? ` [eindigt ${dmy(i.einddatum)}]` : ""}`;
+        `${i.medewerkerNaam}${i.tarief !== null && i.tarief !== undefined ? ` (€ ${i.tarief.toFixed(2)})` : ""}`;
       const uniek = (arr: string[]) => arr.filter((v, idx) => arr.indexOf(v) === idx).join(", ");
       const tarieven = uniek(teIndexeren.map(naamMetTarief));
       const uitgesloten =

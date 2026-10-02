@@ -1,4 +1,4 @@
-import { and, eq, gte, inArray, or } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { acties, inzetten } from "@/lib/db/schema";
 import { getSettings } from "@/lib/settings";
@@ -24,9 +24,8 @@ export async function runDailyRules(opts: { today?: string } = {}) {
   // Tarieven die volgens de historie vandaag ingaan (werkopdracht met een toekomstige wijziging).
   const geactiveerd = await activeerGeplandeTarieven({ today });
 
-  // Lopende inzetten, plus beëindigde die dit jaar nog hebben gewerkt (voor de indexatie-correctie achteraf).
   const rows = await db.query.inzetten.findMany({
-    where: or(inArray(inzetten.status, LOPENDE_STATUSSEN), and(eq(inzetten.status, "beeindigd"), gte(inzetten.einddatum, `${today.slice(0, 4)}-01-01`))),
+    where: inArray(inzetten.status, LOPENDE_STATUSSEN),
     with: { medewerker: true, klant: true, project: true, contract: { with: { parent: true } } },
   });
   const standen = await tariefStanden(

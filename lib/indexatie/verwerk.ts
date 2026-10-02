@@ -1,4 +1,4 @@
-import { and, eq, gte, inArray, like, or } from "drizzle-orm";
+import { and, eq, inArray, like } from "drizzle-orm";
 import { getISOWeek } from "date-fns";
 import { z } from "zod";
 import { db as defaultDb, type Db } from "@/lib/db";
@@ -38,16 +38,12 @@ export const IndexatieVerwerkSchema = z.object({
 });
 export type IndexatieVerwerk = z.infer<typeof IndexatieVerwerkSchema>;
 
-/**
- * Lopende inzetten op een contract en zijn directe kinderen (NOVK's/aanvullingen), plus beëindigde
- * inzetten die dit jaar nog hebben gewerkt: hun uren horen bij de indexatie-correctie.
- */
-export async function lopendeInzettenVanContract(contractId: string, database: Db = defaultDb, opts: { today?: string } = {}) {
-  const jaarStart = `${(opts.today ?? todayIso()).slice(0, 4)}-01-01`;
+/** Lopende inzetten op een contract en zijn directe kinderen (NOVK's/aanvullingen). */
+export async function lopendeInzettenVanContract(contractId: string, database: Db = defaultDb) {
   const kinderen = await database.query.contracten.findMany({ where: eq(contracten.parentContractId, contractId), columns: { id: true } });
   const ids = [contractId, ...kinderen.map((k) => k.id)];
   return database.query.inzetten.findMany({
-    where: and(inArray(inzetten.contractId, ids), or(inArray(inzetten.status, LOPENDE_STATUSSEN), and(eq(inzetten.status, "beeindigd"), gte(inzetten.einddatum, jaarStart)))),
+    where: and(inArray(inzetten.contractId, ids), inArray(inzetten.status, LOPENDE_STATUSSEN)),
     with: { medewerker: true, klant: true, project: true, contract: true },
   });
 }

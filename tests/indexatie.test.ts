@@ -167,7 +167,7 @@ describe("indexatie achteraf: aanvraag-actie en verwerking", () => {
     const na = (await db.query.acties.findFirst({ where: (a, { eq }) => eq(a.id, eerste.id) }))!;
     expect(na.status).toBe("open");
     expect(na.inzetId).toBe(i2.id);
-    expect(na.omschrijving).toContain("Anker Eerste (€ 90.00) [eindigt 01-11-2026]");
+    expect(na.omschrijving).not.toContain("Anker Eerste"); // beëindigd: telt niet meer mee
 
     // Zoals in productie gebeurde: automatisch op genegeerd gezet met een beëindigde ankerinzet.
     await db.update(acties).set({ status: "genegeerd", afgerondOp: new Date(), inzetId: i1.id }).where(eq(acties.id, eerste.id));
@@ -213,9 +213,14 @@ describe("indexatie achteraf: aanvraag-actie en verwerking", () => {
       const m = await vindOfMaak(naam);
       await db.insert(inzetten).values({ ...basis, medewerkerId: m.id, status: "actief", tarief });
     }
-    // Boris: loopt t/m 1 november (beëindigd, aangekondigd) en heeft een nieuwe inzet per 12 oktober 2026.
+    // Boris: actief op Nieuw-Zuid t/m 1 november (zoals op het scherm Inzetten) en heeft een nieuwe inzet per 12 oktober 2026.
     const boris = await vindOfMaak("Boris Prins");
-    await db.insert(inzetten).values({ ...basis, medewerkerId: boris.id, status: "beeindigd", einddatum: "2026-11-01", einddatumType: "vast", tarief: "87.93" });
+    await db.insert(inzetten).values({ ...basis, medewerkerId: boris.id, status: "actief", einddatum: "2026-11-01", einddatumType: "vast", tarief: "87.93" });
+    // Glenn en Peter Broek werkten eerder op dit contract en zijn beëindigd; hun einddatum staat nog op het einde van de aanvulling.
+    for (const [naam, tarief] of [["Glenn Jadoenathmisier", "77.50"], ["Peter Broek", "83.50"]]) {
+      const m = await vindOfMaak(naam);
+      await db.insert(inzetten).values({ ...basis, medewerkerId: m.id, status: "beeindigd", einddatum: "2027-03-28", einddatumType: "vast", tarief });
+    }
     // Zijn nieuwe inzet per 12 oktober is bij Van Hattum en Blankevoort, een ander project en contract: dat raakt de Nieuw-Zuid-indexatie niet.
     const [vhb] = await db.insert(klanten).values({ naam: "Van Hattum en Blankevoort (Boris)", naamGenormaliseerd: "van hattum en blankevoort boris" }).returning();
     const [vhbContract] = await db.insert(contracten).values({ nummer: "VHB-BORIS-1", soort: "overeenkomst_van_opdracht", klantId: vhb.id, einddatumType: "ntb", indexatie: "geen" }).returning();
@@ -231,7 +236,10 @@ describe("indexatie achteraf: aanvraag-actie en verwerking", () => {
     expect(a.omschrijving).toContain("Tarieven staan op prijspeil 01-01-2025; indexeren naar 01-01-2026.");
     expect(a.omschrijving).toContain("week 1 t/m week 40 (periode 10, loopt t/m 2026-10-07) en vanaf periode 11 (week 41)");
     for (const [naam] of mensen) expect(a.omschrijving).toContain(naam);
-    expect(a.omschrijving).toContain("Boris Prins (€ 87.93) [eindigt 01-11-2026]");
+    expect(a.omschrijving).toContain("Boris Prins (€ 87.93)");
+    // Wie niet meer op het project werkt (beëindigd) wordt niet genoemd, ook niet met een einddatum later dit jaar of daarna.
+    expect(a.omschrijving).not.toContain("Glenn");
+    expect(a.omschrijving).not.toContain("Broek");
     // Boris werkt al langer op dit project en wordt geïndexeerd; zijn nieuwe inzet elders komt niet in deze actie voor.
     expect(a.omschrijving).not.toContain("Niet indexeren");
     expect(a.omschrijving).not.toContain("2026-10-12");
