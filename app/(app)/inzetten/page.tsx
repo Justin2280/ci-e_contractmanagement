@@ -1,13 +1,15 @@
 import Link from "next/link";
 import { PageHeader } from "@/components/app/page-header";
 import { InzetStatusBadge, INZET_STATUS_LABELS } from "@/components/app/status-badge";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Table, TableBody, TableCell, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { listInzetten, type InzetFilter } from "@/lib/queries/inzetten";
 import { listKlanten } from "@/lib/queries/master";
 import { fmtDateShort, fmtMoney } from "@/lib/format";
 import { EINDDATUM_TYPE_LABELS } from "@/lib/labels";
+import { parseSort, sorteerInzetten } from "@/lib/inzetten/sort";
+import { SortHeader } from "@/components/app/sort-header";
 
 export const metadata = { title: "Inzetten" };
 
@@ -18,7 +20,11 @@ export default async function InzettenPage({ searchParams }: PageProps<"/inzette
     klantId: typeof sp.klant === "string" && sp.klant ? sp.klant : undefined,
     q: typeof sp.q === "string" && sp.q ? sp.q : undefined,
   };
-  const [rows, klanten] = await Promise.all([listInzetten(filter), listKlanten()]);
+  const sort = parseSort(sp);
+  const [gevonden, klanten] = await Promise.all([listInzetten(filter), listKlanten()]);
+  const rows = sorteerInzetten(gevonden, sort.kolom, sort.dir);
+  // Filters die in de koppen en het formulier behouden blijven bij sorteren.
+  const urlFilter = { status: typeof sp.status === "string" ? sp.status : undefined, klant: filter.klantId, q: filter.q };
 
   return (
     <div>
@@ -28,6 +34,8 @@ export default async function InzettenPage({ searchParams }: PageProps<"/inzette
       />
 
       <form className="mb-4 flex flex-wrap items-end gap-3" method="get">
+        <input type="hidden" name="sort" value={sort.kolom} />
+        <input type="hidden" name="dir" value={sort.dir} />
         <div className="space-y-1">
           <label className="text-xs text-muted-foreground" htmlFor="q">
             Zoeken
@@ -71,16 +79,16 @@ export default async function InzettenPage({ searchParams }: PageProps<"/inzette
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Medewerker</TableHead>
-              <TableHead>Klant</TableHead>
-              <TableHead>Project</TableHead>
-              <TableHead>Contract</TableHead>
-              <TableHead className="text-right">Tarief</TableHead>
-              <TableHead>Start</TableHead>
-              <TableHead>Einde</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>Contactpersoon</TableHead>
-              <TableHead>Actiehouder</TableHead>
+              <SortHeader kolom="medewerker" label="Medewerker" huidig={sort} params={urlFilter} titel="Sorteer op achternaam" />
+              <SortHeader kolom="klant" label="Klant" huidig={sort} params={urlFilter} />
+              <SortHeader kolom="project" label="Project" huidig={sort} params={urlFilter} />
+              <SortHeader kolom="contract" label="Contract" huidig={sort} params={urlFilter} />
+              <SortHeader kolom="tarief" label="Tarief" huidig={sort} params={urlFilter} className="text-right" />
+              <SortHeader kolom="start" label="Start" huidig={sort} params={urlFilter} />
+              <SortHeader kolom="einde" label="Einde" huidig={sort} params={urlFilter} />
+              <SortHeader kolom="status" label="Status" huidig={sort} params={urlFilter} />
+              <SortHeader kolom="contactpersoon" label="Contactpersoon" huidig={sort} params={urlFilter} />
+              <SortHeader kolom="actiehouder" label="Actiehouder" huidig={sort} params={urlFilter} />
             </TableRow>
           </TableHeader>
           <TableBody>

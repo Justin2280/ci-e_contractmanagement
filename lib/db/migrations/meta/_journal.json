@@ -71,6 +71,13 @@
       "when": 1790944069858,
       "tag": "0009_nieuw_zuid_achteraf",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1790946920146,
+      "tag": "0010_nieuw_zuid_financieel_contact",
+      "breakpoints": true
     }
   ]
 }

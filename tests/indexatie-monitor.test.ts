@@ -87,3 +87,22 @@ describe("migratie 0009: Nieuw-Zuid achteraf, 1e kwartaal", () => {
     expect([ander?.indexatieWijze, ander?.indexatieKwartaal]).toEqual(["vooraf", null]);
   });
 });
+
+describe("migratie 0010: financieel contact Nieuw-Zuid", () => {
+  it("voegt Johan Huizer eenmalig toe als financiële contactpersoon en wordt de standaardontvanger", async () => {
+    const fs = await import("node:fs");
+    const bestand = fs.readdirSync("lib/db/migrations").find((f) => f.startsWith("0010_") && f.endsWith(".sql"))!;
+    const statements = fs.readFileSync(`lib/db/migrations/${bestand}`, "utf8").split("--> statement-breakpoint").map((x) => x.replace(/^--.*$/gm, "").trim()).filter(Boolean);
+    const { sql } = await import("drizzle-orm");
+    const { defaultRecipient } = await import("@/lib/acties/context");
+    const [nz] = await db.insert(klanten).values({ naam: "Bouwcombinatie Nieuw-Zuid (financieel)", naamGenormaliseerd: "bouwcombinatie nieuw zuid financieel" }).returning();
+    const { contactpersonen } = await import("@/lib/db/schema");
+    await db.insert(contactpersonen).values({ klantId: nz.id, naam: "Han de Jong", email: "h.dejong@mobilis.nl", rol: "Planning" });
+    for (let keer = 0; keer < 2; keer++) for (const st of statements) await db.execute(sql.raw(st)); // twee keer: geen dubbele
+    const klant = (await db.query.klanten.findFirst({ where: (k, { eq }) => eq(k.id, nz.id), with: { contactpersonen: true } }))!;
+    expect(klant.contactpersonen.filter((c) => c.email === "j.huizer@mobilis.nl")).toHaveLength(1);
+    const ontvanger = defaultRecipient({ inzet: { klant, contactpersoon: klant.contactpersonen.find((c) => c.naam === "Han de Jong") }, contract: null } as never, { financieel: true, fallback: { naam: "Han de Jong", email: "h.dejong@mobilis.nl" } });
+    expect(ontvanger).toMatchObject({ naam: "Johan Huizer", email: "j.huizer@mobilis.nl" });
+  });
+});
+
