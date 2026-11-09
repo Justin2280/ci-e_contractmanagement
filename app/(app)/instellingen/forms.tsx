@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import type { Settings } from "@/lib/settings";
-import { addVoorbeeld, fetchSentCandidates, importSentAsVoorbeelden, renewSubscription, updateRegels, updateStijl, updateUser, verstuurMaandoverzicht, type SentCandidate } from "./actions";
+import { addVoorbeeld, fetchSentCandidates, importSentAsVoorbeelden, renewSubscription, updateRegels, updateStijl, updateTevredenheid, updateUser, verstuurMaandoverzicht, type SentCandidate } from "./actions";
 import type { ActionState } from "../inzetten/actions";
 
 const Msg = ({ state }: { state: ActionState }) => (state ? <span className={state.ok ? "text-xs text-emerald-700" : "text-xs text-destructive"}>{state.message}</span> : null);
@@ -63,6 +63,42 @@ export function RegelsForm({ settings }: { settings: Settings }) {
         </label>
         <label className="flex items-center gap-2">
           <input type="checkbox" name="maandoverzichtActief" defaultChecked={settings.maandoverzichtActief} /> Maandoverzicht van lopende en toekomstige inzetten mailen
+        </label>
+      </div>
+      <div className="flex items-center gap-2 sm:col-span-2">
+        <Button type="submit" disabled={pending}>
+          Opslaan
+        </Button>
+        <Msg state={state} />
+      </div>
+    </form>
+  );
+}
+
+export function TevredenheidForm({ settings }: { settings: Settings }) {
+  const [state, action, pending] = useActionState<ActionState, FormData>(updateTevredenheid, null);
+  return (
+    <form action={action} className="grid gap-3 sm:grid-cols-2">
+      <F label="Link medewerkerformulier (Forms)">
+        <Input name="tevredenheidFormMedewerker" defaultValue={settings.tevredenheidFormMedewerker} />
+      </F>
+      <F label="Link jaarlijks algemeen formulier (Forms)">
+        <Input name="tevredenheidFormJaarlijks" defaultValue={settings.tevredenheidFormJaarlijks} />
+      </F>
+      <F label="Jaarlijks formulier versturen op (MM-DD)">
+        <Input name="tevredenheidJaarlijksDatum" defaultValue={settings.tevredenheidJaarlijksDatum} placeholder="01-15" />
+      </F>
+      <F label="Gemiste rondes nog inhalen tot (dagen)">
+        <Input name="tevredenheidInhaalDagen" type="number" min={0} max={365} defaultValue={settings.tevredenheidInhaalDagen} />
+      </F>
+      <div className="space-y-2 text-sm sm:col-span-2">
+        <label className="flex items-center gap-2">
+          <input type="checkbox" name="tevredenheidActief" defaultChecked={settings.tevredenheidActief} /> Uitnodigingen automatisch klaarzetten (een maand na de start, daarna jaarlijks; en het
+          jaarlijkse formulier)
+        </label>
+        <label className="flex items-center gap-2">
+          <input type="checkbox" name="tevredenheidMedewerkerVragen" defaultChecked={settings.tevredenheidMedewerkerVragen} /> Medewerker vooraf (intern) vragen wie de projectleider
+          is, als die nog niet bekend is
         </label>
       </div>
       <div className="flex items-center gap-2 sm:col-span-2">

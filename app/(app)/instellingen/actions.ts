@@ -40,6 +40,27 @@ export async function updateRegels(_prev: ActionState, formData: FormData): Prom
   return { ok: true, message: "Opgeslagen" };
 }
 
+export async function updateTevredenheid(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  await requireUser();
+  const raw = Object.fromEntries(formData.entries());
+  const parsed = SettingsSchema.partial().safeParse({
+    tevredenheidActief: raw.tevredenheidActief === "on",
+    tevredenheidFormMedewerker: String(raw.tevredenheidFormMedewerker ?? "").trim(),
+    tevredenheidFormJaarlijks: String(raw.tevredenheidFormJaarlijks ?? "").trim(),
+    tevredenheidJaarlijksDatum: String(raw.tevredenheidJaarlijksDatum ?? "01-15").trim(),
+    tevredenheidInhaalDagen: Number(raw.tevredenheidInhaalDagen),
+    tevredenheidMedewerkerVragen: raw.tevredenheidMedewerkerVragen === "on",
+  });
+  if (!parsed.success) return { ok: false, message: parsed.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; ") };
+  for (const key of ["tevredenheidFormMedewerker", "tevredenheidFormJaarlijks"] as const) {
+    if (!/[?&]id=[A-Za-z0-9_.-]{40,}/.test(parsed.data[key] ?? "")) return { ok: false, message: "Vul de volledige Forms-link in (…ResponsePage.aspx?id=…)" };
+  }
+  await saveSettings(parsed.data);
+  rev();
+  revalidatePath("/tevredenheid");
+  return { ok: true, message: "Opgeslagen" };
+}
+
 export async function updateStijl(_prev: ActionState, formData: FormData): Promise<ActionState> {
   await requireUser();
   await saveSettings({

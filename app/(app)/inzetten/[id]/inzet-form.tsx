@@ -36,6 +36,7 @@ export function InzetForm({
     tariefGeldigVanaf: string | null;
     actiehouderUserId: string | null;
     contactpersoonId: string | null;
+    enqueteContactpersoonId?: string | null;
     leidinggevende: string | null;
     contractnummerTekst: string | null;
     notities: string | null;
@@ -136,6 +137,16 @@ export function InzetForm({
       <Field label="Contactpersoon klant">
         <select name="contactpersoonId" defaultValue={inzet.contactpersoonId ?? ""} className="h-9 w-full rounded-md border bg-background px-2 text-sm">
           <option value="">—</option>
+          {contactpersonen.map((c) => (
+            <option key={c.id} value={c.id}>
+              {c.label}
+            </option>
+          ))}
+        </select>
+      </Field>
+      <Field label="Projectleider (krijgt het tevredenheidsformulier)">
+        <select name="enqueteContactpersoonId" defaultValue={inzet.enqueteContactpersoonId ?? ""} className="h-9 w-full rounded-md border bg-background px-2 text-sm">
+          <option value="">— automatisch (leidinggevende / contactpersoon)</option>
           {contactpersonen.map((c) => (
             <option key={c.id} value={c.id}>
               {c.label}

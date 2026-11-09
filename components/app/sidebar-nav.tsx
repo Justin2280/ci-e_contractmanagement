@@ -12,6 +12,7 @@ import {
   ListChecks,
   Receipt,
   Settings,
+  Smile,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -24,6 +25,7 @@ const items = [
   { href: "/inbox", label: "Inbox", icon: Inbox },
   { href: "/acties", label: "Acties", icon: ListChecks },
   { href: "/facturatie", label: "Facturatie", icon: Receipt },
+  { href: "/tevredenheid", label: "Klanttevredenheid", icon: Smile },
   { href: "/instellingen", label: "Instellingen", icon: Settings },
 ] as const;
 

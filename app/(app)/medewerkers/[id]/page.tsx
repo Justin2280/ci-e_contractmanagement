@@ -8,11 +8,19 @@ import { fmtDateShort, fmtMoney } from "@/lib/format";
 import { EINDDATUM_TYPE_LABELS } from "@/lib/labels";
 import { todayIso } from "@/lib/format";
 import { DienstForm } from "./dienst-form";
+import { desc, eq } from "drizzle-orm";
+import { db } from "@/lib/db";
+import { enqueteReacties } from "@/lib/db/schema";
 
 export default async function MedewerkerPage({ params }: PageProps<"/medewerkers/[id]">) {
   const { id } = await params;
   const m = await getMedewerker(id);
   if (!m) notFound();
+  const reacties = await db.query.enqueteReacties.findMany({
+    where: eq(enqueteReacties.medewerkerId, m.id),
+    with: { klant: true, inzet: { with: { project: true } } },
+    orderBy: [desc(enqueteReacties.ingediendOp)],
+  });
   return (
     <div>
       <PageHeader
@@ -56,6 +64,42 @@ export default async function MedewerkerPage({ params }: PageProps<"/medewerkers
           </TableBody>
         </Table>
       </div>
+      {reacties.length ? (
+        <div className="mt-6">
+          <h2 className="mb-2 text-sm font-medium">Klanttevredenheid</h2>
+          <div className="rounded-lg border">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Ingevuld</TableHead>
+                  <TableHead>Klant / project</TableHead>
+                  <TableHead>Door</TableHead>
+                  <TableHead className="text-right">Gem. (1–5)</TableHead>
+                  <TableHead className="text-right">Aanbeveling</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {reacties.map((r) => (
+                  <TableRow key={r.id}>
+                    <TableCell className="tabular-nums">
+                      <Link href={`/tevredenheid/${r.id}`} className="hover:underline">
+                        {fmtDateShort(r.ingediendOp)}
+                      </Link>
+                    </TableCell>
+                    <TableCell>
+                      {r.klant?.naam ?? r.organisatie ?? "?"}
+                      {r.inzet?.project ? ` · ${r.inzet.project.naam}` : r.projectTekst ? ` · ${r.projectTekst}` : ""}
+                    </TableCell>
+                    <TableCell>{[r.naam, r.functie].filter(Boolean).join(", ") || "—"}</TableCell>
+                    <TableCell className="text-right tabular-nums">{r.gemiddelde ?? "—"}</TableCell>
+                    <TableCell className="text-right tabular-nums">{r.nps ?? "—"}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        </div>
+      ) : null}
       {m.notities ? <p className="mt-4 whitespace-pre-wrap text-sm text-muted-foreground">{m.notities}</p> : null}
     </div>
   );

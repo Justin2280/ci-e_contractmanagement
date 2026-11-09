@@ -20,6 +20,20 @@ export const SettingsSchema = z.object({
   maandoverzichtActief: z.boolean().default(true),
   maandoverzichtOntvangers: z.string().default("directie@ci-engineers.com"),
   maandoverzichtDag: z.number().int().min(1).max(28).default(1),
+  /** Klanttevredenheid: medewerkerformulier een maand na de start (daarna jaarlijks) en het jaarlijkse algemene formulier. */
+  tevredenheidActief: z.boolean().default(true),
+  tevredenheidFormMedewerker: z
+    .string()
+    .default("https://forms.cloud.microsoft/Pages/ResponsePage.aspx?id=_-onPoyrZEim0Kji_7FvquDqbNXL21VBvlWq-BwfyRJUMTlSUUxBR0ZWVFRNUVc2MDYwUFFaNzkwRy4u"),
+  tevredenheidFormJaarlijks: z
+    .string()
+    .default("https://forms.cloud.microsoft/Pages/ResponsePage.aspx?id=_-onPoyrZEim0Kji_7FvquDqbNXL21VBvlWq-BwfyRJUODlUSVJLQk9KMFk1VFo2N0dUMDZQS0s1MS4u"),
+  /** "MM-DD" waarop het jaarlijkse formulier naar alle klanten van het afgelopen jaar gaat. */
+  tevredenheidJaarlijksDatum: z.string().regex(/^\d{2}-\d{2}$/).default("01-15"),
+  /** Rondes die langer dan zoveel dagen geleden vielen, worden niet meer ingehaald. */
+  tevredenheidInhaalDagen: z.number().int().min(0).max(365).default(30),
+  /** Interne mail aan de medewerker: wie is je projectleider? (alleen als die nog niet bekend is) */
+  tevredenheidMedewerkerVragen: z.boolean().default(false),
   stijlInstructies: z.string().default(""),
   afzenderNaam: z.string().default("CI-Engineers"),
   handtekening: z.string().default(""),

@@ -24,6 +24,23 @@ export async function processEmail(emailId: string, database: Db = defaultDb): P
 
   await database.update(emailsIn).set({ verwerkstatus: "verwerken", fout: null }).where(eq(emailsIn.id, emailId));
 
+  // Klanttevredenheid: een formulierreactie (Power Automate) of een antwoord op een uitnodiging hoort niet in de
+  // contractverwerking; die handelt de tevredenheidsmodule zelf af.
+  try {
+    const { verwerkEnqueteMail, settingsUit } = await import("@/lib/tevredenheid/service");
+    const afgehandeld = await verwerkEnqueteMail(email, {
+      database,
+      settings: await settingsUit(database),
+      classificeer: async (mail) => (await import("@/lib/llm/enquete-antwoord")).classificeerEnqueteAntwoord(mail),
+      internDomein: process.env.GRAPH_SHARED_MAILBOX?.split("@")[1] ?? null,
+    });
+    if (afgehandeld) return;
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    await database.update(emailsIn).set({ verwerkstatus: "fout", fout: `Klanttevredenheid: ${message}` }).where(eq(emailsIn.id, emailId));
+    throw err;
+  }
+
   let outcome;
   try {
     const { classifyAndExtract } = await import("@/lib/llm/pipeline");

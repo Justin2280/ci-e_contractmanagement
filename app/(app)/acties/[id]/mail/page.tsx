@@ -24,6 +24,7 @@ export default async function ActieMailPage({ params, searchParams }: PageProps<
       with: {
         inzet: { with: { medewerker: true, klant: { with: { contactpersonen: true } }, project: true, contract: true, contactpersoon: true } },
         contract: { with: { klant: { with: { contactpersonen: true } } } },
+        klant: { with: { contactpersonen: true } },
       },
     }),
     getCurrentUser(),
@@ -31,7 +32,8 @@ export default async function ActieMailPage({ params, searchParams }: PageProps<
   if (!actie) notFound();
   const mails = await db.query.emailsUit.findMany({ where: eq(emailsUit.actieId, id), orderBy: [desc(emailsUit.createdAt)] });
   const latest = mails[0] ?? null;
-  const klant = actie.inzet?.klant ?? actie.contract?.klant ?? null;
+  const klant = actie.inzet?.klant ?? actie.contract?.klant ?? actie.klant ?? null;
+  const tevredenheid = actie.soort === "tevredenheid_medewerker" || actie.soort === "tevredenheid_jaarlijks";
   const contacten = klant?.contactpersonen ?? [];
 
   return (
@@ -75,6 +77,20 @@ export default async function ActieMailPage({ params, searchParams }: PageProps<
                 </>
               ) : null}
               {actie.contract && !actie.inzet ? <div>Contract: {actie.contract.nummer}</div> : null}
+              {actie.klant && !actie.inzet ? (
+                <div>
+                  Klant:{" "}
+                  <Link href={`/klanten/${actie.klant.id}`} className="underline">
+                    {actie.klant.naam}
+                  </Link>
+                </div>
+              ) : null}
+              {tevredenheid ? (
+                <div className="pt-2 text-xs text-muted-foreground">
+                  Het concept bevat de link naar het formulier met organisatie, medewerker en project vooraf ingevuld. Antwoorden op de mail gaan naar jou én de gedeelde
+                  mailbox, zodat “ik ben niet de juiste persoon” automatisch wordt bijgehouden (zie <Link href="/tevredenheid" className="underline">Klanttevredenheid</Link>).
+                </div>
+              ) : null}
               <div className="pt-2 text-xs text-muted-foreground">
                 Contactpersonen: {contacten.map((c) => `${c.naam}${c.email ? ` <${c.email}>` : ""}`).join("; ") || "geen bekend — voeg toe bij de klant"}
               </div>
@@ -90,7 +106,7 @@ export default async function ActieMailPage({ params, searchParams }: PageProps<
               <CardTitle>Concept genereren</CardTitle>
             </CardHeader>
             <CardContent>
-              <GenerateForm actieId={actie.id} enabled={llmConfigured()} hasDraft={Boolean(latest)} defaultInstructie={doel ? MAIL_DOEL_INSTRUCTIE[doel] : undefined} />
+              <GenerateForm actieId={actie.id} enabled={llmConfigured() || tevredenheid} hasDraft={Boolean(latest)} defaultInstructie={doel ? MAIL_DOEL_INSTRUCTIE[doel] : undefined} />
             </CardContent>
           </Card>
           {mails.length > 1 ? (
