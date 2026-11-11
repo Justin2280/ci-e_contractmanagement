@@ -20,7 +20,7 @@ export default async function FacturatiePage() {
     <div>
       <PageHeader
         title="Facturatie"
-        description="4-wekelijkse periodes: per medewerker bijhouden of de urenbon binnen is, waar gefactureerd wordt en of het gefactureerd is."
+        description="4-wekelijkse periodes: per medewerker afvinken of de urenbon binnen is en of er gefactureerd is."
         actions={<AanvullenButton />}
       />
       <div className="rounded-lg border">

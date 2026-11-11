@@ -42,9 +42,6 @@ export function RegelsForm({ settings }: { settings: Settings }) {
       <F label="Contract opvragen (dagen na start zonder contract)">
         <Input name="contractOpvragenDagenNaStart" type="number" defaultValue={settings.contractOpvragenDagenNaStart} />
       </F>
-      <F label="Urenbonnen opvragen (dagen na periode-einde)">
-        <Input name="urenbonDagenNaPeriode" type="number" defaultValue={settings.urenbonDagenNaPeriode} />
-      </F>
       <F label="Einde beoordelen: beslissen binnen (dagen na de einddatum)">
         <Input name="eindeBeoordelenDagenNa" type="number" min={0} max={90} defaultValue={settings.eindeBeoordelenDagenNa} />
       </F>

@@ -10,7 +10,6 @@ export const SettingsSchema = z.object({
   /** Zonder indexatieclausule: na hoeveel maanden zonder tariefwijziging stellen we een verhoging voor. */
   indexatieVoorstelNaMaanden: z.number().int().min(6).max(60).default(12),
   contractOpvragenDagenNaStart: z.number().int().min(0).max(120).default(14),
-  urenbonDagenNaPeriode: z.number().int().min(0).max(28).default(3),
   einddatumControleKwartaal: z.boolean().default(true),
   /** Dagen na een verstreken vaste einddatum waarna "einde beoordelen" uiterlijk moet zijn beslist. */
   eindeBeoordelenDagenNa: z.number().int().min(0).max(90).default(14),

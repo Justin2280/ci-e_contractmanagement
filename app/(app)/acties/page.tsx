@@ -194,7 +194,7 @@ export default async function ActiesPage({ searchParams }: PageProps<"/acties">)
     <div className="space-y-6">
       <PageHeader
         title="Acties"
-        description="Verlengingen, indexaties, ontbrekende contracten en urenbonnen. Wordt dagelijks bijgewerkt door de regels-engine."
+        description="Verlengingen, indexaties, ontbrekende contracten en klanttevredenheid. Wordt dagelijks bijgewerkt door de regels-engine."
         actions={
           <div className="flex items-center gap-2">
             <Link href="/acties?view=open" className={cn("text-sm", view === "open" ? "font-medium" : "text-muted-foreground")}>

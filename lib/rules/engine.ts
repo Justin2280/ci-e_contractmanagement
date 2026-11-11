@@ -14,7 +14,6 @@ export type ActieSoort =
   | "einddatum_controleren"
   | "indexatie_aanvragen"
   | "contract_opvragen"
-  | "urenbon_opvragen"
   | "einde_beoordelen"
   | "indexatie_voorstellen"
   | "overeenkomst_opvragen";
@@ -60,18 +59,9 @@ export interface RegelInzet {
   } | null;
 }
 
-export interface RegelPeriode {
-  id: string;
-  jaar: number;
-  nummer: number;
-  einddatum: string;
-  ontbrekendeUrenbonnen: Array<{ inzetId: string; medewerkerNaam: string; klantNaam: string | null }>;
-}
-
 export interface RegelInput {
   today: string;
   inzetten: RegelInzet[];
-  periodes: RegelPeriode[];
   settings: Settings;
   /** Actueel CBS-cijfer (reeks 7112, 2e kwartaal) om in omschrijvingen mee te geven; null als niet beschikbaar. */
   cbs?: { tekst: string; percentage: number } | null;
@@ -346,19 +336,7 @@ export function evalueerRegels(input: RegelInput): ActieVoorstel[] {
     });
   }
 
-  // 5. Urenbonnen opvragen na afloop van een periode
-  for (const p of input.periodes) {
-    if (p.ontbrekendeUrenbonnen.length === 0) continue;
-    if (daysBetween(p.einddatum, today) < settings.urenbonDagenNaPeriode) continue;
-    if (daysBetween(p.einddatum, today) > 90) continue;
-    out.push({
-      soort: "urenbon_opvragen",
-      titel: `Urenbonnen periode ${p.nummer} (${p.jaar}): ${p.ontbrekendeUrenbonnen.length} ontbreken`,
-      omschrijving: p.ontbrekendeUrenbonnen.map((r) => `${r.medewerkerNaam} (${r.klantNaam ?? "?"})`).join(", "),
-      vervaldatum: toIsoDate(addDays(parseISO(p.einddatum), settings.urenbonDagenNaPeriode + 4)),
-      dedupeKey: `urenbon_opvragen:${p.id}`,
-    });
-  }
+  // De automatische actie "Urenbon opvragen" is vervallen: urenbon en facturatie worden op de facturatiepagina afgevinkt.
 
   return out;
 }
