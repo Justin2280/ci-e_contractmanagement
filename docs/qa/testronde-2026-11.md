@@ -17,7 +17,7 @@ Voortgangsindex. **Hervatten:** lees dit bestand en ga verder bij het eerste ond
 | 2A | Regels, acties, indexatie, herinneringen | Opus | klaar (rapport: `rapporten/2A.md`) |
 | 2B | Intake, review, contracten, facturatie, Excel-import | Opus | klaar (rapport: `rapporten/2B.md`) |
 | 2C | Toegang en veiligheid (server actions, API-routes, uploads) | Opus | klaar (rapport: `rapporten/2C.md`) |
-| 3A | Browser: klanttevredenheid van begin tot eind | Sonnet | open |
+| 3A | Browser: klanttevredenheid van begin tot eind | Sonnet | klaar (rapport: `rapporten/3A.md`) |
 | 3B | Browser: dashboard, inzetten, medewerkers, klanten, contracten | Sonnet | open |
 | 3C | Browser: inbox/beoordelen, acties, facturatie, instellingen | Sonnet | open |
 | 3D | Eenvoud en helderheid van de hele UI (dubbelingen, één bron van waarheid, één weg per taak) | Opus | open |
@@ -63,7 +63,7 @@ Ernst: blokkerend / hoog / middel / laag / smaak.
 | B-001 | middel | Klanttevredenheid | Excel-upload staat 10 MB toe, maar server actions zijn begrensd op 4 MB (`next.config.ts`): een bestand tussen 4 en 10 MB faalt zonder nette melding. | orchestrator, 2C-7 | gevonden | |
 | B-002 | laag | Testomgeving | Vanuit Node komt de app alleen bij CBS/Forms met `NODE_USE_ENV_PROXY=1`; geldt alleen voor deze testomgeving, niet voor Vercel. | orchestrator | geen probleem | |
 | B-003 | blokkerend | Klanttevredenheid | Antwoord op het jaarlijkse formulier wordt alleen op het onderwerp herkend, en dat is voor alle klanten gelijk: een antwoord van klant B wordt bij klant A verwerkt (verkeerde ontvanger, vinkje jaarlijks verhuist). | 1A-1, 1B-1, 2C-3, aangetoond (geldt ook voor twee uitnodigingen met hetzelfde medewerkeronderwerp) | gevonden | |
-| B-004 | hoog | Klanttevredenheid | Jaarlijkse datum wordt niet echt gevalideerd ("02-29", "13-40"): met 02-29 faalt de hele planning ~37 dagen per jaar, ook voor medewerkerformulieren. | 1A-2, 1B-16, aangetoond | gevonden | |
+| B-004 | hoog | Klanttevredenheid | Jaarlijkse datum wordt niet echt gevalideerd ("02-29", "13-40"): met 02-29 faalt de hele planning ~37 dagen per jaar, ook voor medewerkerformulieren. | 1A-2, 1B-16, 3A-5, aangetoond (veld is MM-DD terwijl de rest van de app DD-MM toont; "15-01" wordt stil omgedraaid getoond; regex-foutmelding in beeld) | gevonden | |
 | B-005 | hoog | Klanttevredenheid | Faalt het verwerken van een formulierreactie halverwege, dan is de reactie daarna "al ingelezen" en blijft hij voorgoed los van uitnodiging, klant en medewerker. | 1A-3, aangetoond | gevonden | |
 | B-006 | hoog | Klanttevredenheid | Wordt de startdatum van een inzet gecorrigeerd, dan ontstaat een tweede open uitnodiging voor dezelfde inzet. | 1A-4, 1B-8, aangetoond | gevonden | |
 | B-007 | hoog | Klanttevredenheid | Doorverwijzing "mail Jan Peters, jan.peters@…" komt uit bij bestaand contact "Jan de Vries" (naam-match op één woord); het opgegeven adres gaat verloren. | 1A-5, 1B-9, aangetoond (ook: bestaand contact krijgt e-mail/rol van een ander; nieuw adres van bekend contact genegeerd) | gevonden | |
@@ -77,7 +77,7 @@ Ernst: blokkerend / hoog / middel / laag / smaak.
 | B-015 | laag | Klanttevredenheid | Alleen een voornaam in het formulier kan aan de uitnodiging van een naamgenoot koppelen als de organisatie niet herkend wordt. | 1A-13 | gevonden | |
 | B-016 | laag | Klanttevredenheid | Scores niet begrensd (aanbeveling buiten 0–10, sterren > 5); een uitschieter laat de Excel-import halverwege stoppen. | 1A-14 | gevonden | |
 | B-017 | laag | Klanttevredenheid | Opnieuw verwerken van een half toegepast antwoord: mail valt door naar de contractverwerking; notitie/logboek dubbel. | 1A-15 | gevonden | |
-| B-018 | laag | Klanttevredenheid | Ontvanger wordt alleen bij het klaarzetten bepaald; een later aangevinkt contact of gekozen projectleider wordt niet opgepakt in het concept. | 1A-16 | gevonden | |
+| B-018 | hoog | Klanttevredenheid | Ontvanger wordt alleen bij het klaarzetten bepaald; een later aangevinkt contact of gekozen projectleider wordt niet opgepakt in het concept. | 1A-16, 3A-4, in de browser gezien (gekozen projectleider komt niet in uitnodiging/concept; ernst → hoog) | gevonden | |
 | B-019 | laag | Klanttevredenheid | "Als concept in mijn Outlook" legt de ontvanger al vast als projectleider terwijl er nog niets verstuurd is. | 1A-17 | gevonden | |
 | B-020 | laag | Klanttevredenheid | Dezelfde reactie kan dubbel binnenkomen (flow-mail zonder antwoord-ID naast Excel-import). | 1A-18, 1B-15, aangetoond (ook: terugval-ID hangt af van sleutelvolgorde; onderwerp "Forms-reactie (12)" geeft ID "(12)") | gevonden | |
 | B-021 | laag | Klanttevredenheid | Tijden uit de Excel-export worden als UTC gelezen (1–2 uur verschil). | 1A-19 | gevonden | |
@@ -145,6 +145,18 @@ Ernst: blokkerend / hoog / middel / laag / smaak.
 | B-083 | laag | Medewerkers | Uit dienst zetten zet de einddatum van álle lopende inzetten op de uitdienstdatum, ook als die eerder lag of de inzet nog moet starten. | 2B-19, beredeneerd | gevonden | |
 | B-084 | laag | Excel-import | "31-02-2026" draait de hele import terug; "€ 1.234,50" en "95,-" worden stil leeg. | 2B-20, aangetoond | gevonden | |
 | B-085 | laag | Intake | Ontdubbelen laat twee al goedgekeurde dubbele mails staan. | 2B-21, beredeneerd | gevonden | |
+| B-086 | blokkerend | Inzetten | Een inzet opslaan faalt voor elke inzet waar "startdatum nog niet definitief" niet is aangevinkt: melding "startdatumVoorlopig: Invalid input: expected nonoptional, received undefined". Met het vinkje lukt het, maar dan wordt de startdatum stil voorlopig. | 3A-2, in de browser | gevonden | |
+| B-087 | hoog | Hele app | Op een smal scherm (telefoon, 390 px) is er geen menu: de zijbalk verdwijnt en er is geen hamburger; brede pagina's scrollen zijwaarts. | 3A-1, in de browser | gevonden | |
+| B-088 | middel | Conceptmail | Na het wisselen van ontvanger blijft de aanhef op de oude naam staan ("Goedemiddag Erik," aan Sanne). | 3A-3 | gevonden | |
+| B-089 | middel | Conceptmail | Verstuur-knoppen zijn grijs zonder zichtbare uitleg (alleen bij hover "Graph niet geconfigureerd"); Opslaan accepteert een leeg of ongeldig adres zonder melding. | 3A-6, 3A-7 | gevonden | |
+| B-090 | middel | Klanttevredenheid | Uitleg over "vooraf invullen" is jargon en spreekt zichzelf tegen (context zegt "vooraf ingevuld", melding zegt "staat uit"). | 3A-8 | gevonden | |
+| B-091 | middel | Klanttevredenheid | Tabel "Openstaande uitnodigingen" loopt uit beeld, ook op 1400 px: "Laatste", "Mail" en "Overslaan" liggen achter horizontaal scrollen. | 3A-9 | gevonden | |
+| B-092 | middel | Klanttevredenheid | "Overslaan" werkt direct, zonder bevestiging en zonder terugweg. | 3A-10 | gevonden | |
+| B-093 | middel | Klanten | Contact bewerken is onvindbaar (achter een klik op de naam), geeft geen terugkoppeling na Opslaan; twee contacten kunnen tegelijk het vinkje jaarlijks hebben. | 3A-11 | gevonden | |
+| B-094 | middel | Klanttevredenheid | Excel-import zegt niets over niet-herkende reacties: "Onbekende Medewerker"/"Onbekende Bouw BV" komen als gewone regels in de cijfers per medewerker en klant. | 3A-12 | gevonden | |
+| B-095 | middel | Inbox | Verwerkte tevredenheidsmails staan kaal in de Inbox (classificatie leeg, ontvangen "—"); "Opnieuw verwerken" erop geeft een fout; wat de app automatisch deed is maar half te volgen (logboek noemt nieuw contact/wissel van projectleider niet; afgeronde actie houdt oude tekst). | 3A-13, 3A-14 | gevonden | |
+| B-096 | smaak | Klanttevredenheid | Vier wegen naar de te versturen formulieren (menu Klanttevredenheid, Dashboard, Acties, actiekaart); projectleider kiezen is een omweg via het inzetformulier met 20+ velden; drie overlappende velden op de inzet (contactpersoon, projectleider, leidinggevende). → meenemen in 3D. | 3A-6, 3A-15, 3A-16 | gevonden | |
+| B-097 | laag | Hele app | Ruwe waarden in beeld ("einde_opdracht", "jaarlijks_cbs"), getalnotatie wisselend ("€ 92.5" naast "€ 104,00"; gemiddelden met punt), "Choose File No file chosen", NPS bij één reactie (100/−100) zonder uitleg. | 3A-17 t/m 3A-20 | gevonden | |
 
 ## Besluiten van Justin
 
