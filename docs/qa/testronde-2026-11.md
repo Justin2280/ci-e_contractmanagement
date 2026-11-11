@@ -16,7 +16,7 @@ Voortgangsindex. **Hervatten:** lees dit bestand en ga verder bij het eerste ond
 | 1B | Module klanttevredenheid: logica en randgevallen | Opus | klaar (rapport: `rapporten/1B.md`) |
 | 2A | Regels, acties, indexatie, herinneringen | Opus | klaar (rapport: `rapporten/2A.md`) |
 | 2B | Intake, review, contracten, facturatie, Excel-import | Opus | open |
-| 2C | Toegang en veiligheid (server actions, API-routes, uploads) | Opus | open |
+| 2C | Toegang en veiligheid (server actions, API-routes, uploads) | Opus | klaar (rapport: `rapporten/2C.md`) |
 | 3A | Browser: klanttevredenheid van begin tot eind | Sonnet | open |
 | 3B | Browser: dashboard, inzetten, medewerkers, klanten, contracten | Sonnet | open |
 | 3C | Browser: inbox/beoordelen, acties, facturatie, instellingen | Sonnet | open |
@@ -53,14 +53,16 @@ node docs/qa/harness/rooktest.cjs http://localhost:<poort> [map-voor-screenshots
 
 ## Bevindingen
 
+In orde bevonden door 2C: alle 45 server actions roepen `requireUser()` aan vóór lezen/schrijven; de vier route handlers zijn beveiligd (ook `/api/files/[id]`); gewone gebruiker kan zichzelf geen admin maken; dev-bypass en cron zonder secret staan op Vercel dicht; SQL geparametriseerd; geen geheimen in repo of client-bundel.
+
 Status: `gevonden` → `bevestigd` → `gefixt` → `hertest`, of `voorgelegd` / `geen probleem`.
 Ernst: blokkerend / hoog / middel / laag / smaak.
 
 | ID | Ernst | Gebied | Bevinding | Bron | Status | Commit |
 |---|---|---|---|---|---|---|
-| B-001 | middel | Klanttevredenheid | Excel-upload staat 10 MB toe, maar server actions zijn begrensd op 4 MB (`next.config.ts`): een bestand tussen 4 en 10 MB faalt zonder nette melding. | orchestrator | gevonden | |
+| B-001 | middel | Klanttevredenheid | Excel-upload staat 10 MB toe, maar server actions zijn begrensd op 4 MB (`next.config.ts`): een bestand tussen 4 en 10 MB faalt zonder nette melding. | orchestrator, 2C-7 | gevonden | |
 | B-002 | laag | Testomgeving | Vanuit Node komt de app alleen bij CBS/Forms met `NODE_USE_ENV_PROXY=1`; geldt alleen voor deze testomgeving, niet voor Vercel. | orchestrator | geen probleem | |
-| B-003 | blokkerend | Klanttevredenheid | Antwoord op het jaarlijkse formulier wordt alleen op het onderwerp herkend, en dat is voor alle klanten gelijk: een antwoord van klant B wordt bij klant A verwerkt (verkeerde ontvanger, vinkje jaarlijks verhuist). | 1A-1, 1B-1, aangetoond (geldt ook voor twee uitnodigingen met hetzelfde medewerkeronderwerp) | gevonden | |
+| B-003 | blokkerend | Klanttevredenheid | Antwoord op het jaarlijkse formulier wordt alleen op het onderwerp herkend, en dat is voor alle klanten gelijk: een antwoord van klant B wordt bij klant A verwerkt (verkeerde ontvanger, vinkje jaarlijks verhuist). | 1A-1, 1B-1, 2C-3, aangetoond (geldt ook voor twee uitnodigingen met hetzelfde medewerkeronderwerp) | gevonden | |
 | B-004 | hoog | Klanttevredenheid | Jaarlijkse datum wordt niet echt gevalideerd ("02-29", "13-40"): met 02-29 faalt de hele planning ~37 dagen per jaar, ook voor medewerkerformulieren. | 1A-2, 1B-16, aangetoond | gevonden | |
 | B-005 | hoog | Klanttevredenheid | Faalt het verwerken van een formulierreactie halverwege, dan is de reactie daarna "al ingelezen" en blijft hij voorgoed los van uitnodiging, klant en medewerker. | 1A-3, aangetoond | gevonden | |
 | B-006 | hoog | Klanttevredenheid | Wordt de startdatum van een inzet gecorrigeerd, dan ontstaat een tweede open uitnodiging voor dezelfde inzet. | 1A-4, 1B-8, aangetoond | gevonden | |
@@ -115,6 +117,13 @@ Ernst: blokkerend / hoog / middel / laag / smaak.
 | B-055 | laag | Indexatie | Kwartaal uit vrije tekst mist "Q 1", "4e kw", "jan." (valt stil terug op Q2); "CAO K1" geeft ten onrechte Q1. | 2A-18, aangetoond | gevonden | |
 | B-056 | laag | Datums | Weeklabel "week 53" wordt geaccepteerd in een jaar zonder week 53. | 2A-19, aangetoond | gevonden | |
 | B-057 | laag | Indexatie | CBS-jaarmutatie van precies 0,0 % geldt bij een storing als "geen cijfer". | 2A-20, beredeneerd | gevonden | |
+| B-058 | blokkerend | Veiligheid | Bijlage met naam `*.pdf` wordt opgeslagen met het type dat de afzender opgeeft en inline geserveerd zonder `nosniff`/CSP: een externe mail met een HTML-bestand als "pdf" voert script uit op het app-domein zodra een medewerker hem opent. | 2C-1, aangetoond | gevonden | |
+| B-059 | hoog | Veiligheid / Klanttevredenheid | Geen controle op de afzender: iemand van buiten kan met een mail "Forms-reactie" nepscores injecteren en een uitnodiging afsluiten, met "wij doen niet mee" een uitnodiging laten overslaan, of de ontvanger/vaste projectleider omleiden naar een eigen adres. Wordt zonder menselijke tussenkomst toegepast. Hangt samen met B-003, B-024. | 2C-2, aangetoond | gevonden | |
+| B-060 | hoog | Veiligheid | `next` 16.3.4 heeft openbare advisories (o.a. DoS via server actions zonder login, `/_next/image`); upgrade naar ≥ 16.4.1. | 2C-4, `pnpm audit` | gevonden | |
+| B-061 | middel | Toegang | Toegang intrekken werkt niet: `users.actief` wordt nergens gecontroleerd en ALLOWED_EMAILS alleen bij inloggen; een sessie blijft 30 dagen rollend geldig. | 2C-5 | gevonden | |
+| B-062 | middel | Toegang | Instellingen zijn niet admin-only en worden niet gelogd: elke gebruiker kan de ontvangers van het maandoverzicht (alle tarieven) op een extern adres zetten en het direct versturen; idem standaard-cc en Forms-link (regex laat elk domein en `javascript:` door). | 2C-6, deels aangetoond | gevonden | |
+| B-063 | laag | Veiligheid | Open redirect na login via `callbackUrl`; tenantcheck faalt open als de instelling/claim ontbreekt; SQL-tekst in foutmeldingen aan de gebruiker; geen beveiligingsheaders; audit-log mist rol-/mailbox-/instellingwijzigingen en verwijderingen. | 2C-7 | gevonden | |
+| B-064 | laag | Afhankelijkheden | `postal-mime` 3.0.0 (CPU-DoS met .eml van buiten) en `xlsx` 0.18.5 (alleen via upload door een ingelogde medewerker). | 2C-7 | gevonden | |
 
 ## Besluiten van Justin
 
