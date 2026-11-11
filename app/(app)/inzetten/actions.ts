@@ -49,7 +49,8 @@ const InzetUpdateSchema = z.object({
   leidinggevende: optionalText,
   contractnummerTekst: optionalText,
   notities: optionalText,
-  startdatumVoorlopig: z.union([z.literal("on"), z.undefined()]).transform((v) => v === "on"),
+  // Een niet-aangevinkt vakje ontbreekt in de formulierdata: het veld moet dus optioneel zijn.
+  startdatumVoorlopig: z.literal("on").optional().transform((v) => v === "on"),
   tariefOpslag: z
     .string()
     .trim()
