@@ -12,7 +12,7 @@ Voortgangsindex. **Hervatten:** lees dit bestand en ga verder bij het eerste ond
 |---|---|---|---|
 | 0 | Branch vanaf main, nulmeting, harness, rooktest | orchestrator | klaar |
 | 0b | Facturatie vereenvoudigen (afvinken, urenbon-actie weg) | orchestrator | klaar |
-| 1A | Module klanttevredenheid: data-integriteit, migraties | Opus | open |
+| 1A | Module klanttevredenheid: data-integriteit, migraties | Opus | klaar (rapport: `rapporten/1A.md`) |
 | 1B | Module klanttevredenheid: logica en randgevallen | Opus | open |
 | 2A | Regels, acties, indexatie, herinneringen | Opus | open |
 | 2B | Intake, review, contracten, facturatie, Excel-import | Opus | open |
@@ -60,6 +60,27 @@ Ernst: blokkerend / hoog / middel / laag / smaak.
 |---|---|---|---|---|---|---|
 | B-001 | middel | Klanttevredenheid | Excel-upload staat 10 MB toe, maar server actions zijn begrensd op 4 MB (`next.config.ts`): een bestand tussen 4 en 10 MB faalt zonder nette melding. | orchestrator | gevonden | |
 | B-002 | laag | Testomgeving | Vanuit Node komt de app alleen bij CBS/Forms met `NODE_USE_ENV_PROXY=1`; geldt alleen voor deze testomgeving, niet voor Vercel. | orchestrator | geen probleem | |
+| B-003 | hoog | Klanttevredenheid | Antwoord op het jaarlijkse formulier wordt alleen op het onderwerp herkend, en dat is voor alle klanten gelijk: een antwoord van klant B wordt bij klant A verwerkt (verkeerde ontvanger, vinkje jaarlijks verhuist). | 1A-1, aangetoond | gevonden | |
+| B-004 | hoog | Klanttevredenheid | Jaarlijkse datum wordt niet echt gevalideerd ("02-29", "13-40"): met 02-29 faalt de hele planning ~37 dagen per jaar, ook voor medewerkerformulieren. | 1A-2, aangetoond | gevonden | |
+| B-005 | hoog | Klanttevredenheid | Faalt het verwerken van een formulierreactie halverwege, dan is de reactie daarna "al ingelezen" en blijft hij voorgoed los van uitnodiging, klant en medewerker. | 1A-3, aangetoond | gevonden | |
+| B-006 | hoog | Klanttevredenheid | Wordt de startdatum van een inzet gecorrigeerd, dan ontstaat een tweede open uitnodiging voor dezelfde inzet. | 1A-4, aangetoond | gevonden | |
+| B-007 | hoog | Klanttevredenheid | Doorverwijzing "mail Jan Peters, jan.peters@…" komt uit bij bestaand contact "Jan de Vries" (naam-match op één woord); het opgegeven adres gaat verloren. | 1A-5, aangetoond | gevonden | |
+| B-008 | middel | Klanttevredenheid | Uitnodiging zonder actie (en actie zonder uitnodiging) als de twee inserts niet samen slagen; geen concept mogelijk, nooit "geen reactie". | 1A-6, aangetoond | gevonden | |
+| B-009 | middel | Klanttevredenheid | Status van actie en uitnodiging lopen uiteen: actie handmatig afgerond laat de uitnodiging open; heropenen + versturen na een ingevuld formulier maakt er "geen reactie" van. | 1A-7, aangetoond | gevonden | |
+| B-010 | middel | Klanttevredenheid | Na een doorverwijzing zonder e-mailadres telt de eerste mail aan de nieuwe persoon als herinnering → te vroeg "geen reactie". | 1A-8, aangetoond | gevonden | |
+| B-011 | middel | Klanttevredenheid | Inzet verhuist naar een andere klant: uitnodiging, actie en projectleider blijven bij de oude klant; reactie en nieuw contact komen bij de oude klant. | 1A-9, aangetoond | gevonden | |
+| B-012 | middel | Klanttevredenheid | Excel-import van oude reacties zonder uitnodiging "leert" ervan: maakt contacten aan en kan de vaste ontvanger / het vinkje jaarlijks overschrijven. | 1A-10, beredeneerd | gevonden | |
+| B-013 | middel | Klanttevredenheid | Antwoord op de interne vraag "wie is je projectleider" landt bij de inzet van een collega op hetzelfde project (zelfde onderwerp). | 1A-11, aangetoond | gevonden | |
+| B-014 | middel | Klanttevredenheid | Na "Als concept in mijn Outlook" kan nergens worden vastgelegd dat de mail verstuurd is: uitnodiging blijft "klaar", geen opvolging. | 1A-12, beredeneerd | gevonden | |
+| B-015 | laag | Klanttevredenheid | Alleen een voornaam in het formulier kan aan de uitnodiging van een naamgenoot koppelen als de organisatie niet herkend wordt. | 1A-13 | gevonden | |
+| B-016 | laag | Klanttevredenheid | Scores niet begrensd (aanbeveling buiten 0–10, sterren > 5); een uitschieter laat de Excel-import halverwege stoppen. | 1A-14 | gevonden | |
+| B-017 | laag | Klanttevredenheid | Opnieuw verwerken van een half toegepast antwoord: mail valt door naar de contractverwerking; notitie/logboek dubbel. | 1A-15 | gevonden | |
+| B-018 | laag | Klanttevredenheid | Ontvanger wordt alleen bij het klaarzetten bepaald; een later aangevinkt contact of gekozen projectleider wordt niet opgepakt in het concept. | 1A-16 | gevonden | |
+| B-019 | laag | Klanttevredenheid | "Als concept in mijn Outlook" legt de ontvanger al vast als projectleider terwijl er nog niets verstuurd is. | 1A-17 | gevonden | |
+| B-020 | laag | Klanttevredenheid | Dezelfde reactie kan dubbel binnenkomen (flow-mail zonder antwoord-ID naast Excel-import). | 1A-18 | gevonden | |
+| B-021 | laag | Klanttevredenheid | Tijden uit de Excel-export worden als UTC gelezen (1–2 uur verschil). | 1A-19 | gevonden | |
+| B-022 | laag | Migratie 0011 | Nancy-update mist "Hage, Nancy" en klanten die alleen via een alias "Hattum en Blankevoort" heten; `ADD VALUE` zonder `IF NOT EXISTS`. Migratie zelf slaagt op leeg en als upgrade; `drizzle-kit check` in orde. | 1A-20, aangetoond | gevonden | |
+| B-023 | laag | Klanttevredenheid | Koppelen kijkt naar maximaal 500 uitnodigingen per soort. | 1A-21 | gevonden | |
 
 ## Besluiten van Justin
 
