@@ -22,7 +22,7 @@ function inzet(over: Partial<RegelInzet> = {}): RegelInzet {
   };
 }
 
-const base = { settings: DEFAULT_SETTINGS, periodes: [] };
+const base = { settings: DEFAULT_SETTINGS };
 
 describe("regels-engine", () => {
   it("vraagt verlenging uit binnen de termijn, met opzegtermijn verrekend", () => {
@@ -85,18 +85,6 @@ describe("regels-engine", () => {
   it("vraagt een contract op als een gestarte inzet geen contract heeft", () => {
     const out = evalueerRegels({ ...base, today: "2026-04-01", inzetten: [inzet({ contractId: null, contract: null, contractnummerTekst: null })] });
     expect(out.find((a) => a.soort === "contract_opvragen")?.dedupeKey).toBe("contract_opvragen:i1:2026");
-  });
-
-  it("vraagt urenbonnen op na afloop van een periode", () => {
-    const out = evalueerRegels({
-      ...base,
-      today: "2026-02-02",
-      inzetten: [],
-      periodes: [{ id: "p1", jaar: 2026, nummer: 1, einddatum: "2026-01-28", ontbrekendeUrenbonnen: [{ inzetId: "i1", medewerkerNaam: "X", klantNaam: "Y" }] }],
-    });
-    expect(out.find((a) => a.soort === "urenbon_opvragen")?.dedupeKey).toBe("urenbon_opvragen:p1");
-    const tooEarly = evalueerRegels({ ...base, today: "2026-01-29", inzetten: [], periodes: [{ id: "p1", jaar: 2026, nummer: 1, einddatum: "2026-01-28", ontbrekendeUrenbonnen: [{ inzetId: "i1", medewerkerNaam: "X", klantNaam: "Y" }] }] });
-    expect(tooEarly).toHaveLength(0);
   });
 
   it("negeert beëindigde inzetten", () => {

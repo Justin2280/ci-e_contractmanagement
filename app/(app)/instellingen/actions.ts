@@ -26,7 +26,6 @@ export async function updateRegels(_prev: ActionState, formData: FormData): Prom
     opvolgenNaDagen: Number(raw.opvolgenNaDagen),
     indexatieVoorstelNaMaanden: Number(raw.indexatieVoorstelNaMaanden),
     contractOpvragenDagenNaStart: Number(raw.contractOpvragenDagenNaStart),
-    urenbonDagenNaPeriode: Number(raw.urenbonDagenNaPeriode),
     einddatumControleKwartaal: raw.einddatumControleKwartaal === "on",
     reminderWeekdag: Number(raw.reminderWeekdag),
     eindeBeoordelenDagenNa: Number(raw.eindeBeoordelenDagenNa),

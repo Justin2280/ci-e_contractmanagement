@@ -4,7 +4,7 @@ import { acties, inzetten } from "@/lib/db/schema";
 import { getSettings } from "@/lib/settings";
 import { todayIso, toIsoDate } from "@/lib/format";
 import { LOPENDE_STATUSSEN } from "@/lib/queries/inzetten";
-import { ensurePeriodesEnRegels, periodesMetOntbrekendeUrenbonnen } from "@/lib/facturatie/periodes";
+import { ensurePeriodesEnRegels } from "@/lib/facturatie/periodes";
 import { evalueerRegels, type RegelInzet } from "./engine";
 import { effectiveContract } from "@/lib/contracts/effective";
 import { activeerGeplandeTarieven, tariefStanden } from "@/lib/inzetten/tarieven";
@@ -68,7 +68,6 @@ async function bepaalVoorstellen(today: string) {
       : null,
   }));
 
-  const periodes = await periodesMetOntbrekendeUrenbonnen(today);
   // CBS-cijfer (reeks 7112) van het 2e kwartaal; gecachet, zodat de omschrijvingen een percentage kunnen noemen.
   const cbsCijfer = await cbsIndexcijfer(Number(today.slice(0, 4)), 2, { today });
   const cbsTxt = cbsTekst(cbsCijfer);
@@ -80,7 +79,7 @@ async function bepaalVoorstellen(today: string) {
     const t = cbsTekst(c);
     cbsPerKwartaal[k] = t && cbsPercentage(c) !== null ? { tekst: t, percentage: cbsPercentage(c)! } : null;
   }
-  const voorstellen = evalueerRegels({ today, inzetten: regelInzetten, periodes, settings, cbs, cbsPerKwartaal });
+  const voorstellen = evalueerRegels({ today, inzetten: regelInzetten, settings, cbs, cbsPerKwartaal });
   return { voorstellen, standen };
 }
 
@@ -169,9 +168,17 @@ export async function runDailyRules(opts: { today?: string } = {}) {
     aangemaakt += inserted.length;
   }
 
+  // "Urenbon opvragen" bestaat niet meer als automatische actie (afvinken gebeurt op de facturatiepagina):
+  // wat er nog openstaat, wordt gesloten.
+  const oudeUrenbonActies = await db
+    .update(acties)
+    .set({ status: "genegeerd", afgerondOp: new Date() })
+    .where(and(eq(acties.soort, "urenbon_opvragen"), inArray(acties.status, ["open", "conceptmail_klaar", "verstuurd"])))
+    .returning({ id: acties.id });
+
   // Indexatie-acties van een vorig jaar (aanvraag of correctie) zijn na 1 maart van het jaar erna historie:
   // ze ontstaan bv. uit het verwerken van een oude bon en horen geen mail meer op te leveren.
-  let gesloten = 0;
+  let gesloten = oudeUrenbonActies.length;
   const jaarNu = Number(today.slice(0, 4));
   const oudeIndexaties = await db.query.acties.findMany({
     where: and(inArray(acties.soort, ["indexatie_aanvragen", "indexatie_verwerken"]), inArray(acties.status, ["open", "conceptmail_klaar", "verstuurd"])),

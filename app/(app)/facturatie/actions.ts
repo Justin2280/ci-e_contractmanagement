@@ -10,43 +10,43 @@ import { ensurePeriodesEnRegels, vulRegelsVoorGestartePeriodes } from "@/lib/fac
 import { todayIso } from "@/lib/format";
 import type { ActionState } from "../inzetten/actions";
 
-const num = z
-  .string()
-  .trim()
-  .transform((v) => (v === "" ? null : Number(v.replace(",", "."))))
-  .refine((v) => v === null || Number.isFinite(v), "Ongeldig getal");
-
-const RegelSchema = z.object({
+const VinkSchema = z.object({
   id: z.string().uuid(),
-  periodeId: z.string().uuid(),
-  urenbonOntvangen: z.string().optional(),
-  urenBon: num,
-  urenExcel: num,
-  waar: z.string().trim(),
-  ontvangstbonNodig: z.string().optional(),
-  gefactureerd: z.string().optional(),
-  opmerking: z.string().trim(),
+  veld: z.enum(["urenbonOntvangen", "gefactureerd"]),
+  waarde: z.boolean(),
 });
 
-export async function saveRegel(formData: FormData) {
+/** Eén vinkje (urenbon ontvangen of gefactureerd) direct opslaan. */
+export async function zetVinkje(input: { id: string; veld: "urenbonOntvangen" | "gefactureerd"; waarde: boolean }): Promise<ActionState> {
   await requireUser();
-  const parsed = RegelSchema.safeParse(Object.fromEntries(formData.entries()));
-  if (!parsed.success) return;
-  const d = parsed.data;
-  await db
+  const parsed = VinkSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, message: "Ongeldige invoer" };
+  const { id, veld, waarde } = parsed.data;
+  const [rij] = await db
     .update(facturatieRegels)
-    .set({
-      urenbonOntvangen: d.urenbonOntvangen === "on",
-      urenBon: d.urenBon === null ? null : d.urenBon.toFixed(2),
-      urenExcel: d.urenExcel === null ? null : d.urenExcel.toFixed(2),
-      waar: d.waar || null,
-      ontvangstbonNodig: d.ontvangstbonNodig === "on",
-      gefactureerd: d.gefactureerd === "on",
-      opmerking: d.opmerking || null,
-    })
-    .where(eq(facturatieRegels.id, d.id));
-  revalidatePath(`/facturatie/${d.periodeId}`);
+    .set({ [veld]: waarde })
+    .where(eq(facturatieRegels.id, id))
+    .returning({ periodeId: facturatieRegels.periodeId });
+  if (!rij) return { ok: false, message: "Regel niet gevonden" };
+  revalidatePath(`/facturatie/${rij.periodeId}`);
   revalidatePath("/facturatie");
+  return { ok: true };
+}
+
+const OpmerkingSchema = z.object({ id: z.string().uuid(), opmerking: z.string().trim().max(500) });
+
+export async function zetOpmerking(input: { id: string; opmerking: string }): Promise<ActionState> {
+  await requireUser();
+  const parsed = OpmerkingSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, message: "Opmerking is te lang (max. 500 tekens)" };
+  const [rij] = await db
+    .update(facturatieRegels)
+    .set({ opmerking: parsed.data.opmerking || null })
+    .where(eq(facturatieRegels.id, parsed.data.id))
+    .returning({ periodeId: facturatieRegels.periodeId });
+  if (!rij) return { ok: false, message: "Regel niet gevonden" };
+  revalidatePath(`/facturatie/${rij.periodeId}`);
+  return { ok: true };
 }
 
 export async function togglePeriode(formData: FormData) {
