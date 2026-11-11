@@ -14,7 +14,7 @@ Voortgangsindex. **Hervatten:** lees dit bestand en ga verder bij het eerste ond
 | 0b | Facturatie vereenvoudigen (afvinken, urenbon-actie weg) | orchestrator | klaar |
 | 1A | Module klanttevredenheid: data-integriteit, migraties | Opus | klaar (rapport: `rapporten/1A.md`) |
 | 1B | Module klanttevredenheid: logica en randgevallen | Opus | klaar (rapport: `rapporten/1B.md`) |
-| 2A | Regels, acties, indexatie, herinneringen | Opus | open |
+| 2A | Regels, acties, indexatie, herinneringen | Opus | klaar (rapport: `rapporten/2A.md`) |
 | 2B | Intake, review, contracten, facturatie, Excel-import | Opus | open |
 | 2C | Toegang en veiligheid (server actions, API-routes, uploads) | Opus | open |
 | 3A | Browser: klanttevredenheid van begin tot eind | Sonnet | open |
@@ -96,6 +96,25 @@ Ernst: blokkerend / hoog / middel / laag / smaak.
 | B-036 | laag | Klanttevredenheid | Randgevallen in de planning (zie rapport 1B-22). | 1B-22 | gevonden | |
 | B-037 | laag | Klanttevredenheid | Excel-tijden als tekst of serieel getal worden niet gelezen. | 1B-23 | gevonden | |
 | B-038 | laag | Klanttevredenheid | Flow-mail met "RE: FW:", "Antw:" of "Doorst:" voor het onderwerp wordt niet herkend. | 1B-24 | gevonden | |
+| B-039 | blokkerend | Regels | Eén ongeldige "MM-DD" (indexatiemoment van een contract of in de instellingen; ook dag-maand i.p.v. maand-dag, "02-30") laat de hele dagelijkse run crashen: geen acties, geen opruiming, voor iedereen. "01-07" wordt stil 7 januari. Hangt samen met B-004. | 2A-1, aangetoond | gevonden | |
+| B-040 | hoog | Acties | Einde-besluit met mail (verlengen of beëindigen): de mail-actie wordt bij de volgende dagelijkse run afgerond/genegeerd voordat de mail verstuurd is. | 2A-2, aangetoond | gevonden | |
+| B-041 | hoog | Indexatie | Achteraf-indexatie bij een raamcontract met meerdere nadere overeenkomsten hangt af van de volgorde van de inzetten: staat een NOVK van dit jaar vooraan, dan komt er voor niemand een aanvraag. | 2A-3, aangetoond | gevonden | |
+| B-042 | hoog | Indexatie | Indexatie twee keer verwerken stapelt het percentage (100 → 104,60 → 109,41) met dubbele historieregels. | 2A-4, aangetoond | gevonden | |
+| B-043 | hoog | Indexatie | De correctie-actie noemt andere weken dan het verzoek aan de klant (week 46/47 tegenover week 44, laatst afgesloten periode). | 2A-5, aangetoond | gevonden | |
+| B-044 | hoog | Acties | Een verstuurde verlengingsactie blijft na het besluit voorgoed in "wacht" en in de wekelijkse mail. | 2A-6, aangetoond | gevonden | |
+| B-045 | middel | Regels | Opzegtermijn langer dan de voorlooptijd voor verlenging: actie verschijnt te laat, met een uiterste datum in het verleden. | 2A-7, aangetoond | gevonden | |
+| B-046 | middel | Regels | Dubbele "Tariefverhoging voorstellen" rond de jaarwisseling (sleutel met jaartal). | 2A-8, aangetoond | gevonden | |
+| B-047 | middel | Regels | "Einddatum controleren" (elk kwartaal) en "Contract opvragen" (elk jaar) stapelen: nieuwe actie terwijl de vorige nog openstaat; genegeerde komt op 1 januari terug. | 2A-9, aangetoond | gevonden | |
+| B-048 | middel | Herinneringen | Acties van een inactieve gebruiker of placeholder-gebruiker komen in geen enkele wekelijkse mail. | 2A-10, beredeneerd | gevonden | |
+| B-049 | middel | Herinneringen | Eén mislukte mail stopt de wekelijkse mail voor alle volgende gebruikers; een gemiste dag (digest/maandoverzicht) wordt niet ingehaald. | 2A-11, beredeneerd | gevonden | |
+| B-050 | middel | Conceptmail | Versturen controleert niet of de mail nog een concept is: dubbelklik verstuurt twee keer. (Outlook-concept zonder "verstuurd": zie B-014.) | 2A-12, beredeneerd | gevonden | |
+| B-051 | middel | Conceptmail | Indexatie vooraf, aangevraagd ná het indexatiemoment: CBS-cijfer van het verkeerde jaar wordt opgehaald, mail gaat zonder percentage. | 2A-13, beredeneerd | gevonden | |
+| B-052 | laag | Datums | Datums rekenen in servertijd (UTC): tussen 00:00 en 01:00/02:00 NL-tijd is "vandaag" nog gisteren; `periodeVoorDatum` op 1 januari onder NL-tijdzone. | 2A-14, 2A-16, aangetoond | gevonden | |
+| B-053 | laag | Indexatie | Verzoek in de laatste week van periode 13 noemt "vanaf periode 14 (week 53)". | 2A-15, aangetoond | gevonden | |
+| B-054 | laag | Indexatie | Achteraf: na gedeeltelijke verwerking komt de rest niet terug; bewust "afgerond" zonder verwerking wordt tot 1 maart dagelijks heropend. | 2A-17, beredeneerd | gevonden | |
+| B-055 | laag | Indexatie | Kwartaal uit vrije tekst mist "Q 1", "4e kw", "jan." (valt stil terug op Q2); "CAO K1" geeft ten onrechte Q1. | 2A-18, aangetoond | gevonden | |
+| B-056 | laag | Datums | Weeklabel "week 53" wordt geaccepteerd in een jaar zonder week 53. | 2A-19, aangetoond | gevonden | |
+| B-057 | laag | Indexatie | CBS-jaarmutatie van precies 0,0 % geldt bij een storing als "geen cijfer". | 2A-20, beredeneerd | gevonden | |
 
 ## Besluiten van Justin
 
