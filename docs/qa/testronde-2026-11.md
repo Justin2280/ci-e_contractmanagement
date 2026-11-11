@@ -15,7 +15,7 @@ Voortgangsindex. **Hervatten:** lees dit bestand en ga verder bij het eerste ond
 | 1A | Module klanttevredenheid: data-integriteit, migraties | Opus | klaar (rapport: `rapporten/1A.md`) |
 | 1B | Module klanttevredenheid: logica en randgevallen | Opus | klaar (rapport: `rapporten/1B.md`) |
 | 2A | Regels, acties, indexatie, herinneringen | Opus | klaar (rapport: `rapporten/2A.md`) |
-| 2B | Intake, review, contracten, facturatie, Excel-import | Opus | open |
+| 2B | Intake, review, contracten, facturatie, Excel-import | Opus | klaar (rapport: `rapporten/2B.md`) |
 | 2C | Toegang en veiligheid (server actions, API-routes, uploads) | Opus | klaar (rapport: `rapporten/2C.md`) |
 | 3A | Browser: klanttevredenheid van begin tot eind | Sonnet | open |
 | 3B | Browser: dashboard, inzetten, medewerkers, klanten, contracten | Sonnet | open |
@@ -124,6 +124,27 @@ Ernst: blokkerend / hoog / middel / laag / smaak.
 | B-062 | middel | Toegang | Instellingen zijn niet admin-only en worden niet gelogd: elke gebruiker kan de ontvangers van het maandoverzicht (alle tarieven) op een extern adres zetten en het direct versturen; idem standaard-cc en Forms-link (regex laat elk domein en `javascript:` door). | 2C-6, deels aangetoond | gevonden | |
 | B-063 | laag | Veiligheid | Open redirect na login via `callbackUrl`; tenantcheck faalt open als de instelling/claim ontbreekt; SQL-tekst in foutmeldingen aan de gebruiker; geen beveiligingsheaders; audit-log mist rol-/mailbox-/instellingwijzigingen en verwijderingen. | 2C-7 | gevonden | |
 | B-064 | laag | Afhankelijkheden | `postal-mime` 3.0.0 (CPU-DoS met .eml van buiten) en `xlsx` 0.18.5 (alleen via upload door een ingelogde medewerker). | 2C-7 | gevonden | |
+| B-065 | blokkerend | Beoordelen | Alleen dezelfde achternaam is genoeg om een medewerker automatisch te kiezen: een contract voor "Walter Terpstra" overschreef de inzet van Karin Terpstra (functie, tarief, data); geen score of waarschuwing in beeld. Ook bij planning en indexatie. | 2B-1, aangetoond | gevonden | |
+| B-066 | blokkerend | Beoordelen | Dubbel goedkeuren is mogelijk (geen controle of de mail al verwerkt is; "opnieuw verwerken" zet ook een verwerkte mail terug): 2 contracten, 2 inzetten, dubbele tariefregels. | 2B-2, aangetoond | gevonden | |
+| B-067 | hoog | Intake | Een mislukte bijlage-download breekt de sync af; die mail en de al ingelezen mails van dezelfde run blijven voorgoed op "nieuw" en worden nooit verwerkt. | 2B-3, aangetoond | gevonden | |
+| B-068 | hoog | Beoordelen | Goedkeuren op een bestaand contract overschrijft te veel: nummer wordt alias (oude nummer onvindbaar), status beëindigd → actief, tarievenbrief overschrijft startdatum/titel/samenvatting, indexatiemoment en termijnen overschreven; de beoordelaar ziet de huidige waarden niet. | 2B-4, aangetoond | gevonden | |
+| B-069 | hoog | Tarieven | Een tarief dat pas later ingaat (tarievenbrief 2027 in november 2026) wordt meteen het huidige tarief; een late brief of oude bon zet een nieuwer tarief terug. | 2B-5, aangetoond | gevonden | |
+| B-070 | hoog | Medewerkers | Naamgenoten vallen samen: "Jan de Vries" en "Johan de Vries" (en "J. van den Berg"/"Jan van der Berg") krijgen dezelfde genormaliseerde naam met unieke index; "Nieuwe medewerker" kiezen koppelt toch aan de bestaande. Zelfde oorzaak als B-007. | 2B-6, aangetoond | gevonden | |
+| B-071 | hoog | Excel-import | Opnieuw importeren overschrijft tarief, status, einddatum en notities zonder historie, maakt een dubbele inzet na een gecorrigeerde startdatum en wist de opmerking op facturatieregels. | 2B-7, aangetoond | gevonden | |
+| B-072 | middel | Facturatie | Geen facturatieregels voor een inzet die vooruit op "beëindigd" is gezet terwijl de einddatum nog weken later ligt. | 2B-8, aangetoond | gevonden | |
+| B-073 | middel | Facturatie | Inzet zonder startdatum krijgt regels in alle open periodes, ook van vorig jaar; regels buiten een gecorrigeerde looptijd blijven staan. | 2B-9, aangetoond | gevonden | |
+| B-074 | middel | Intake | "Opnieuw verwerken" gooit de tekst van eerder uitgepakte ingesloten berichten weg. | 2B-10, aangetoond | gevonden | |
+| B-075 | middel | Intake | Een ongeldig geworden delta-link (Graph 410) blijft opgeslagen: de dagelijkse sync faalt daarna elke keer. | 2B-11, aangetoond | gevonden | |
+| B-076 | middel | Intake | .docx-contracten komen nooit bij het LLM; grote PDF's overschrijden de limiet of worden stil overgeslagen. | 2B-12, beredeneerd | gevonden | |
+| B-077 | middel | Beoordelen | Goedkeuren maakt een dubbel project aan bij een net andere projectnaam en haalt de inzet van het bestaande project af. | 2B-13, aangetoond | gevonden | |
+| B-078 | middel | Indexatie | Indexatiebon over meerdere contracten wordt niet in één keer toegepast (half toegepast bij een fout). | 2B-14, beredeneerd | gevonden | |
+| B-079 | middel | Beoordelen | Klant herkennen op één gedeeld woord, een afkorting ("Brouwer Aannemers Maastricht" → BAM) of ondanks een andere KvK; alias staat vooringevuld. Zelfde oorzaak als B-026. | 2B-15, aangetoond | gevonden | |
+| B-080 | middel | Contracten | Goedkeuren verplaatst een contract naar een andere klant zonder de inzetten; bij verhuizen blijven contactpersonen van de oude klant gekoppeld. Hangt samen met B-011. | 2B-16, beredeneerd | gevonden | |
+| B-081 | laag | Validatie | Einddatum vóór startdatum, negatief tarief en ongeldige e-mail worden geaccepteerd; contact bijwerken doet bij ongeldige invoer stil niets; klant hernoemen naar een bestaande naam crasht. | 2B-17, deels aangetoond | gevonden | |
+| B-082 | laag | Facturatie | "Periodes aanvullen" meldt altijd "0 regel(s) toegevoegd". | 2B-18, aangetoond | gevonden | |
+| B-083 | laag | Medewerkers | Uit dienst zetten zet de einddatum van álle lopende inzetten op de uitdienstdatum, ook als die eerder lag of de inzet nog moet starten. | 2B-19, beredeneerd | gevonden | |
+| B-084 | laag | Excel-import | "31-02-2026" draait de hele import terug; "€ 1.234,50" en "95,-" worden stil leeg. | 2B-20, aangetoond | gevonden | |
+| B-085 | laag | Intake | Ontdubbelen laat twee al goedgekeurde dubbele mails staan. | 2B-21, beredeneerd | gevonden | |
 
 ## Besluiten van Justin
 
