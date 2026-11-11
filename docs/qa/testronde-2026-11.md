@@ -20,7 +20,7 @@ Voortgangsindex. **Hervatten:** lees dit bestand en ga verder bij het eerste ond
 | 3A | Browser: klanttevredenheid van begin tot eind | Sonnet | klaar (rapport: `rapporten/3A.md`) |
 | 3B | Browser: dashboard, inzetten, medewerkers, klanten, contracten | Sonnet | klaar (rapport: `rapporten/3B.md`) |
 | 3C | Browser: inbox/beoordelen, acties, facturatie, instellingen | Sonnet | open |
-| 3D | Eenvoud en helderheid van de hele UI (dubbelingen, één bron van waarheid, één weg per taak) | Opus | open |
+| 3D | Eenvoud en helderheid van de hele UI (dubbelingen, één bron van waarheid, één weg per taak) | Opus | klaar (rapport: `rapporten/3D.md`) |
 | 4A | Fixes klanttevredenheid (branch `qa-fix/tevredenheid`): B-003 t/m B-038, B-059, B-088, B-090, B-092, B-094 | Opus | bezig |
 | 4B | Fixes toegang en veiligheid (branch `qa-fix/veiligheid`): B-001, B-058, B-060 t/m B-064 | Opus | bezig |
 | 4C | Fixes regels, indexatie, datums (B-039 t/m B-057, B-103) | Opus | open |
@@ -175,6 +175,57 @@ Ernst: blokkerend / hoog / middel / laag / smaak.
 | B-108 | smaak | Dashboard / lijsten | Tegels leiden niet naar de lijst achter het getal; geen filter "loopt af binnen N dagen"; contractenlijst zonder zoeken/filter/sorteren; geen kruimelpad of terug-link. | 3B-10, 3B-28, 3B-35 | gevonden | |
 | B-109 | smaak | Inzetten | Inzetformulier heeft ~20 velden, met overlap (contactpersoon / projectleider / leidinggevende; contractnummer-tekst naast gekoppeld contract) en weinig gebruikte velden; einde-besluit staat op twee plekken, zonder bevestiging na vastleggen; zeven indexatievelden op het contract zonder uitleg. → meenemen in 3D. | 3B-14, 3B-15, 3B-30, 3B-33, 3B-34 | gevonden | |
 | B-110 | laag | Hele app | Tarief wordt daarna met punt getoond ("95.50"); "1.000,50" geweigerd met alleen "Ongeldig tarief"; afgekapte placeholders en knop buiten de kaart bij contact toevoegen; consolewaarschuwing van het formuliercomponent; geen skip-link; intro verwijst naar het oude Excel-tabblad. | 3B-12, 3B-24, 3B-40, 3B-41, 3B-42 | gevonden | |
+
+## Voorstellen uit 3D (eenvoud en helderheid)
+
+Volledige uitwerking per voorstel (nu / voorstel / winst / ingreep / risico) in `rapporten/3D.md`. Status: `open` → `gedaan` / `voorgelegd` → `akkoord` of `niet doen`.
+
+**Zonder overleg (alleen woorden/weergave, er verdwijnt niets) → onderdeel 4E**
+
+| ID | Voorstel | Status |
+|---|---|---|
+| D5 | Dashboard: tegels die doorklikken naar Inbox en Acties i.p.v. kopielijsten (lost ook de verkeerde tellers op, B-098) | open |
+| D7 | Forms-instellingen op één plek | open |
+| D9 | Contactpersoon bewerken zichtbaar maken (potlood/knop), met terugkoppeling | open |
+| D10 | Kleine herhalingen op detailpagina's weg | open |
+| R10 | Op een verwerkte mail tonen wat eruit voortkwam, met links | open |
+| M2 | Contractformulier: ~10 velden in beeld, indexatie en voorwaarden in uitklapblokken | open |
+| M4a/b | Inbox-beoordelen: bovenaan alleen wat verandert (oud → nieuw), rest ingeklapt; lijst standaard op "Te beoordelen" | open |
+| M5 | Instellingen: technische koppelingen in één ingeklapt blok "Koppelingen en beheer" | open |
+| M6 | Klanttevredenheid: resultaten voorop | open |
+| M7 | "Nieuwe klant" als knop i.p.v. altijd open formulier | open |
+| W1 | Eén woord per begrip (zeven woorden voor "klaar", vier voor goedkeuren) | open |
+| W2 | "Indexatie verwerken" niet én knop én soort actie | open |
+| W3 | Knoppen die zeggen wat ze doen ("Regels nu uitvoeren", "Vastleggen", "Opnieuw verwerken", …) | open |
+| W6 | Menu: volgorde naar gebruik, in twee groepen | open |
+| W7 | Uitleg korter en zonder jargon | open |
+| F3 | Knop "Periodes aanvullen" weg (de nachtelijke run doet het al; knop meldt altijd 0, B-082) | open |
+| F4 | Factuureisen van de klant als hint per regel op de facturatiepagina | open |
+
+**Keuze van Justin (er verdwijnt een veld, route of status, of het datamodel verandert) → onderdeel 4F**
+
+| ID | Voorstel | Status |
+|---|---|---|
+| D1 | Drie velden "wie bij de klant" op een inzet (contactpersoon, projectleider, leidinggevende) → één veld Projectleider | voor te leggen |
+| D2 | "Contractnummer (tekst)" → keuzelijst om een contract te koppelen | voor te leggen |
+| D3 | Einde van een inzet vastleggen: zeven plekken → één blok | voor te leggen |
+| D4 | Indexatie-/tariefformulier op vier plekken → alleen actie + inbox | voor te leggen |
+| D6 | Tevredenheidsformulieren versturen alleen via Acties; Klanttevredenheid toont resultaten | voor te leggen |
+| D8 | "Contract opvragen" en "Overeenkomst opvragen" → één soort actie | voor te leggen |
+| B3 | Tarief: de historie is de bron; op de inzet een knop "Tarief wijzigen" | voor te leggen |
+| B4 | Inzetstatus volgt uit de datums (5 statussen waarvan 4 voor de app hetzelfde zijn) | voor te leggen |
+| B5/B6 | Contractstatus en beoordelingsstatus uitrekenen i.p.v. bijhouden | voor te leggen |
+| R7 | Ontvanger van het tevredenheidsformulier kies je op de mailpagina (en die wordt onthouden) | voor te leggen |
+| R11 | Knop "Nieuwe inzet" (5 velden) zonder dat er een mail voor nodig is (B-105) | voor te leggen |
+| M1 | Inzetformulier: 20 velden → 9 in beeld, rest onder "Meer" | voor te leggen |
+| M3 | Acties: één kaart per inzet, kwartaalcontroles als afvinklijst, toewijzen als keuzelijst die direct opslaat | voor te leggen |
+| M4c | Inbox-beoordelen: velden die nooit gebruikt worden weg | voor te leggen |
+| M8 | Medewerkers en Inzetten samenvoegen | voor te leggen |
+| W4 | Statuslijsten inkorten | voor te leggen |
+| W5 | Drie soorten actie die nooit worden aangemaakt uit de lijst | voor te leggen |
+| F1 | Facturatie opent direct de huidige periode, pijltjes vorige/volgende | voor te leggen |
+| F2 | "Periode afronden/Heropenen" en de periodestatus weg | voor te leggen |
+| F5 | Ongebruikte kolommen in de facturatieregels opruimen | voor te leggen |
 
 ## Besluiten van Justin
 
