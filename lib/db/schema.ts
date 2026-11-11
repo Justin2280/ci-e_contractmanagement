@@ -103,6 +103,8 @@ export const actieSoort = pgEnum("actie_soort", [
   "indexatie_verwerken",
   "indexatie_voorstellen",
   "overeenkomst_opvragen",
+  "tevredenheid_medewerker",
+  "tevredenheid_jaarlijks",
 ]);
 
 export const actieStatus = pgEnum("actie_status", [
@@ -121,6 +123,7 @@ export const mailClassificatie = pgEnum("mail_classificatie", [
   "planning_update",
   "indexatie_akkoord",
   "inzetafspraak",
+  "klanttevredenheid",
 ]);
 
 export const verwerkStatus = pgEnum("verwerk_status", [
@@ -152,6 +155,18 @@ export const stijlBron = pgEnum("stijl_bron", [
 ]);
 
 export const periodeStatus = pgEnum("periode_status", ["open", "afgerond"]);
+
+/** Klanttevredenheid: medewerkerformulier (per inzet) of het algemene jaarlijkse formulier (per klant). */
+export const enqueteSoort = pgEnum("enquete_soort", ["medewerker", "jaarlijks"]);
+
+export const enqueteStatus = pgEnum("enquete_status", [
+  "klaar",
+  "verstuurd",
+  "ingevuld",
+  "andere_persoon",
+  "geen_reactie",
+  "overgeslagen",
+]);
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -232,6 +247,8 @@ export const contactpersonen = pgTable("contactpersonen", {
   email: text("email"),
   telefoon: text("telefoon"),
   rol: text("rol"),
+  /** Krijgt het jaarlijkse klanttevredenheidsformulier over CI-Engineers (bv. Nancy Hage bij VHB). */
+  enqueteJaarlijks: boolean("enquete_jaarlijks").notNull().default(false),
   createdAt: createdAt(),
 });
 
@@ -384,6 +401,8 @@ export const inzetten = pgTable(
       { onDelete: "set null" },
     ),
     leidinggevende: text("leidinggevende"),
+    /** Projectleider bij de klant die het klanttevredenheidsformulier over deze inzet krijgt (leert van wie hem invult). */
+    enqueteContactpersoonId: uuid("enquete_contactpersoon_id").references(() => contactpersonen.id, { onDelete: "set null" }),
     notities: text("notities"),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
@@ -433,6 +452,8 @@ export const acties = pgTable(
     emailInId: uuid("email_in_id").references(() => emailsIn.id, {
       onDelete: "cascade",
     }),
+    /** Klant-brede acties zonder inzet/contract (bv. het jaarlijkse tevredenheidsformulier). */
+    klantId: uuid("klant_id").references(() => klanten.id, { onDelete: "cascade" }),
     vervaldatum: date("vervaldatum"),
     status: actieStatus("status").notNull().default("open"),
     toegewezenUserId: uuid("toegewezen_user_id").references(() => users.id, {
@@ -565,15 +586,88 @@ export const deltaLinks = pgTable("delta_links", {
 });
 
 // ---------------------------------------------------------------------------
+// Klanttevredenheid
+// ---------------------------------------------------------------------------
+
+/** Eén uitnodiging: medewerkerformulier voor een inzet (per ronde) of het jaarlijkse formulier voor een klant. */
+export const enquetes = pgTable(
+  "enquetes",
+  {
+    id: id(),
+    soort: enqueteSoort("soort").notNull(),
+    /** medewerker:{inzetId}:{ronde} of jaarlijks:{klantId}:{jaar} */
+    dedupeKey: text("dedupe_key").notNull().unique(),
+    /** Datum waarop het formulier verstuurd hoort te worden (start + 1 maand, daarna jaarlijks; of de jaarlijkse datum). */
+    ronde: date("ronde").notNull(),
+    inzetId: uuid("inzet_id").references(() => inzetten.id, { onDelete: "cascade" }),
+    klantId: uuid("klant_id").references(() => klanten.id, { onDelete: "cascade" }),
+    medewerkerId: uuid("medewerker_id").references(() => medewerkers.id, { onDelete: "set null" }),
+    actieId: uuid("actie_id").references(() => acties.id, { onDelete: "set null" }),
+    /** Wie we aanschrijven (kan wijzigen als iemand laat weten dat een ander de juiste persoon is). */
+    contactpersoonId: uuid("contactpersoon_id").references(() => contactpersonen.id, { onDelete: "set null" }),
+    ontvangerNaam: text("ontvanger_naam"),
+    ontvangerEmail: text("ontvanger_email"),
+    onderwerp: text("onderwerp"),
+    status: enqueteStatus("status").notNull().default("klaar"),
+    verstuurdOp: timestamp("verstuurd_op", { withTimezone: true }),
+    /** Wie het formulier daadwerkelijk heeft ingevuld (uit het formulier zelf). */
+    ingevuldDoorNaam: text("ingevuld_door_naam"),
+    ingevuldDoorFunctie: text("ingevuld_door_functie"),
+    ingevuldOp: timestamp("ingevuld_op", { withTimezone: true }),
+    /** Interne vraag aan de medewerker wie de projectleider is (optioneel). */
+    medewerkerGevraagdOp: timestamp("medewerker_gevraagd_op", { withTimezone: true }),
+    /** Verloop: andere persoon genoemd, doorgestuurd, herinnerd, ... (nieuwste onderaan). */
+    logboek: jsonb("logboek").$type<Array<{ op: string; tekst: string }>>().notNull().default([]),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [index("enquetes_status_idx").on(t.soort, t.status)],
+);
+
+/** Een ingevuld formulier (uit de Power Automate-mail of een Excel-export van Forms). */
+export const enqueteReacties = pgTable(
+  "enquete_reacties",
+  {
+    id: id(),
+    soort: enqueteSoort("soort").notNull(),
+    formId: text("form_id").notNull(),
+    /** Reactie-ID in Forms; samen met formId uniek (voorkomt dubbel inlezen). */
+    externId: text("extern_id").notNull(),
+    ingediendOp: timestamp("ingediend_op", { withTimezone: true }),
+    naam: text("naam"),
+    functie: text("functie"),
+    organisatie: text("organisatie"),
+    medewerkerTekst: text("medewerker_tekst"),
+    projectTekst: text("project_tekst"),
+    /** Alle antwoorden in formuliervolgorde: vraag, type en antwoord. */
+    antwoorden: jsonb("antwoorden").$type<Array<{ vraag: string; type: string; antwoord: string | number | null }>>().notNull().default([]),
+    /** Gemiddelde van de sterren-vragen (1–5). */
+    gemiddelde: numeric("gemiddelde", { precision: 4, scale: 2 }),
+    nps: integer("nps"),
+    enqueteId: uuid("enquete_id").references(() => enquetes.id, { onDelete: "set null" }),
+    klantId: uuid("klant_id").references(() => klanten.id, { onDelete: "set null" }),
+    medewerkerId: uuid("medewerker_id").references(() => medewerkers.id, { onDelete: "set null" }),
+    inzetId: uuid("inzet_id").references(() => inzetten.id, { onDelete: "set null" }),
+    bron: text("bron").notNull(),
+    emailInId: uuid("email_in_id").references(() => emailsIn.id, { onDelete: "set null" }),
+    createdAt: createdAt(),
+  },
+  (t) => [uniqueIndex("enquete_reacties_extern_idx").on(t.formId, t.externId)],
+);
+
+// ---------------------------------------------------------------------------
 // Relations
 // ---------------------------------------------------------------------------
 
 export const medewerkersRelations = relations(medewerkers, ({ many }) => ({
   inzetten: many(inzetten),
+  enqueteReacties: many(enqueteReacties),
 }));
 
 export const klantenRelations = relations(klanten, ({ many }) => ({
   contactpersonen: many(contactpersonen),
+  enquetes: many(enquetes),
+  enqueteReacties: many(enqueteReacties),
   projecten: many(projecten),
   contracten: many(contracten),
   inzetten: many(inzetten),
@@ -614,6 +708,11 @@ export const inzettenRelations = relations(inzetten, ({ one, many }) => ({
     fields: [inzetten.contactpersoonId],
     references: [contactpersonen.id],
   }),
+  enqueteContactpersoon: one(contactpersonen, {
+    fields: [inzetten.enqueteContactpersoonId],
+    references: [contactpersonen.id],
+  }),
+  enquetes: many(enquetes),
   tarieven: many(tarieven),
   acties: many(acties),
   facturatieRegels: many(facturatieRegels),
@@ -629,8 +728,26 @@ export const actiesRelations = relations(acties, ({ one, many }) => ({
   contract: one(contracten, { fields: [acties.contractId], references: [contracten.id] }),
   medewerker: one(medewerkers, { fields: [acties.medewerkerId], references: [medewerkers.id] }),
   emailIn: one(emailsIn, { fields: [acties.emailInId], references: [emailsIn.id] }),
+  klant: one(klanten, { fields: [acties.klantId], references: [klanten.id] }),
   toegewezen: one(users, { fields: [acties.toegewezenUserId], references: [users.id] }),
   emailsUit: many(emailsUit),
+  enquetes: many(enquetes),
+}));
+
+export const enquetesRelations = relations(enquetes, ({ one, many }) => ({
+  inzet: one(inzetten, { fields: [enquetes.inzetId], references: [inzetten.id] }),
+  klant: one(klanten, { fields: [enquetes.klantId], references: [klanten.id] }),
+  medewerker: one(medewerkers, { fields: [enquetes.medewerkerId], references: [medewerkers.id] }),
+  actie: one(acties, { fields: [enquetes.actieId], references: [acties.id] }),
+  contactpersoon: one(contactpersonen, { fields: [enquetes.contactpersoonId], references: [contactpersonen.id] }),
+  reacties: many(enqueteReacties),
+}));
+
+export const enqueteReactiesRelations = relations(enqueteReacties, ({ one }) => ({
+  enquete: one(enquetes, { fields: [enqueteReacties.enqueteId], references: [enquetes.id] }),
+  klant: one(klanten, { fields: [enqueteReacties.klantId], references: [klanten.id] }),
+  medewerker: one(medewerkers, { fields: [enqueteReacties.medewerkerId], references: [medewerkers.id] }),
+  inzet: one(inzetten, { fields: [enqueteReacties.inzetId], references: [inzetten.id] }),
 }));
 
 export const emailsUitRelations = relations(emailsUit, ({ one }) => ({

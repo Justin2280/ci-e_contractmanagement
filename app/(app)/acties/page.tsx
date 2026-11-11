@@ -31,7 +31,7 @@ export default async function ActiesPage({ searchParams }: PageProps<"/acties">)
   const [rows, users] = await Promise.all([
     db.query.acties.findMany({
       where: view === "open" ? inArray(acties.status, ["open", "conceptmail_klaar", "verstuurd"]) : undefined,
-      with: { inzet: { with: { medewerker: true, klant: true, project: true, contactpersoon: true } }, contract: { with: { parent: true } }, toegewezen: true, emailsUit: true },
+      with: { inzet: { with: { medewerker: true, klant: true, project: true, contactpersoon: true } }, contract: { with: { parent: true } }, klant: true, toegewezen: true, emailsUit: true },
       orderBy: view === "open" ? [asc(acties.vervaldatum)] : [desc(acties.updatedAt)],
       limit: 300,
     }),
@@ -64,7 +64,7 @@ export default async function ActiesPage({ searchParams }: PageProps<"/acties">)
           const late = a.vervaldatum && a.vervaldatum < today && ["open", "conceptmail_klaar"].includes(a.status);
           const opvolgen = a.status === "verstuurd" && a.opvolgenOp && a.opvolgenOp <= today;
           const indexatieJaar = a.dedupeKey?.match(/:(\d{4})$/)?.[1] ?? today.slice(0, 4);
-          const canMail = ["verlenging_uitvragen", "indexatie_aanvragen", "indexatie_voorstellen", "indexatie_verwerken", "contract_opvragen", "overeenkomst_opvragen", "einddatum_controleren", "einde_beoordelen"].includes(a.soort) && (a.inzet || a.contract);
+          const canMail = ["verlenging_uitvragen", "indexatie_aanvragen", "indexatie_voorstellen", "indexatie_verwerken", "contract_opvragen", "overeenkomst_opvragen", "einddatum_controleren", "einde_beoordelen", "tevredenheid_medewerker", "tevredenheid_jaarlijks"].includes(a.soort) && (a.inzet || a.contract || a.klant);
           return (
             <Card key={a.id} id={a.id} className={cn(focus === a.id && "ring-2 ring-primary", late && "border-red-300", opvolgen && "border-amber-300")}>
               <CardContent className="flex flex-wrap items-start justify-between gap-4 py-4">
@@ -94,7 +94,17 @@ export default async function ActiesPage({ searchParams }: PageProps<"/acties">)
                         Contract {a.contract.nummer}
                       </Link>
                     ) : null}
-                    {a.inzet?.contactpersoon ? <span>Contact: {a.inzet.contactpersoon.naam}</span> : null}
+                    {a.klant && !a.inzet ? (
+                      <Link href={`/klanten/${a.klant.id}`} className="hover:underline">
+                        Klant {a.klant.naam}
+                      </Link>
+                    ) : null}
+                    {a.soort.startsWith("tevredenheid_") ? (
+                      <Link href="/tevredenheid" className="hover:underline">
+                        Klanttevredenheid
+                      </Link>
+                    ) : null}
+                    {a.inzet?.contactpersoon && !a.soort.startsWith("tevredenheid_") ? <span>Contact: {a.inzet.contactpersoon.naam}</span> : null}
                     {a.emailsUit.length ? (
                       <Link href={`/acties/${a.id}/mail`} className="hover:underline">
                         Conceptmail ({a.emailsUit[a.emailsUit.length - 1].status})

@@ -41,6 +41,22 @@ export const ACTIE_SOORT_LABELS: Record<string, string> = {
   indexatie_verwerken: "Indexatie verwerken (correctie)",
   indexatie_voorstellen: "Tariefverhoging voorstellen",
   overeenkomst_opvragen: "Overeenkomst opvragen",
+  tevredenheid_medewerker: "Klanttevredenheid medewerker",
+  tevredenheid_jaarlijks: "Klanttevredenheid jaarlijks",
+};
+
+export const ENQUETE_STATUS_LABELS: Record<string, string> = {
+  klaar: "Klaar om te versturen",
+  verstuurd: "Verstuurd",
+  ingevuld: "Ingevuld",
+  andere_persoon: "Andere persoon genoemd",
+  geen_reactie: "Geen reactie",
+  overgeslagen: "Overgeslagen",
+};
+
+export const ENQUETE_SOORT_LABELS: Record<string, string> = {
+  medewerker: "Medewerker",
+  jaarlijks: "Jaarlijks",
 };
 
 export const KLANT_SOORT_LABELS: Record<string, string> = {

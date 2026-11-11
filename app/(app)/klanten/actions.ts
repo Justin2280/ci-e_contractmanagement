@@ -96,6 +96,27 @@ export async function addContactpersoon(_prev: ActionState, formData: FormData):
   return { ok: true, message: "Contactpersoon toegevoegd" };
 }
 
+const ContactUpdateSchema = z.object({
+  id: z.string().uuid(),
+  klantId: z.string().uuid(),
+  naam: z.string().trim().min(1),
+  email: opt,
+  telefoon: opt,
+  rol: opt,
+});
+
+/** Contactpersoon bijwerken (o.a. e-mailadres aanvullen en het jaarlijkse tevredenheidsformulier aan/uit). */
+export async function updateContactpersoon(formData: FormData) {
+  await requireUser();
+  const parsed = ContactUpdateSchema.safeParse(Object.fromEntries(formData.entries()));
+  if (!parsed.success) return;
+  const { id, klantId, ...d } = parsed.data;
+  const jaarlijks = formData.get("enqueteJaarlijks") === "on";
+  await db.update(contactpersonen).set({ ...d, enqueteJaarlijks: jaarlijks }).where(eq(contactpersonen.id, id));
+  revalidatePath(`/klanten/${klantId}`);
+  revalidatePath("/tevredenheid");
+}
+
 export async function deleteContactpersoon(formData: FormData) {
   await requireUser();
   const id = String(formData.get("id"));

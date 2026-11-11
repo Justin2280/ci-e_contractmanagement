@@ -78,6 +78,13 @@
       "when": 1790946920146,
       "tag": "0010_nieuw_zuid_financieel_contact",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1794225584991,
+      "tag": "0011_klanttevredenheid",
+      "breakpoints": true
     }
   ]
 }

@@ -21,6 +21,11 @@ import { afzenderUitThread, eerdereCorrespondentie } from "@/lib/acties/correspo
 import { indexatieKwartaalVan, indexatieReferentie } from "@/lib/indexatie/kwartaal";
 import { dagdeel, effectieveStijl } from "@/lib/llm/default-stijl";
 import { ververseIndexatieAanvraag } from "@/lib/rules/run";
+import { enqueteNaVersturen, maakEnqueteConcept } from "@/lib/tevredenheid/service";
+import { metHandtekening } from "@/lib/llm/default-stijl";
+import { sharedMailbox } from "@/lib/graph/client";
+
+const TEVREDENHEID = ["tevredenheid_medewerker", "tevredenheid_jaarlijks"];
 
 type StijlSoort = "algemeen" | "verlenging" | "indexatie" | "contract_opvragen";
 
@@ -42,6 +47,30 @@ export async function generateConcept(_prev: ActionState, formData: FormData): P
   const actieId = String(formData.get("actieId"));
   const extraInstructie = String(formData.get("instructie") ?? "").trim() || null;
   try {
+    // Klanttevredenheid: vaste tekst met de (vooraf ingevulde) formulierlink, geen LLM nodig.
+    const soortActie = await db.query.acties.findFirst({ where: eq(acties.id, actieId), columns: { soort: true } });
+    if (soortActie && TEVREDENHEID.includes(soortActie.soort)) {
+      const settings = await getSettings();
+      const eerder = await db.query.emailsUit.findFirst({ where: and(eq(emailsUit.actieId, actieId), eq(emailsUit.status, "verstuurd")), columns: { id: true } });
+      const concept = await maakEnqueteConcept(actieId, { settings, dagdeel: dagdeel(), herinnering: Boolean(eerder) });
+      await db.insert(emailsUit).values({
+        actieId,
+        inzetId: (await db.query.acties.findFirst({ where: eq(acties.id, actieId), columns: { inzetId: true } }))?.inzetId ?? null,
+        aan: concept.aan,
+        cc: null,
+        onderwerp: concept.onderwerp,
+        body: metHandtekening(concept.body, effectieveStijl(settings).handtekening),
+        status: "concept",
+        aangemaaktDoorUserId: user.id,
+      });
+      await db.update(acties).set({ status: "conceptmail_klaar" }).where(and(eq(acties.id, actieId), eq(acties.status, "open")));
+      revalidate(actieId);
+      const waarschuwingen = [
+        concept.aan ? null : "geen ontvanger bekend: vul het e-mailadres van de projectleider in",
+        concept.prefillAan ? null : "in Forms staat ‘vooraf ingevulde antwoorden’ uit, dus medewerker/project zijn niet vooraf ingevuld",
+      ].filter(Boolean);
+      return { ok: true, message: `Concept klaargezet${waarschuwingen.length ? ` (${waarschuwingen.join("; ")})` : ""}` };
+    }
     // Een indexatieverzoek noemt de medewerkers uit de omschrijving van de actie. Die wordt dagelijks ververst, maar kan
     // tot de volgende run verouderd zijn (bv. net na een deploy): ververs hem eerst, zodat er niemand in staat die niet meer werkt.
     const eerste = await loadActieMetContext(actieId);
@@ -185,15 +214,21 @@ export async function saveConcept(_prev: ActionState, formData: FormData): Promi
   const to = splitAddresses(d.aan);
   if (to.length === 0) return { ok: false, message: "Vul een ontvanger in" };
   const mailbox = user.mailboxUpn ?? user.email;
+  // Tevredenheidsuitnodiging: antwoorden ("ik ben niet de juiste persoon") gaan naar de afzender én de gedeelde
+  // mailbox, zodat de mailbox ze kan lezen en bijhouden; de communicatie zelf blijft bij de afzender.
+  const actieSoort = (await db.query.acties.findFirst({ where: eq(acties.id, d.actieId), columns: { soort: true } }))?.soort ?? "";
+  const isTevredenheid = TEVREDENHEID.includes(actieSoort);
+  const replyTo = isTevredenheid && process.env.GRAPH_SHARED_MAILBOX ? [mailbox, sharedMailbox()] : undefined;
   try {
     if (d.mode === "outlook") {
-      const draft = await createDraft(mailbox, { to, cc: splitAddresses(d.cc), subject: d.onderwerp, bodyText: d.body });
+      const draft = await createDraft(mailbox, { to, cc: splitAddresses(d.cc), subject: d.onderwerp, bodyText: d.body, replyTo });
+      if (isTevredenheid) await enqueteNaVersturen(d.actieId, { aan: to, onderwerp: d.onderwerp, verstuurd: false });
       await db.update(emailsUit).set({ status: "in_outlook", outlookDraftId: draft.id, outlookMailbox: mailbox, definitieveBody: d.body }).where(eq(emailsUit.id, d.id));
       await db.insert(auditLog).values({ userId: user.id, actie: "mail.outlook_concept", entiteit: "email_uit", entiteitId: d.id, details: { mailbox } });
       revalidate(d.actieId);
       return { ok: true, message: `Concept staat in de map Concepten van ${mailbox}` };
     }
-    await sendMail(mailbox, { to, cc: splitAddresses(d.cc), subject: d.onderwerp, bodyText: d.body });
+    await sendMail(mailbox, { to, cc: splitAddresses(d.cc), subject: d.onderwerp, bodyText: d.body, replyTo });
     await db.update(emailsUit).set({ status: "verstuurd", verstuurdOp: new Date(), outlookMailbox: mailbox, definitieveBody: d.body }).where(eq(emailsUit.id, d.id));
     // Opvolging: zonder reactie binnen N dagen komt de actie terug als "op te volgen".
     const settings = await getSettings();
@@ -208,6 +243,7 @@ export async function saveConcept(_prev: ActionState, formData: FormData): Promi
         herinneringen: isHerinnering ? (huidig?.herinneringen ?? 0) + 1 : (huidig?.herinneringen ?? 0),
       })
       .where(eq(acties.id, d.actieId));
+    if (isTevredenheid) await enqueteNaVersturen(d.actieId, { aan: to, onderwerp: d.onderwerp, verstuurd: true });
     await db.insert(auditLog).values({ userId: user.id, actie: "mail.verstuurd", entiteit: "email_uit", entiteitId: d.id, details: { to, mailbox } });
     revalidate(d.actieId);
     return { ok: true, message: `Verstuurd vanuit ${mailbox}` };

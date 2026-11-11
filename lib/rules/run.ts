@@ -11,6 +11,9 @@ import { activeerGeplandeTarieven, tariefStanden } from "@/lib/inzetten/tarieven
 import { cbsIndexcijfer, cbsPercentage, cbsTekst } from "@/lib/indexatie/cbs";
 import { indexatieKwartaalVan } from "@/lib/indexatie/kwartaal";
 import { indexatieMonitor } from "@/lib/indexatie/monitor";
+import { formDefinitie, syncEnquetes, type SyncResultaat } from "@/lib/tevredenheid/service";
+import { graphConfigured, sharedMailbox } from "@/lib/graph/client";
+import { sendMail } from "@/lib/graph/mail";
 
 /** Laadt de actuele stand uit de database en laat de pure regels-engine bepalen welke acties er horen te zijn. */
 async function bepaalVoorstellen(today: string) {
@@ -229,5 +232,20 @@ export async function runDailyRules(opts: { today?: string } = {}) {
     console.error("Indexatie-bewaking mislukt", err);
   }
 
-  return { voorstellen: voorstellen.length, aangemaakt, heropend, gesloten, tarievenGeactiveerd: geactiveerd.bijgewerkt.length, cbsBekend };
+  // Klanttevredenheid: formulierdefinities verversen (vraag-ID's voor de links) en uitnodigingen klaarzetten/bijhouden.
+  let tevredenheid: SyncResultaat | { fout: string } | null = null;
+  try {
+    const settings = await getSettings();
+    await Promise.allSettled([formDefinitie("medewerker", settings, { vernieuw: true }), formDefinitie("jaarlijks", settings, { vernieuw: true })]);
+    tevredenheid = await syncEnquetes(settings, {
+      today,
+      // Interne vraag aan de medewerker gaat vanuit de gedeelde mailbox (intern, mag de mailbox zelf versturen).
+      stuurIntern: graphConfigured() ? (aan, onderwerp, body) => sendMail(sharedMailbox(), { to: [aan], subject: onderwerp, bodyText: body }) : undefined,
+    });
+  } catch (err) {
+    console.error("Klanttevredenheid mislukt", err);
+    tevredenheid = { fout: err instanceof Error ? err.message : String(err) };
+  }
+
+  return { voorstellen: voorstellen.length, aangemaakt, heropend, gesloten, tarievenGeactiveerd: geactiveerd.bijgewerkt.length, cbsBekend, tevredenheid };
 }

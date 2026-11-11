@@ -10,7 +10,7 @@ import { graphConfigured } from "@/lib/graph/client";
 import { llmConfigured, LLM_MODEL } from "@/lib/llm/client";
 import { fmtDate } from "@/lib/format";
 import { getCurrentUser } from "@/lib/auth/current-user";
-import { RegelsForm, StijlForm, VoorbeeldForm, UserForm, RenewButton, SentImport, MaandoverzichtButton } from "./forms";
+import { RegelsForm, TevredenheidForm, StijlForm, VoorbeeldForm, UserForm, RenewButton, SentImport, MaandoverzichtButton } from "./forms";
 import { bouwMaandoverzicht, laadOverzichtInput } from "@/lib/reminders/maandoverzicht";
 import { deleteVoorbeeld, toggleVoorbeeld } from "./actions";
 
@@ -92,6 +92,19 @@ export default async function InstellingenPage() {
             <div dangerouslySetInnerHTML={{ __html: maandoverzicht.html }} />
           </div>
           <MaandoverzichtButton enabled={graphConfigured()} ontvangers={settings.maandoverzichtOntvangers} />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Klanttevredenheid</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <p className="text-sm text-muted-foreground">
+            Een week vóór de ronde staat bij Acties een uitnodiging klaar (mail in jouw stijl met de vooraf ingevulde formulierlink); jij verstuurt hem. Antwoorden en ingevulde formulieren
+            worden bijgehouden op de pagina Klanttevredenheid, waar ook de koppeling met Power Automate staat uitgelegd.
+          </p>
+          <TevredenheidForm settings={settings} />
         </CardContent>
       </Card>
 
