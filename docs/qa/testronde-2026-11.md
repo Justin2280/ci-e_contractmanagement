@@ -1,6 +1,6 @@
 # Testronde november 2026: integriteit, soundness en gebruiksgemak
 
-Voortgangsindex. **Hervatten:** lees dit bestand en ga verder bij het eerste onderdeel dat niet `klaar` is. Na elke golf wordt dit bestand bijgewerkt, gecommit en gepusht.
+Voortgangsindex. **Hervatten:** lees dit bestand en ga verder bij het eerste onderdeel dat niet `klaar` is. Fix-agents werken op een eigen branch (`qa-fix/…`) in een worktree en committen daar; de orchestrator neemt hun commits over op de PR-branch (cherry-pick), draait de volledige controle en zet de bevindingen op `gefixt`. Staat een fix-onderdeel op `bezig` en bestaat de branch met commits, neem die dan eerst over. Na elke golf wordt dit bestand bijgewerkt, gecommit en gepusht.
 
 - Branch: `claude/contract-management-automation-7rcynv` (gestart vanaf `main` na merge van PR #24)
 - Orchestrator: Fable. Subagents: Opus (audits, 3D, fixes) en Sonnet (browsertests 3A–3C, hertest).
@@ -21,7 +21,12 @@ Voortgangsindex. **Hervatten:** lees dit bestand en ga verder bij het eerste ond
 | 3B | Browser: dashboard, inzetten, medewerkers, klanten, contracten | Sonnet | klaar (rapport: `rapporten/3B.md`) |
 | 3C | Browser: inbox/beoordelen, acties, facturatie, instellingen | Sonnet | open |
 | 3D | Eenvoud en helderheid van de hele UI (dubbelingen, één bron van waarheid, één weg per taak) | Opus | open |
-| 4 | Bevindingen bevestigen, indelen, fixen met tests | orchestrator + Opus | open |
+| 4A | Fixes klanttevredenheid (branch `qa-fix/tevredenheid`): B-003 t/m B-038, B-059, B-088, B-090, B-092, B-094 | Opus | bezig |
+| 4B | Fixes toegang en veiligheid (branch `qa-fix/veiligheid`): B-001, B-058, B-060 t/m B-064 | Opus | bezig |
+| 4C | Fixes regels, indexatie, datums (B-039 t/m B-057, B-103) | Opus | open |
+| 4D | Fixes beoordelen, intake, tarieven, facturatie (B-065 t/m B-085) | Opus | open |
+| 4E | Fixes UI en bruikbaarheid (B-087, B-089, B-091, B-093, B-095 t/m B-110 + kleine punten uit 3C/3D) | Opus | open |
+| 4F | Keuzelijst voor Justin uit 3D (wat weg kan / samengevoegd wordt) | orchestrator | open |
 | 5 | Hertest, rooktest, eindcontrole in de draaiende app, slotrapport | Sonnet + orchestrator | open |
 
 ## Stand na golf 0 (11 november 2026)
